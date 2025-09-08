@@ -14,10 +14,8 @@ from PIL import Image
 # CONFIGURAÇÃO DA PÁGINA
 # ==============================
 st.set_page_config(
-    #page_title="Wave - Sua Música, Seu Mundo",
-    #page_icon="🌊",
-    page_title="Manutenção",
-    page_icon="⚙️",
+    page_title="Wave - Sua Música, Seu Mundo",
+    page_icon="🌊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -269,25 +267,24 @@ def play_song(song):
     current_id = st.session_state.current_track["id"] if st.session_state.current_track else None
     new_id = song["id"]
     
-    # Se for música diferente, atualizar e forçar reconstrução
+    # Sempre forçar rerun quando uma nova música é selecionada
+    st.session_state.current_track = song
+    st.session_state.is_playing = True
+    
+    # Adicionar timestamp único para forçar reconstrução
+    st.session_state.player_timestamp = time.time()
+    
+    if st.session_state.firebase_connected:
+        try:
+            ref = db.reference(f"/songs/{song['id']}/play_count")
+            current_count = ref.get() or 0
+            ref.set(current_count + 1)
+        except Exception as e:
+            st.error(f"Erro ao atualizar play_count: {e}")
+    
+    # Forçar rerun apenas se for música diferente
     if current_id != new_id:
-        st.session_state.current_track = song
-        st.session_state.is_playing = True
-        
-        if st.session_state.firebase_connected:
-            try:
-                ref = db.reference(f"/songs/{song['id']}/play_count")
-                current_count = ref.get() or 0
-                ref.set(current_count + 1)
-            except Exception as e:
-                st.error(f"Erro ao atualizar play_count: {e}")
-        
-        # Forçar rerun apenas se for música diferente
         st.rerun()
-    else:
-        # Se for a mesma música, apenas toggle play/pause
-        st.session_state.is_playing = not st.session_state.is_playing
-        # Não forçar rerun para a mesma música
     
 
 
@@ -412,10 +409,65 @@ def render_player():
     artist = track.get("artist", "Sem artista")
     audio_src = track.get("audio_url", "")
     
-    player_id = f"audio_player_{int(time.time() * 1000)}"
+    # Criar HTML para o iframe com melhor estilização
+    audio_html = f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                background: transparent;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 40px;
+            }}
+            audio {{
+                width: 300px;
+                height: 40px;
+                outline: none;
+            }}
+            audio::-webkit-media-controls-panel {{
+                background-color: #1DB954;
+            }}
+            audio::-webkit-media-controls-play-button {{
+                background-color: #000;
+                border-radius: 50%;
+            }}
+        </style>
+    </head>
+    <body>
+        <audio controls {'autoplay' if st.session_state.is_playing else ''}>
+            <source src="{audio_src}" type="audio/mpeg">
+        </audio>
+        <script>
+            // Tentar forçar autoplay com interação simulada
+            document.addEventListener('DOMContentLoaded', function() {{
+                const audio = document.querySelector('audio');
+                if (audio && {str(st.session_state.is_playing).lower()}) {{
+                    // Tentar play com tratamento de erro
+                    const playPromise = audio.play();
+                    if (playPromise !== undefined) {{
+                        playPromise.catch(error => {{
+                            console.log('Autoplay prevented:', error);
+                            // Mostrar botão de play se autoplay falhar
+                            audio.controls = true;
+                        }});
+                    }}
+                }}
+            }});
+        </script>
+    </body>
+    </html>
+    '''
+    
+    # Codificar para data URL
+    audio_html_encoded = base64.b64encode(audio_html.encode()).decode()
     
     player_html = f"""
-    <div id="{player_id}" style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.8);
+    <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.8);
                 padding:15px;border-radius:15px;display:flex;align-items:center;gap:15px;z-index:999;
                 box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);">
         <img src="{cover_url}" width="60" height="60" style="border-radius:10px;object-fit:cover"/>
@@ -423,28 +475,13 @@ def render_player():
             <div style="font-weight:bold;color:white;font-size:16px;margin-bottom:5px">{title}</div>
             <div style="color:#ccc;font-size:14px">{artist}</div>
         </div>
-        <audio id="audio_element_{player_id}" controls style="width:300px;height:40px;margin-left:auto;">
-            <source src="{audio_src}" type="audio/mpeg">
-        </audio>
-        {'<button onclick="playAudio()" style="background:#1DB954;color:white;border:none;padding:10px;border-radius:5px;margin-left:10px;">▶️ Play</button>' if not st.session_state.is_playing else ''}
+        <iframe src="data:text/html;base64,{audio_html_encoded}" 
+                style="width:320px;height:50px;border:none;margin-left:auto;border-radius:8px;
+                       overflow:hidden;"></iframe>
     </div>
     """
     
     st.markdown(player_html, unsafe_allow_html=True)
-    
-    st.markdown(f"""
-    <script>
-    function playAudio() {{
-        const audio = document.querySelector('#audio_element_{player_id}');
-        if (audio) {{
-            audio.play().catch(e => console.log('Play failed:', e));
-        }}
-    }}
-    
-    // Tentar autoplay se necessário
-    {'setTimeout(playAudio, 100);' if st.session_state.is_playing else ''}
-    </script>
-    """, unsafe_allow_html=True)
     
 # ==============================
 # SIDEBAR
@@ -632,39 +669,5 @@ h1, h2, h3, h4, h5, h6 {
 .stMarkdown {
     color: white;
 }
-
-/* Estilos para o player de áudio */
-audio {
-    border-radius: 10px;
-    background-color: #1DB954;
-}
-
-audio::-webkit-media-controls-panel {
-    background-color: #1DB954;
-}
-
-audio::-webkit-media-controls-play-button {
-    background-color: #000;
-    border-radius: 50%;
-}
-
-audio::-webkit-media-controls-current-time-display,
-audio::-webkit-media-controls-time-remaining-display {
-    color: #000;
-    font-weight: bold;
-}
-
-/* Remover scrollbars de iframes */
-iframe {
-    overflow: hidden;
-}
-
-/* Melhorar a aparência geral */
-div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stVerticalBlock"]) {
-    padding-bottom: 80px;
-}
-
 </style>
 """, unsafe_allow_html=True)
-
-
