@@ -370,6 +370,40 @@ def show_request_music_section():
                 else:
                     st.error("❌ Erro ao enviar pedido. Tente novamente.")
 
+
+# ==============================
+# RENDER PLAYER COM AUTOPLAY
+# ==============================
+def render_player():
+    track = st.session_state.current_track
+    if not track:
+        st.info("🔍 Escolha uma música para tocar.")
+        return
+
+    audio_src = track.get("audio_url", "")
+    cover = track.get("image_url", "https://via.placeholder.com/80x80?text=Sem+Imagem")
+    title = track.get("title", "Sem título")
+    artist = track.get("artist", "Sem artista")
+    duration = track.get("duration", "0:00")
+    autoplay_attr = "autoplay" if st.session_state.is_playing else ""
+
+    player_html = f"""
+    <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
+                padding:10px;border-radius:12px;display:flex;align-items:center;gap:10px;z-index:999;">
+        <img src="{cover}" width="50" height="50" style="border-radius:8px"/>
+        <div>
+            <div style="font-weight:bold;color:white">{title}</div>
+            <div style="color:#ccc;font-size:12px">{artist}</div>
+        </div>
+        <audio controls {autoplay_attr} style="margin-left:auto;">
+            <source src="{audio_src}" type="audio/mpeg">
+            Seu navegador não suporta o elemento de áudio.
+        </audio>
+    </div>
+    """
+    st.markdown(player_html, unsafe_allow_html=True)
+
+
 # ==============================
 # SIDEBAR
 # ==============================
@@ -565,36 +599,4 @@ h1, h2, h3, h4, h5, h6 {
 </style>
 """, unsafe_allow_html=True)
 
-
-# ==============================
-# RENDER PLAYER COM AUTOPLAY
-# ==============================
-def render_player():
-    track = st.session_state.current_track
-    if not track:
-        st.info("🔍 Escolha uma música para tocar.")
-        return
-
-    audio_src = track.get("audio_url", "")
-    cover = track.get("image_url", "https://via.placeholder.com/80x80?text=Sem+Imagem")
-    title = track.get("title", "Sem título")
-    artist = track.get("artist", "Sem artista")
-    duration = track.get("duration", "0:00")
-    autoplay_attr = "autoplay" if st.session_state.is_playing else ""
-
-    player_html = f"""
-    <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
-                padding:10px;border-radius:12px;display:flex;align-items:center;gap:10px;z-index:999;">
-        <img src="{cover}" width="50" height="50" style="border-radius:8px"/>
-        <div>
-            <div style="font-weight:bold;color:white">{title}</div>
-            <div style="color:#ccc;font-size:12px">{artist}</div>
-        </div>
-        <audio controls {autoplay_attr} style="margin-left:auto;">
-            <source src="{audio_src}" type="audio/mpeg">
-            Seu navegador não suporta o elemento de áudio.
-        </audio>
-    </div>
-    """
-    st.markdown(player_html, unsafe_allow_html=True)
 
