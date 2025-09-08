@@ -10,6 +10,16 @@ from io import BytesIO
 from PIL import Image
 
 
+# ==============================
+# CONFIGURAÇÃO DA PÁGINA
+# ==============================
+st.set_page_config(
+    page_title="Wave - Sua Música, Seu Mundo",
+    page_icon="🌊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 st.markdown("""
 <script>
 // Função para desbloquear áudio com interação simulada
@@ -44,17 +54,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 """, unsafe_allow_html=True)
 
-
-
-# ==============================
-# CONFIGURAÇÃO DA PÁGINA
-# ==============================
-st.set_page_config(
-    page_title="Wave - Sua Música, Seu Mundo",
-    page_icon="🌊",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # ==============================
 # ESTADO DA SESSÃO
