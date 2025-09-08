@@ -267,23 +267,24 @@ def play_song(song):
     current_id = st.session_state.current_track["id"] if st.session_state.current_track else None
     new_id = song["id"]
     
-    # Se for música diferente, atualizar e forçar reconstrução
-    if current_id != new_id:
-        st.session_state.current_track = song
-        st.session_state.is_playing = True
-        # Forçar rerun apenas se for música diferente
-        st.rerun()
-    else:
-        # Se for a mesma música, apenas toggle play/pause
-        st.session_state.is_playing = not st.session_state.is_playing
+    # Sempre forçar rerun quando uma nova música é selecionada
+    st.session_state.current_track = song
+    st.session_state.is_playing = True
     
-    if st.session_state.firebase_connected and st.session_state.is_playing:
+    # Adicionar timestamp único para forçar reconstrução
+    st.session_state.player_timestamp = time.time()
+    
+    if st.session_state.firebase_connected:
         try:
             ref = db.reference(f"/songs/{song['id']}/play_count")
             current_count = ref.get() or 0
             ref.set(current_count + 1)
         except Exception as e:
             st.error(f"Erro ao atualizar play_count: {e}")
+    
+    # Forçar rerun apenas se for música diferente
+    if current_id != new_id:
+        st.rerun()
     
 
 
