@@ -1,4 +1,3 @@
-import streamlit.components.v1 as components
 import streamlit as st
 import firebase_admin
 import requests
@@ -409,8 +408,66 @@ def render_player():
     title = track.get("title", "Sem título")
     artist = track.get("artist", "Sem artista")
     audio_src = track.get("audio_url", "")
+    
+    # Criar HTML para o iframe com melhor estilização
+    audio_html = f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                background: transparent;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 40px;
+            }}
+            audio {{
+                width: 300px;
+                height: 40px;
+                outline: none;
+            }}
+            audio::-webkit-media-controls-panel {{
+                background-color: #1DB954;
+            }}
+            audio::-webkit-media-controls-play-button {{
+                background-color: #1DB954 !important;
+                border-radius: 50%;
+                box-shadow: 0 0 8px rgba(0,0,0,0.4);
+                border: 1px solid #1ed760;
+            }}
 
-    autoplay_flag = "autoplay" if st.session_state.is_playing else ""
+        </style>
+    </head>
+    <body>
+        <audio controls {'autoplay' if st.session_state.is_playing else ''}>
+            <source src="{audio_src}" type="audio/mpeg">
+        </audio>
+        <script>
+            // Tentar forçar autoplay com interação simulada
+            document.addEventListener('DOMContentLoaded', function() {{
+                const audio = document.querySelector('audio');
+                if (audio && {str(st.session_state.is_playing).lower()}) {{
+                    // Tentar play com tratamento de erro
+                    const playPromise = audio.play();
+                    if (playPromise !== undefined) {{
+                        playPromise.catch(error => {{
+                            console.log('Autoplay prevented:', error);
+                            // Mostrar botão de play se autoplay falhar
+                            audio.controls = true;
+                        }});
+                    }}
+                }}
+            }});
+        </script>
+    </body>
+    </html>
+    '''
+    
+    # Codificar para data URL
+    audio_html_encoded = base64.b64encode(audio_html.encode()).decode()
     
     player_html = f"""
     <div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
@@ -423,28 +480,19 @@ def render_player():
             <div style="font-weight:bold;color:white;font-size:16px;margin-bottom:5px">{title}</div>
             <div style="color:#ccc;font-size:14px">{artist}</div>
         </div>
+        <iframe src="data:text/html;base64,{audio_html_encoded}" 
+                style="width:320px;height:50px;border:none;margin-left:auto;border-radius:8px;
+                       overflow:hidden;"></iframe>
     </div>
-
-    <script>
-        const audio = document.getElementById("wave-player");
-        if (audio && {str(st.session_state.is_playing).lower()}) {{
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {{
-                playPromise.catch(error => {{
-                    console.log("Autoplay bloqueado: ", error);
-                }});
-            }}
-        }}
-    </script>
     """
-    components.html(html, height=100, scrolling=False)
-
-
+    
+    st.markdown(player_html, unsafe_allow_html=True)
+    
 # ==============================
 # SIDEBAR
 # ==============================
 with st.sidebar:
-    st.title("🌊 Wave")
+    st.title("🌊 Wave Song")
     st.success("✅ Online" if st.session_state.firebase_connected else "⚠️ Offline")
 
     if st.session_state.current_track:
@@ -463,6 +511,9 @@ with st.sidebar:
         st.caption(f"Duração: {song.get('duration', 'N/A')}")
 
 
+        if song.get("audio_url"):
+            render_player()
+
     else:
         st.info("🔍 Escolha uma música")
 
@@ -478,8 +529,7 @@ with st.sidebar:
         st.session_state.current_page = "add"
         st.session_state.show_request_form = False
 
-if song.get("audio_url"):
-    render_player()
+
 
 # ==============================
 # PÁGINAS
