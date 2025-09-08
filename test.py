@@ -467,9 +467,11 @@ def render_player():
     audio_html_encoded = base64.b64encode(audio_html.encode()).decode()
     
     player_html = f"""
-    <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.8);
-                padding:15px;border-radius:15px;display:flex;align-items:center;gap:15px;z-index:999;
-                box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);">
+    <div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
+                background:rgba(0,0,0,0.8);padding:15px;border-radius:15px;
+                display:flex;align-items:center;gap:15px;z-index:999;
+                box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);
+                width:600px; max-width:90%;">
         <img src="{cover_url}" width="60" height="60" style="border-radius:10px;object-fit:cover"/>
         <div style="flex:1;">
             <div style="font-weight:bold;color:white;font-size:16px;margin-bottom:5px">{title}</div>
