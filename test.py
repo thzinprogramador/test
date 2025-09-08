@@ -485,6 +485,9 @@ with st.sidebar:
 
     st.markdown("---")
 
+    if song.get("audio_url"):
+        render_player()
+
     if st.button("Página Inicial", key="btn_home", use_container_width=True):
         st.session_state.current_page = "home"
         st.session_state.show_request_form = False
@@ -495,10 +498,6 @@ with st.sidebar:
         st.session_state.current_page = "add"
         st.session_state.show_request_form = False
 
-
-
-    if song.get("audio_url"):
-        render_player()
 # ==============================
 # PÁGINAS
 # ==============================
