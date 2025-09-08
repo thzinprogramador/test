@@ -456,8 +456,8 @@ def render_player():
     components.html(html, height=100, scrolling=False)
 
 
-if song.get("audio_url"):
-            render_player()
+    if song.get("audio_url"):
+        render_player()
 
     
 # ==============================
