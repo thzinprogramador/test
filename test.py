@@ -456,9 +456,6 @@ def render_player():
     components.html(html, height=100, scrolling=False)
 
 
-    if song.get("audio_url"):
-        render_player()
-
     
 # ==============================
 # SIDEBAR
@@ -500,6 +497,8 @@ with st.sidebar:
 
 
 
+    if song.get("audio_url"):
+        render_player()
 # ==============================
 # PÁGINAS
 # ==============================
