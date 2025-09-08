@@ -460,8 +460,8 @@ def render_player():
 # ==============================
 # SIDEBAR
 # ==============================
-        if song.get("audio_url"):
-            render_player()
+    if song.get("audio_url"):
+        render_player()
 
 with st.sidebar:
     st.title("🌊 Wave")
