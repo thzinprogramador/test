@@ -1,4 +1,4 @@
-# app.py
+# app.py (VERSÃO CORRIGIDA)
 import streamlit as st
 import firebase_admin
 import requests
@@ -20,34 +20,27 @@ st.set_page_config(
 )
 
 # ==============================
-# ESTADO DA SESSÃO
+# SESSION STATE PADRÃO
 # ==============================
-if "current_track" not in st.session_state:
-    st.session_state.current_track = None
-if "is_playing" not in st.session_state:
-    st.session_state.is_playing = False
-if "volume" not in st.session_state:
-    st.session_state.volume = 100
-if "search_query" not in st.session_state:
-    st.session_state.search_query = ""
-if "current_page" not in st.session_state:
-    st.session_state.current_page = "home"
-if "music_history" not in st.session_state:
-    st.session_state.music_history = []
-if "all_songs" not in st.session_state:
-    st.session_state.all_songs = []
-if "show_add_form" not in st.session_state:
-    st.session_state.show_add_form = False
-if "firebase_connected" not in st.session_state:
-    st.session_state.firebase_connected = False
-if "show_request_form" not in st.session_state:
-    st.session_state.show_request_form = False
-if "admin_authenticated" not in st.session_state:
-    st.session_state.admin_authenticated = False
-if "random_songs" not in st.session_state:
-    st.session_state.random_songs = []
-if "random_songs_timestamp" not in st.session_state:
-    st.session_state.random_songs_timestamp = None
+defaults = {
+    "current_track": None,        # dicionário com a música atual
+    "is_playing": False,          # tocando?
+    "should_autoplay": False,     # flag para só autoplay quando user seleciona música
+    "volume": 100,
+    "search_query": "",
+    "current_page": "home",
+    "music_history": [],
+    "all_songs": [],
+    "show_add_form": False,
+    "firebase_connected": False,
+    "show_request_form": False,
+    "admin_authenticated": False,
+    "random_songs": [],
+    "random_songs_timestamp": None
+}
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 # ==============================
 # CONFIGURAÇÕES DE SEGURANÇA
@@ -129,6 +122,7 @@ def get_all_songs():
             "artist": "!",
             "duration": "3:45",
             "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+            "image_url": "",
             "platform": "wave",
             "album": "!",
             "genre": "!"
@@ -182,7 +176,6 @@ def search_songs(query, songs=None):
         query in s.get("album", "").lower() or
         query in s.get("genre", "").lower()
     ]
-
 
 # Função para converter URL do Google Drive (imagem)
 def convert_google_drive_url(url):
@@ -249,26 +242,57 @@ except Exception:
     st.session_state.all_songs = get_all_songs_cached()
 
 # ==============================
-# FUNÇÕES AUXILIARES DE UI E AÇÃO
+# AÇÕES DO PLAYER (controladas centralmente)
 # ==============================
-def play_song(song):
-    st.session_state.current_track = song.copy()
+def play_track(track):
+    """Seleciona e inicia a track - usada por botões 'Tocar' nas listas."""
+    # define current_track e marca should_autoplay para True
+    st.session_state.current_track = track.copy()
     st.session_state.is_playing = True
-    # atualiza play_count no Firebase, se possível
-    if st.session_state.firebase_connected and song.get("id"):
+    st.session_state.should_autoplay = True
+    # aumenta play_count no Firebase
+    if st.session_state.firebase_connected and track.get("id"):
         try:
-            ref = db.reference(f"/songs/{song['id']}/play_count")
+            ref = db.reference(f"/songs/{track['id']}/play_count")
             current_count = ref.get() or 0
             ref.set(current_count + 1)
         except Exception:
             pass
 
-def pause_song():
-    st.session_state.is_playing = False
+def toggle_playpause():
+    st.session_state.is_playing = not st.session_state.is_playing
+    # não mudar should_autoplay aqui - apenas play/pause local
 
-def resume_song():
-    if st.session_state.current_track:
-        st.session_state.is_playing = True
+def stop_playback():
+    st.session_state.current_track = None
+    st.session_state.is_playing = False
+    st.session_state.should_autoplay = False
+
+def play_next():
+    """Tenta tocar próxima música na lista all_songs (se houver)."""
+    cur = st.session_state.current_track
+    if not cur or not st.session_state.all_songs:
+        return
+    ids = [s.get("id") for s in st.session_state.all_songs]
+    try:
+        idx = ids.index(cur.get("id"))
+        next_idx = (idx + 1) % len(ids)
+        play_track(st.session_state.all_songs[next_idx])
+    except ValueError:
+        # cur não está na lista — tocar primeiro
+        play_track(st.session_state.all_songs[0])
+
+def play_prev():
+    cur = st.session_state.current_track
+    if not cur or not st.session_state.all_songs:
+        return
+    ids = [s.get("id") for s in st.session_state.all_songs]
+    try:
+        idx = ids.index(cur.get("id"))
+        prev_idx = (idx - 1) % len(ids)
+        play_track(st.session_state.all_songs[prev_idx])
+    except ValueError:
+        play_track(st.session_state.all_songs[0])
 
 # ==============================
 # LAYOUT E CSS (estilo spotify-like)
@@ -345,31 +369,63 @@ with st.sidebar:
 
     st.markdown("---")
     st.write("🎧 Tocando agora")
+    # Sidebar mostra apenas a música que está realmente tocando (current_track)
     if st.session_state.current_track:
         c = st.session_state.current_track
+        img_obj = None
         if c.get("image_url"):
-            img = load_image_cached(c["image_url"])
-            if img:
-                st.image(img, use_column_width=True)
-            else:
-                st.image("https://via.placeholder.com/200x200/1DB954/FFFFFF?text=Imagem+Não+Carregada")
+            img_obj = load_image_cached(c["image_url"])
+        if img_obj:
+            st.image(img_obj, use_column_width=True)
         else:
-            st.image("https://via.placeholder.com/200x200/1DB954/FFFFFF?text=Sem+Imagem")
+            st.image(c.get("image_url") or "https://via.placeholder.com/200x200/1DB954/FFFFFF?text=Sem+Imagem", use_column_width=True)
         st.markdown(f"**{c.get('title','-')}**")
         st.markdown(f"*{c.get('artist','-')}*")
         st.caption(f"Duração: {c.get('duration','-')}")
         if st.session_state.is_playing:
-            if st.button("Pausar", use_container_width=True):
-                pause_song()
+            if st.button("Pausar", use_container_width=True, key="sidebar_pause"):
+                toggle_playpause()
         else:
-            if st.button("Tocar", use_container_width=True):
-                resume_song()
+            if st.button("Tocar", use_container_width=True, key="sidebar_play"):
+                toggle_playpause()
     else:
         st.info("🔍 Escolha uma música")
 
 # ==============================
 # PÁGINAS PRINCIPAIS
 # ==============================
+def show_request_music_section():
+    st.markdown("### 🎵 Não encontrou a música que procura?")
+    if st.button("Pedir Música +", use_container_width=True):
+        st.session_state.show_request_form = True
+
+    if st.session_state.show_request_form:
+        with st.form("request_music_form", clear_on_submit=True):
+            st.write("#### Solicitar Nova Música")
+            col1, col2 = st.columns(2)
+            with col1:
+                req_title = st.text_input("Título da Música*", placeholder="Ex: Boate Azul")
+                req_artist = st.text_input("Artista*", placeholder="Ex: Bruno & Marrone")
+            with col2:
+                req_album = st.text_input("Álbum (se conhecido)")
+                req_username = st.text_input("Seu nome (opcional)")
+            submitted = st.form_submit_button("Enviar Pedido")
+            if submitted:
+                if not all([req_title, req_artist]):
+                    st.error("⚠️ Preencha pelo menos o título e artista!")
+                else:
+                    request_data = {
+                        "title": req_title,
+                        "artist": req_artist,
+                        "album": req_album,
+                        "requested_by": req_username or "Anônimo"
+                    }
+                    if add_song_request(request_data):
+                        st.success("✅ Pedido enviado com sucesso! Adicionaremos em breve.")
+                        st.session_state.show_request_form = False
+                    else:
+                        st.error("❌ Erro ao enviar pedido. Tente novamente.")
+
 def page_home():
     st.markdown("<h2 style='margin-top:6px'>🌊 Bem-vindo ao Wave</h2>", unsafe_allow_html=True)
     if not st.session_state.all_songs:
@@ -404,7 +460,7 @@ def page_home():
                     break
                 s = songs_to_show[idx]
                 with ccol:
-                    # card
+                    # cover
                     cover = s.get("image_url")
                     if cover:
                         img = load_image_cached(cover)
@@ -418,7 +474,7 @@ def page_home():
                     st.markdown(f"*{s.get('artist','-')}*")
                     btn_key = f"home_play_{s.get('id','h_'+str(idx))}"
                     if st.button("▶️ Tocar", key=btn_key, use_container_width=True):
-                        play_song(s)
+                        play_track(s)
                 idx += 1
 
         st.markdown("---")
@@ -454,44 +510,12 @@ def page_search():
                 st.markdown(f"**{s.get('title','-')}**")
                 st.markdown(f"*{s.get('artist','-')}*")
                 if st.button("▶️ Tocar", key=f"search_play_{i}", use_container_width=True):
-                    play_song(s)
+                    play_track(s)
         st.markdown("---")
         show_request_music_section()
     else:
         st.info("Nenhuma música encontrada com essa pesquisa.")
         show_request_music_section()
-
-def show_request_music_section():
-    st.markdown("### 🎵 Não encontrou a música que procura?")
-    if st.button("Pedir Música +", use_container_width=True):
-        st.session_state.show_request_form = True
-
-    if st.session_state.show_request_form:
-        with st.form("request_music_form", clear_on_submit=True):
-            st.write("#### Solicitar Nova Música")
-            col1, col2 = st.columns(2)
-            with col1:
-                req_title = st.text_input("Título da Música*", placeholder="Ex: Boate Azul")
-                req_artist = st.text_input("Artista*", placeholder="Ex: Bruno & Marrone")
-            with col2:
-                req_album = st.text_input("Álbum (se conhecido)")
-                req_username = st.text_input("Seu nome (opcional)")
-            submitted = st.form_submit_button("Enviar Pedido")
-            if submitted:
-                if not all([req_title, req_artist]):
-                    st.error("⚠️ Preencha pelo menos o título e artista!")
-                else:
-                    request_data = {
-                        "title": req_title,
-                        "artist": req_artist,
-                        "album": req_album,
-                        "requested_by": req_username or "Anônimo"
-                    }
-                    if add_song_request(request_data):
-                        st.success("✅ Pedido enviado com sucesso! Adicionaremos em breve.")
-                        st.session_state.show_request_form = False
-                    else:
-                        st.error("❌ Erro ao enviar pedido. Tente novamente.")
 
 def page_add():
     st.markdown("<h2>➕ Adicionar Música (Admin)</h2>", unsafe_allow_html=True)
@@ -562,24 +586,24 @@ else:
 # espaço para não cobrir o conteúdo
 st.markdown("<div class='footer-space'></div>", unsafe_allow_html=True)
 
-# Render player bar (HTML audio to allow autoplay when track changes)
 current = st.session_state.current_track
 if current:
-    audio_src = current.get("audio_url")
-    cover = current.get("image_url") or "https://via.placeholder.com/80x80/1DB954/FFFFFF?text=Sem+Imagem"
+    # Preferir campo audio_url (compatibilidade com seu DB)
+    audio_src = current.get("audio_url") or current.get("url") or ""
+    # image: prefira image_url para compatibilidade com seu DB
+    cover = current.get("image_url") or current.get("cover") or ""
     title = current.get("title", "Sem título")
     artist = current.get("artist", "Sem artista")
     duration = current.get("duration", "0:00")
-    # progress calculation is not precise because we don't control client audio time, so we keep static
-    progress_pct = 0
-    if st.session_state.is_playing:
-        autoplay_attr = "autoplay"
-    else:
-        autoplay_attr = ""
+
+    # autoplay somente se should_autoplay estiver True (quando o usuário clicou em 'Tocar' agora)
+    autoplay_attr = "autoplay" if st.session_state.should_autoplay and st.session_state.is_playing else ""
+
+    # Render player HTML (uso do audio nativo)
     player_html = f"""
     <div class="player-bar" role="region" aria-label="player-bar">
       <div class="player-left">
-        <img src="{cover}" width="56" height="56" style="border-radius:8px"/>
+        <img src="{cover or 'https://via.placeholder.com/80x80/1DB954/FFFFFF?text=Sem+Imagem'}" width="56" height="56" style="border-radius:8px;object-fit:cover"/>
         <div>
           <div style="font-weight:700">{title}</div>
           <div style="color:#bcd3df;font-size:13px">{artist}</div>
@@ -587,43 +611,80 @@ if current:
       </div>
       <div class="player-middle">
         <div class="player-controls">
-          <button onclick="window.parent.document.querySelector('button[title=prevBtn]')?.click()" title="prev" style="background:transparent;border:none;color:white;cursor:pointer">⏮️</button>
-          <button onclick="window.parent.document.querySelector('button[title=playPauseBtn]')?.click()" class="play-btn" title="play">{'▶' if not st.session_state.is_playing else '❚❚'}</button>
-          <button onclick="window.parent.document.querySelector('button[title=nextBtn]')?.click()" title="next" style="background:transparent;border:none;color:white;cursor:pointer">⏭️</button>
+          <button id="prevBtnClient" style="background:transparent;border:none;color:white;cursor:pointer">⏮️</button>
+          <button id="playPauseBtnClient" class="play-btn">{'▶' if not st.session_state.is_playing else '❚❚'}</button>
+          <button id="nextBtnClient" style="background:transparent;border:none;color:white;cursor:pointer">⏭️</button>
         </div>
         <div style="width:100%;display:flex;align-items:center;gap:8px">
           <span style="font-size:12px;">0:00</span>
           <div style="flex:1;">
-            <div class="progress"><div class="progress-inner" style="width:{progress_pct}%"></div></div>
+            <div class="progress"><div class="progress-inner" style="width:0%"></div></div>
           </div>
           <span style="font-size:12px;">{duration}</span>
         </div>
       </div>
       <div style="min-width:160px;display:flex;gap:10px;align-items:center;justify-content:flex-end">
-        <button title="volumeBtn" style="background:transparent;border:none;color:white;cursor:pointer">🔊</button>
-        <audio controls {autoplay_attr} style="width:260px;">
+        <audio id="wave_audio" controls {autoplay_attr} style="width:260px;">
           <source src="{audio_src}" type="audio/mpeg">
           Seu navegador não suporta o elemento de áudio.
         </audio>
       </div>
     </div>
+
+    <script>
+    // Client-side hooks: quando usuário clica nos botões do player HTML, disparamos um clique em hidden buttons do Streamlit.
+    // Isso faz o Streamlit enviar eventos ao server que atualizam state (prev/next/toggle).
+    const prevBtn = document.getElementById('prevBtnClient');
+    const playPauseBtn = document.getElementById('playPauseBtnClient');
+    const nextBtn = document.getElementById('nextBtnClient');
+
+    function findAndClickHiddenBtn(textMatch) {
+        // procura buttons do Streamlit com o label correspondente e "clica" (simula).
+        const buttons = window.parent.document.querySelectorAll('button');
+        for (let b of buttons) {
+            if (b.innerText && b.innerText.trim().includes(textMatch)) {
+                b.click();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    prevBtn?.addEventListener('click', function(){ findAndClickHiddenBtn('Prev'); });
+    nextBtn?.addEventListener('click', function(){ findAndClickHiddenBtn('Next'); });
+    playPauseBtn?.addEventListener('click', function(){ findAndClickHiddenBtn('PLAYPAUSE_HOOK'); });
+
+    // If autoplay was used, reset should_autoplay on next server run (server handles it).
+    </script>
     """
+
     st.markdown(player_html, unsafe_allow_html=True)
 
-# Small hidden buttons for JS hooks (play/pause simulate)
-cols_hooks = st.columns([1,1,6])
-with cols_hooks[0]:
-    if st.button("⏮️ Prev", key="prevBtn", help="Prev (placeholder)"):
-        st.toast("Funcionalidade Prev não implementada.")
-with cols_hooks[1]:
-    if st.button("▶/❚❚", key="playPauseBtn", title="playPauseBtn"):
-        if st.session_state.is_playing:
-            pause_song()
-        else:
-            resume_song()
+# Hidden server-side hooks: pequenos botões que o JS acima "clica" para enviar eventos ao servidor.
+# Nome dos botões: 'Prev', 'Next', 'PLAYPAUSE_HOOK'
+col_hook1, col_hook2, col_hook3 = st.columns([1,1,6])
+with col_hook1:
+    if st.button("Prev", key="prev_hook"):
+        play_prev()
+with col_hook2:
+    if st.button("Next", key="next_hook"):
+        play_next()
+with col_hook3:
+    # botao invisivel para JS acionar pausa/play
+    if st.button("PLAYPAUSE_HOOK", key="playpause_hook", help="hook playpause"):
+        toggle_playpause()
+
+# Após renderizar o player, se should_autoplay foi True, consumimos a flag
+# (evita que futuros reruns façam autoplay novamente automaticamente).
+if st.session_state.should_autoplay:
+    # Definimos para False — isso provoca um rerun, porém agora autoplay flag está consumida.
+    st.session_state.should_autoplay = False
+    # NOTA: isso causará um rerun imediato para sincronizar o estado; o áudio iniciado pelo navegador NÃO será interrompido
+    # porque o audio já recebeu o comando 'autoplay' no render anterior. Isso evita reiniciar em navegações subsequentes.
+    st.experimental_rerun()
+
 # ==============================
 # RODAPÉ
 # ==============================
 st.markdown("---")
-st.caption("🌊 Wave - Sua música, seu mundo • Protótipo — mantenha suas chaves seguras")
-
+st.caption("🌊 Wave - Sua música, seu mundo • Protótipo ")
