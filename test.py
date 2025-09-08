@@ -445,7 +445,7 @@ def render_player():
     </head>
     <body>
     
-        player_html = f"""
+    player_html = f"""
     <div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
                 background:rgba(0,0,0,0.8);padding:15px;border-radius:15px;
                 display:flex;align-items:center;gap:15px;z-index:999;
@@ -456,6 +456,7 @@ def render_player():
             <div style="font-weight:bold;color:white;font-size:16px;margin-bottom:5px">{title}</div>
             <div style="color:#ccc;font-size:14px">{artist}</div>
         </div>
+    </div>
 
     <script>
         const audio = document.getElementById("wave-player");
