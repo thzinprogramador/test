@@ -433,9 +433,12 @@ def render_player():
                 background-color: #1DB954;
             }}
             audio::-webkit-media-controls-play-button {{
-                background-color: #000;
+                background-color: #1DB954 !important;
                 border-radius: 50%;
+                box-shadow: 0 0 8px rgba(0,0,0,0.4);
+                border: 1px solid #1ed760;
             }}
+
         </style>
     </head>
     <body>
