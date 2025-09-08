@@ -482,8 +482,8 @@ with st.sidebar:
         st.caption(f"Duração: {song.get('duration', 'N/A')}")
 
 
-        if song.get("audio_url"):
-            render_player()
+        # if song.get("audio_url"):
+            # render_player()
 
     else:
         st.info("🔍 Escolha uma música")
@@ -505,6 +505,9 @@ with st.sidebar:
 # ==============================
 # PÁGINAS
 # ==============================
+if song.get("audio_url"):
+            render_player()
+
 if st.session_state.current_page == "home":
     st.header("🌊 Bem-vindo ao Wave")
     
