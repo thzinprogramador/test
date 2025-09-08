@@ -726,6 +726,4 @@ def render_home_page():
     """, unsafe_allow_html=True)
     
     # Add Music Section
-    st.markdown("""
-    <div style="background: #181818; border-radius: 8px; padding: 24px;">
-        <h3 style="font-size: 20px; font-weight: 600;
+    
