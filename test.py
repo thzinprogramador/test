@@ -278,8 +278,6 @@ def play_song(song):
         except Exception as e:
             st.error(f"Erro ao atualizar play_count: {e}")
     
-    # Forçar rerun completo
-    st.rerun()
 
 
 def show_add_music_page():
