@@ -460,6 +460,9 @@ def render_player():
 # ==============================
 # SIDEBAR
 # ==============================
+        if song.get("audio_url"):
+            render_player()
+
 with st.sidebar:
     st.title("🌊 Wave")
     st.success("✅ Online" if st.session_state.firebase_connected else "⚠️ Offline")
@@ -479,9 +482,6 @@ with st.sidebar:
         st.write(f"*{song['artist']}*")
         st.caption(f"Duração: {song.get('duration', 'N/A')}")
 
-
-        if song.get("audio_url"):
-            render_player()
 
     else:
         st.info("🔍 Escolha uma música")
