@@ -462,7 +462,6 @@ with st.sidebar:
         st.caption(f"Duração: {song.get('duration', 'N/A')}")
 
         if st.session_state.is_playing:
-            if st.button("Pausar", use_container_width=True):
                 st.session_state.is_playing = False
         else:
             if st.button("Tocar (2 clique)", use_container_width=True):
