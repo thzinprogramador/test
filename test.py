@@ -394,7 +394,7 @@ def image_to_base64(img):
     img_str = base64.b64encode(buffered.getvalue()).decode()
     return f"data:image/png;base64,{img_str}"
 
-ef render_player():
+def render_player():
     track = st.session_state.current_track
     if not track:
         return
