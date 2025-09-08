@@ -412,7 +412,6 @@ def render_player():
     artist = track.get("artist", "Sem artista")
     audio_src = track.get("audio_url", "")
     
-    # ID único para o player
     player_id = f"audio_player_{int(time.time() * 1000)}"
     
     player_html = f"""
@@ -427,48 +426,23 @@ def render_player():
         <audio id="audio_element_{player_id}" controls style="width:300px;height:40px;margin-left:auto;">
             <source src="{audio_src}" type="audio/mpeg">
         </audio>
+        {'<button onclick="playAudio()" style="background:#1DB954;color:white;border:none;padding:10px;border-radius:5px;margin-left:10px;">▶️ Play</button>' if not st.session_state.is_playing else ''}
     </div>
     """
     
     st.markdown(player_html, unsafe_allow_html=True)
     
-    # JavaScript para controlar o autoplay
     st.markdown(f"""
     <script>
-    (function() {{
-        // Remover qualquer player de áudio anterior
-        const oldPlayers = document.querySelectorAll('div[id^="audio_player_"]');
-        oldPlayers.forEach(player => {{
-            if (player.id !== '{player_id}') {{
-                player.remove();
-            }}
-        }});
-        
-        // Configurar o player atual
+    function playAudio() {{
         const audio = document.querySelector('#audio_element_{player_id}');
         if (audio) {{
-            // Forçar carregamento do áudio
-            audio.load();
-            
-            // Tentar autoplay se necessário
-            {'setTimeout(() => {' if st.session_state.is_playing else ''}
-                {'const playPromise = audio.play();' if st.session_state.is_playing else ''}
-                {'if (playPromise !== undefined) {' if st.session_state.is_playing else ''}
-                    {'playPromise.catch(error => {' if st.session_state.is_playing else ''}
-                        {'console.log("Autoplay prevented:", error);' if st.session_state.is_playing else ''}
-                        {'// Habilitar controles se autoplay falhar' if st.session_state.is_playing else ''}
-                        {'audio.controls = true;' if st.session_state.is_playing else ''}
-                    {'});' if st.session_state.is_playing else ''}
-                {'}' if st.session_state.is_playing else ''}
-            {'}, 100);' if st.session_state.is_playing else ''}
-            
-            // Atualizar o estado quando o áudio terminar
-            audio.onended = function() {{
-                // Você pode adicionar lógica para próxima música aqui
-                console.log('Audio finished');
-            }};
+            audio.play().catch(e => console.log('Play failed:', e));
         }}
-    }})();
+    }}
+    
+    // Tentar autoplay se necessário
+    {'setTimeout(playAudio, 100);' if st.session_state.is_playing else ''}
     </script>
     """, unsafe_allow_html=True)
     
