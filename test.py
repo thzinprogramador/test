@@ -263,14 +263,21 @@ except Exception as e:
 # FUNÇÕES AUXILIARES
 # ==============================
 def play_song(song):
-    # Sempre forçar rerun completo quando uma nova música é selecionada
-    st.session_state.current_track = song
-    st.session_state.is_playing = True
+    # Verificar se é uma música diferente
+    current_id = st.session_state.current_track["id"] if st.session_state.current_track else None
+    new_id = song["id"]
     
-    # Adicionar um timestamp único para forçar reconstrução
-    st.session_state.player_timestamp = time.time()
+    # Se for música diferente, atualizar e forçar reconstrução
+    if current_id != new_id:
+        st.session_state.current_track = song
+        st.session_state.is_playing = True
+        # Forçar rerun apenas se for música diferente
+        st.rerun()
+    else:
+        # Se for a mesma música, apenas toggle play/pause
+        st.session_state.is_playing = not st.session_state.is_playing
     
-    if st.session_state.firebase_connected:
+    if st.session_state.firebase_connected and st.session_state.is_playing:
         try:
             ref = db.reference(f"/songs/{song['id']}/play_count")
             current_count = ref.get() or 0
@@ -401,77 +408,35 @@ def render_player():
     artist = track.get("artist", "Sem artista")
     audio_src = track.get("audio_url", "")
     
-    # ID único para o container
-    container_id = f"audio_player_{int(time.time() * 1000)}"
+    # Criar HTML para o iframe
+    audio_html = f'''
+    <!DOCTYPE html>
+    <html>
+    <body style="margin:0;padding:0;">
+        <audio controls {'autoplay' if st.session_state.is_playing else ''} style="width:300px;height:40px;">
+            <source src="{audio_src}" type="audio/mpeg">
+        </audio>
+    </body>
+    </html>
+    '''
     
-    # HTML do player
+    # Codificar para data URL
+    audio_html_encoded = base64.b64encode(audio_html.encode()).decode()
+    
     player_html = f"""
-    <div id="{container_id}" style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
+    <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
                 padding:10px;border-radius:12px;display:flex;align-items:center;gap:10px;z-index:999;">
         <img src="{cover_url}" width="50" height="50" style="border-radius:8px"/>
         <div>
             <div style="font-weight:bold;color:white">{title}</div>
             <div style="color:#ccc;font-size:12px">{artist}</div>
         </div>
-        <div id="audio_container_{container_id}" style="margin-left:auto;">
-            <audio controls {'autoplay' if st.session_state.is_playing else ''}>
-                <source src="{audio_src}" type="audio/mpeg">
-            </audio>
-        </div>
+        <iframe src="data:text/html;base64,{audio_html_encoded}" 
+                style="width:300px;height:40px;border:none;margin-left:auto;"></iframe>
     </div>
     """
     
     st.markdown(player_html, unsafe_allow_html=True)
-    
-    # JavaScript para garantir que o áudio seja atualizado
-    st.markdown(f"""
-    <script>
-    (function() {{
-        // Remover qualquer player de áudio anterior
-        const oldPlayers = document.querySelectorAll('div[id^="audio_player_"]');
-        oldPlayers.forEach(player => {{
-            if (player.id !== '{container_id}') {{
-                player.remove();
-            }}
-        }});
-        
-        // Forçar recarregamento do áudio atual
-        const audioElement = document.querySelector('#{container_id} audio');
-        if (audioElement) {{
-            // Guardar o tempo atual se estiver tocando
-            let currentTime = 0;
-            let wasPlaying = !audioElement.paused;
-            
-            if (wasPlaying) {{
-                currentTime = audioElement.currentTime;
-            }}
-            
-            // Recriar o elemento de áudio completamente
-            const newAudio = document.createElement('audio');
-            newAudio.controls = true;
-            {'newAudio.autoplay = true;' if st.session_state.is_playing else ''}
-            
-            const source = document.createElement('source');
-            source.src = "{audio_src}";
-            source.type = "audio/mpeg";
-            newAudio.appendChild(source);
-            
-            // Substituir o áudio antigo
-            const container = document.querySelector('#audio_container_{container_id}');
-            if (container) {{
-                container.innerHTML = '';
-                container.appendChild(newAudio);
-                
-                // Restaurar o tempo se estava tocando
-                if (wasPlaying) {{
-                    newAudio.currentTime = currentTime;
-                    newAudio.play().catch(e => console.log('Autoplay prevented:', e));
-                }}
-            }}
-        }}
-    }})();
-    </script>
-    """, unsafe_allow_html=True)
 
     
 # ==============================
