@@ -631,31 +631,23 @@ if current:
       </div>
     </div>
 
-    <script>
-    // Client-side hooks: quando usuário clica nos botões do player HTML, disparamos um clique em hidden buttons do Streamlit.
-    // Isso faz o Streamlit enviar eventos ao server que atualizam state (prev/next/toggle).
-    const prevBtn = document.getElementById('prevBtnClient');
-    const playPauseBtn = document.getElementById('playPauseBtnClient');
-    const nextBtn = document.getElementById('nextBtnClient');
+    player_html = f"""
+<script>
+function findAndClickHiddenBtn(textMatch) {{
+    // procura buttons do Streamlit com o label correspondente e "clica" (simula).
+    const buttons = window.parent.document.querySelectorAll('button');
+    for (let b of buttons) {{
+        if (b.innerText && b.innerText.trim().includes(textMatch)) {{
+            b.click();
+            return true;
+        }}
+    }}
+    return false;
+}}
+</script>
+"""
 
-    function findAndClickHiddenBtn(textMatch) {
-        // procura buttons do Streamlit com o label correspondente e "clica" (simula).
-        const buttons = window.parent.document.querySelectorAll('button');
-        for (let b of buttons) {
-            if (b.innerText && b.innerText.trim().includes(textMatch)) {
-                b.click();
-                return true;
-            }
-        }
-        return false;
-    }
 
-    prevBtn?.addEventListener('click', function(){ findAndClickHiddenBtn('Prev'); });
-    nextBtn?.addEventListener('click', function(){ findAndClickHiddenBtn('Next'); });
-    playPauseBtn?.addEventListener('click', function(){ findAndClickHiddenBtn('PLAYPAUSE_HOOK'); });
-
-    // If autoplay was used, reset should_autoplay on next server run (server handles it).
-    </script>
     """
 
     st.markdown(player_html, unsafe_allow_html=True)
