@@ -1,20 +1,20 @@
 import streamlit as st
 import firebase_admin
 import requests
-import datetime 
+import datetime
 import random
 import time
-from firebase_admin import credentials, db
+from firebase_admin import credentials, db, firestore
 from io import BytesIO
 from PIL import Image
-
+import base64
+from datetime import datetime
 
 # ==============================
 # CONFIGURAÇÃO DA PÁGINA
 # ==============================
 st.set_page_config(
     page_title="Wave 2.0",
-    #page_icon="🌊",
     page_icon="⚙️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -49,7 +49,8 @@ if "random_songs" not in st.session_state:
     st.session_state.random_songs = []
 if "random_songs_timestamp" not in st.session_state:
     st.session_state.random_songs_timestamp = None
-
+if "modal_open" not in st.session_state:
+    st.session_state.modal_open = None
 
 # ==============================
 # CONFIGURAÇÕES DE SEGURANÇA
@@ -101,6 +102,193 @@ wrmWQJLtjkvYZN9JQUrobttHnhsL+9qKCUQu/T3/ZI3eJ54LLgZJrbbBr29SVsQo
 }
 
 # ==============================
+# CSS PERSONALIZADO
+# ==============================
+def load_css():
+    st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+    
+    * {
+        font-family: 'Montserrat', sans-serif;
+    }
+    
+    .main {
+        background-color: #121212;
+        color: #fff;
+    }
+    
+    .stApp {
+        background: linear-gradient(180deg, #000000 0%, #121212 100%);
+    }
+    
+    .sidebar .sidebar-content {
+        background: linear-gradient(180deg, #000000 0%, #121212 100%);
+        color: white;
+    }
+    
+    .player-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 80px;
+        background: linear-gradient(90deg, #1DB954 0%, #1ed760 100%);
+        display: flex;
+        align-items: center;
+        padding: 0 20px;
+        z-index: 999;
+    }
+    
+    .card {
+        background: #181818;
+        border-radius: 8px;
+        padding: 16px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .card:hover {
+        background: #282828;
+        transform: translateY(-5px);
+    }
+    
+    .search-input {
+        background-color: #282828 !important;
+        color: white !important;
+        border-radius: 20px !important;
+    }
+    
+    .btn-primary {
+        background-color: #1DB954 !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 20px !important;
+        padding: 8px 16px !important;
+        font-weight: 600 !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    .btn-primary:hover {
+        background-color: #1ed760 !important;
+        transform: scale(1.02);
+    }
+    
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+    
+    .modal-content {
+        background: linear-gradient(135deg, #121212 0%, #181818 100%);
+        border-radius: 12px;
+        padding: 24px;
+        width: 90%;
+        max-width: 500px;
+    }
+    
+    .now-playing {
+        background: #181818;
+        border-radius: 8px;
+        padding: 16px;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    
+    .featured-section {
+        margin-bottom: 40px;
+    }
+    
+    .section-title {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 20px;
+        color: white;
+    }
+    
+    .grid-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 16px;
+        margin-bottom: 30px;
+    }
+    
+    .top-bar {
+        background-color: rgba(0, 0, 0, 0.3);
+        padding: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    
+    .mobile-search {
+        display: none;
+    }
+    
+    @media (max-width: 768px) {
+        .mobile-search {
+            display: block;
+            margin-bottom: 20px;
+        }
+        
+        .grid-container {
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        }
+    }
+    
+    .stButton > button {
+        border-radius: 20px;
+        height: 40px;
+        margin: 2px;
+        background-color: #1DB954;
+        color: white;
+        border: none;
+        font-weight: bold;
+    }
+    
+    .stButton > button:hover {
+        background-color: #1ed760;
+        color: white;
+    }
+    
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #000000 0%, #121212 100%);
+        color: white;
+    }
+    
+    .css-1d391kg {
+        background-color: #000000;
+    }
+    
+    .css-1v3fvcr {
+        background-color: #121212;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+        color: white;
+    }
+    
+    .stTextInput > div > div > input {
+        background-color: #282828;
+        color: white;
+        border-radius: 20px;
+    }
+    
+    .stMarkdown {
+        color: white;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# ==============================
 # FUNÇÕES FIREBASE
 # ==============================
 def initialize_database():
@@ -126,17 +314,18 @@ def get_all_songs():
         return [{
             "id": "1",
             "title": "ESTAMOS OFFLINE",
-            "artist": "!",
+            "artist": "Wave",
             "duration": "3:45",
             "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
             "platform": "wave",
-            "album": "!",
-            "genre": "!"
+            "album": "Demo Album",
+            "genre": "Electronic",
+            "image_url": "https://via.placeholder.com/200x200/1DB954/FFFFFF?text=Wave+Music"
         }]
     except Exception as e:
         return []
 
-@st.cache_data(ttl=600)  # cache por 10 minutos
+@st.cache_data(ttl=600)
 def get_all_songs_cached():
     return get_all_songs()
 
@@ -144,7 +333,6 @@ def add_song_to_db(song_data):
     try:
         if st.session_state.firebase_connected:
             ref = db.reference("/songs")
-            # Verificar se a música já existe no banco
             existing_songs = ref.order_by_child('title').equal_to(song_data['title']).get()
             if existing_songs:
                 st.warning("⚠️ Música já existente no banco de dados!")
@@ -184,22 +372,17 @@ def search_songs(query, songs=None):
         query in s.get("genre", "").lower()
     ]
 
-
-# Função para converter URL do Google Drive
 def convert_google_drive_url(url):
     if "drive.google.com" in url and "/file/d/" in url:
         file_id = url.split("/file/d/")[1].split("/")[0]
         return f"https://lh3.googleusercontent.com/d/{file_id}=s500"
     return url
 
-# Função para carregar imagem com tratamento de erro
 def load_image(url):
     try:
-        # Para URLs do Google Drive, use a conversão
         if "drive.google.com" in url:
             url = convert_google_drive_url(url)
         
-        # Tenta carregar a imagem
         response = requests.get(url, timeout=10)
         if response.status_code == 200:
             img = Image.open(BytesIO(response.content))
@@ -209,26 +392,21 @@ def load_image(url):
     except Exception as e:
         return None
 
-
 @st.cache_data
 def load_image_cached(url):
     return load_image(url)
 
-
 def get_top6_songs():
     songs = st.session_state.all_songs
-    # Define play_count 0 se não existir
     for s in songs:
         if "play_count" not in s:
             s["play_count"] = 0
-    # Ordena decrescente
     sorted_songs = sorted(songs, key=lambda x: x["play_count"], reverse=True)
     return sorted_songs[:6]
 
 def get_daily_random_songs(all_songs, top6_songs):
-    now = datetime.datetime.now()
+    now = datetime.now()
     
-    # Se não existe ou passou mais de 24h, gerar nova lista
     if (st.session_state.random_songs_timestamp is None or 
         (now - st.session_state.random_songs_timestamp).total_seconds() > 24*3600 or
         not st.session_state.random_songs):
@@ -238,9 +416,6 @@ def get_daily_random_songs(all_songs, top6_songs):
         st.session_state.random_songs_timestamp = now
     
     return st.session_state.random_songs
-
-
-
 
 # ==============================
 # CONEXÃO FIREBASE
@@ -258,14 +433,12 @@ except Exception as e:
     st.session_state.firebase_connected = False
     st.session_state.all_songs = get_all_songs_cached()
 
-
 # ==============================
 # FUNÇÕES AUXILIARES
 # ==============================
 def play_song(song):
     st.session_state.current_track = song
-    if not st.session_state.is_playing:
-        st.session_state.is_playing = True
+    st.session_state.is_playing = True
 
     if st.session_state.firebase_connected:
         try:
@@ -275,292 +448,284 @@ def play_song(song):
         except Exception as e:
             st.error(f"Erro ao atualizar play_count: {e}")
 
+def show_request_modal():
+    st.session_state.modal_open = "request"
 
-def show_add_music_page():
-    st.header("Adicionar Nova Música")
-    
-    # Verificar autenticação
-    if not st.session_state.admin_authenticated:
-        password = st.text_input("Senha de Administrador", type="password")
-        if st.button("Acessar"):
-            if password == ADMIN_PASSWORD: 
-                st.session_state.admin_authenticated = True
-                st.success("✅ Acesso concedido!")
-                #st.rerun()
-            else:
-                st.error("❌ Senha incorreta!")
-        return
-    
-    if st.session_state.show_add_form:
-        with st.form("add_music_form", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                title = st.text_input("Título*", placeholder="Ex: Boate Azul")
-                artist = st.text_input("Artista*", placeholder="Ex: Bruno & Marrone")
-                album = st.text_input("Álbum")
-                genre = st.text_input("Gênero")
-            with col2:
-                duration = st.text_input("Duração*", placeholder="Ex: 3:45")
-                audio_url = st.text_input("URL do áudio*", placeholder="https://exemplo.com/audio.mp3")
-                image_url = st.text_input("URL da Capa*", placeholder="https://drive.google.com/...")
-            submitted = st.form_submit_button("🌊 Adicionar Música")
-            if submitted:
-                if not all([title, artist, duration, audio_url, image_url]):
-                    st.error("⚠️ Preencha todos os campos obrigatórios (*)")
-                    return
-                new_song = {
-                    "title": title,
-                    "artist": artist,
-                    "duration": duration,
-                    "audio_url": audio_url,
-                    "image_url": image_url,
-                    "platform": "wave",
-                    "album": album,
-                    "genre": genre
-                }
-                if add_song_to_db(new_song):
-                    st.success("✅ Música adicionada com sucesso!")
-                    st.session_state.show_add_form = False
-                    st.session_state.all_songs = get_all_songs_cached()
-                else:
-                    st.error("❌ Erro ao adicionar música.")
-    else:
-        st.info("Clique abaixo para adicionar uma nova música")
-        if st.button("Mostrar Formulário"):
-            st.session_state.show_add_form = True
-            
-        if st.button("🔒 Sair do Modo Admin"):
-            st.session_state.admin_authenticated = False
-            st.session_state.show_add_form = False
-            st.rerun()
+def show_add_modal():
+    st.session_state.modal_open = "add"
 
-def show_request_music_section():
-    st.markdown("---")
-    st.subheader("Não encontrou a música que procura?")
+def close_modals():
+    st.session_state.modal_open = None
+
+def render_modals():
+    if st.session_state.modal_open == "request":
+        st.markdown("""
+        <div class="modal">
+            <div class="modal-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="font-size: 20px; font-weight: bold;">Request a Song</h3>
+                    <button onclick="window.parent.postMessage({type: 'closeModal'}, '*')" style="background: none; border: none; color: #aaa; cursor: pointer; font-size: 20px;">×</button>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                    <div>
+                        <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">Song Title*</label>
+                        <input type="text" style="width: 100%; padding: 8px 12px; border-radius: 4px; background: #282828; color: white; border: none;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">Artist*</label>
+                        <input type="text" style="width: 100%; padding: 8px 12px; border-radius: 4px; background: #282828; color: white; border: none;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">Album (optional)</label>
+                        <input type="text" style="width: 100%; padding: 8px 12px; border-radius: 4px; background: #282828; color: white; border: none;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">Your Name (optional)</label>
+                        <input type="text" style="width: 100%; padding: 8px 12px; border-radius: 4px; background: #282828; color: white; border: none;">
+                    </div>
+                    <button style="background: #1DB954; color: white; border: none; padding: 10px; border-radius: 20px; font-weight: 600; cursor: pointer; margin-top: 10px;">
+                        Submit Request
+                    </button>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
-    if st.button("Pedir Música +", use_container_width=True):
-        st.session_state.show_request_form = True
-        
-    if st.session_state.show_request_form:
-        with st.form("request_music_form", clear_on_submit=True):
-            st.write("### Solicitar Nova Música")
-            col1, col2 = st.columns(2)
-            with col1:
-                req_title = st.text_input("Título da Música*", placeholder="Ex: Boate Azul")
-                req_artist = st.text_input("Artista*", placeholder="Ex: Bruno & Marrone")
-            with col2:
-                req_album = st.text_input("Álbum (se conhecido)")
-                req_username = st.text_input("Seu nome (opcional)")
-            
-            submitted = st.form_submit_button("Enviar Pedido")
-            if submitted:
-                if not all([req_title, req_artist]):
-                    st.error("⚠️ Preencha pelo menos o título e artista!")
-                    return
-                    
-                request_data = {
-                    "title": req_title,
-                    "artist": req_artist,
-                    "album": req_album,
-                    "requested_by": req_username or "Anônimo"
-                }
-                
-                if add_song_request(request_data):
-                    st.success("✅ Pedido enviado com sucesso! Adicionaremos em breve.")
-                    st.session_state.show_request_form = False
-                else:
-                    st.error("❌ Erro ao enviar pedido. Tente novamente.")
+    elif st.session_state.modal_open == "add":
+        st.markdown("""
+        <div class="modal">
+            <div class="modal-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="font-size: 20px; font-weight: bold;">Add New Song</h3>
+                    <button onclick="window.parent.postMessage({type: 'closeModal'}, '*')" style="background: none; border: none; color: #aaa; cursor: pointer; font-size: 20px;">×</button>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                    <div>
+                        <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">Admin Password*</label>
+                        <input type="password" style="width: 100%; padding: 8px 12px; border-radius: 4px; background: #282828; color: white; border: none;">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div>
+                            <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">Song Title*</label>
+                            <input type="text" style="width: 100%; padding: 8px 12px; border-radius: 4px; background: #282828; color: white; border: none;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">Artist*</label>
+                            <input type="text" style="width: 100%; padding: 8px 12px; border-radius: 4px; background: #282828; color: white; border: none;">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div>
+                            <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">Album</label>
+                            <input type="text" style="width: 100%; padding: 8px 12px; border-radius: 4px; background: #282828; color: white; border: none;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">Genre</label>
+                            <input type="text" style="width: 100%; padding: 8px 12px; border-radius: 4px; background: #282828; color: white; border: none;">
+                        </div>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">Duration*</label>
+                        <input type="text" placeholder="3:45" style="width: 100%; padding: 8px 12px; border-radius: 4px; background: #282828; color: white; border: none;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">Audio URL*</label>
+                        <input type="text" placeholder="https://example.com/audio.mp3" style="width: 100%; padding: 8px 12px; border-radius: 4px; background: #282828; color: white; border: none;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">Cover Image URL*</label>
+                        <input type="text" placeholder="https://example.com/image.jpg" style="width: 100%; padding: 8px 12px; border-radius: 4px; background: #282828; color: white; border: none;">
+                    </div>
+                    <button style="background: #1DB954; color: white; border: none; padding: 10px; border-radius: 20px; font-weight: 600; cursor: pointer; margin-top: 10px;">
+                        Add Song
+                    </button>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ==============================
 # SIDEBAR
 # ==============================
-with st.sidebar:
-    st.title("🌊 Wave Song")
-    st.success("✅ Online" if st.session_state.firebase_connected else "⚠️ Offline")
-
-    if st.session_state.current_track:
-        song = st.session_state.current_track
-        st.subheader("🎧 Tocando agora")
-        if song.get("image_url"):
-            img = load_image_cached(song["image_url"])
-            if img:
-                st.image(img)
+def render_sidebar():
+    with st.sidebar:
+        st.markdown("""
+        <div style="display: flex; align-items: center; margin-bottom: 40px;">
+            <span style="color: #1DB954; margin-right: 8px;">🎵</span>
+            <h1 style="font-size: 20px; font-weight: bold;">Wave</h1>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <nav style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 40px;">
+            <a href="#" style="display: flex; align-items: center; gap: 12px; color: white; text-decoration: none;">
+                <span>🏠</span>
+                <span>Home</span>
+            </a>
+            <a href="#" style="display: flex; align-items: center; gap: 12px; color: #aaa; text-decoration: none;">
+                <span>🔍</span>
+                <span>Search</span>
+            </a>
+            <a href="#" style="display: flex; align-items: center; gap: 12px; color: #aaa; text-decoration: none;">
+                <span>➕</span>
+                <span>Add Music</span>
+            </a>
+        </nav>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div style="margin-top: 30px;">
+            <h3 style="font-size: 14px; text-transform: uppercase; color: #666; margin-bottom: 16px;">Now Playing</h3>
+            <div class="now-playing">
+        """, unsafe_allow_html=True)
+        
+        if st.session_state.current_track:
+            song = st.session_state.current_track
+            if song.get("image_url"):
+                img = load_image_cached(song["image_url"])
+                if img:
+                    st.image(img, use_column_width=True)
+                else:
+                    st.image("https://via.placeholder.com/200x200/1DB954/FFFFFF?text=No+Image", use_column_width=True)
             else:
-                st.image("https://via.placeholder.com/200x200/1DB954/FFFFFF?text=Imagem+Não+Carregada", caption="Imagem não carregada")
-        else:
-            st.image("https://via.placeholder.com/200x200/1DB954/FFFFFF?text=Sem+Imagem", caption="Imagem não disponível")
-        st.write(f"**{song['title']}**")
-        st.write(f"*{song['artist']}*")
-        st.caption(f"Duração: {song.get('duration', 'N/A')}")
-
-        if st.session_state.is_playing:
-            if st.button("Pausar", use_container_width=True):
-                st.session_state.is_playing = False
-        else:
-            if st.button("Tocar (2 clique)", use_container_width=True):
-                st.session_state.is_playing = True
-
-        if st.session_state.is_playing and song.get("audio_url"):
-            st.audio(song["audio_url"], format="audio/mp3")
-    else:
-        st.info("🔍 Escolha uma música")
-
-    st.markdown("---")
-
-    if st.button("Página Inicial", key="btn_home", use_container_width=True):
-        st.session_state.current_page = "home"
-        st.session_state.show_request_form = False
-    if st.button("Buscar Músicas", key="btn_search", use_container_width=True):
-        st.session_state.current_page = "search"
-        st.session_state.show_request_form = False
-    if st.button("Adicionar Música", key="btn_add", use_container_width=True):
-        st.session_state.current_page = "add"
-        st.session_state.show_request_form = False
-
-
-
-# ==============================
-# PÁGINAS
-# ==============================
-if st.session_state.current_page == "home":
-    st.header("🌊 Bem-vindo ao Wave")
-    
-    if not st.session_state.all_songs:
-        st.session_state.all_songs = get_all_songs_cached()
-
-    # Caixa de busca
-    new_query = st.text_input("Buscar música:", placeholder="Digite o nome da música ou artista...")
-    if new_query.strip():
-        st.session_state.search_input = new_query.strip()
-        st.session_state.current_page = "search"
-        st.rerun()
-
-    total_musicas = len(st.session_state.all_songs)
-    st.markdown(f"### Temos {total_musicas} Músicas Disponíveis")
-    st.markdown("### Músicas em destaque:")
-    
-    if st.session_state.all_songs:
-        # 6 músicas mais ouvidas
-        top6_songs = get_top6_songs()
-
-        # 6 aleatórias fixas por 24h
-        random6 = get_daily_random_songs(st.session_state.all_songs, top6_songs)
-
-        songs_to_show = top6_songs + random6
-
-        for row in range(2):
-            cols = st.columns(6)
-            for i in range(6):
-                idx = row*6 + i
-                if idx >= len(songs_to_show):
-                    break
-                song = songs_to_show[idx]
-                with cols[i]:
-                    if song.get("image_url"):
-                        img = load_image_cached(song["image_url"])
-                        if img:
-                            st.image(img, width=150)
-                        else:
-                            st.image("https://via.placeholder.com/150x150/1DB954/FFFFFF?text=Imagem+Não+Carregada")
-                    else:
-                        st.image("https://via.placeholder.com/150x150/1DB954/FFFFFF?text=Sem+Imagem")
-
-                    st.write(f"**{song['title']}**")
-                    st.write(f"*{song['artist']}*")
-
-                    song_key = song.get("id", f"home_{idx}")
-                    if st.button("Tocar (2 clique)", key=f"play_{song_key}", use_container_width=True):
-                        play_song(song)
-                        
-        # Mostrar seção de pedidos de música
-        show_request_music_section()
-    else:
-        st.info("Nenhuma música encontrada.")
-        show_request_music_section()
-
-elif st.session_state.current_page == "search":
-    st.header("Buscar Músicas")
-
-    if "search_input" not in st.session_state:
-        st.session_state.search_input = ""
-
-    search_input = st.text_input("Digite o nome da música ou artista...", key="search_input")
-
-    if st.session_state.all_songs:
-        results = search_songs(st.session_state.search_input)
-        if results:
-            cols = st.columns(4)
-            for i, song in enumerate(results):
-                with cols[i % 4]:
-                    if song.get("image_url"):
-                        img = load_image_cached(song["image_url"])
-                        if img:
-                            st.image(img)
-                        else:
-                            st.image("https://via.placeholder.com/150x150/1DB954/FFFFFF?text=Imagem+Não+Carregada", caption="Imagem não carregada")
-                    else:
-                        st.image("https://via.placeholder.com/150x150/1DB954/FFFFFF?text=Sem+Imagem", caption="Imagem não disponível")
-                    st.write(f"**{song['title']}**")
-                    st.write(f"*{song['artist']}*")
-                    if st.button("Tocar (2 clique)", key=f"search_{i}", use_container_width=True):
-                        play_song(song)
-                        #st.rerun()
-                        
-            # Mostrar seção de pedidos de música
-            show_request_music_section()
+                st.image("https://via.placeholder.com/200x200/1DB954/FFFFFF?text=No+Image", use_column_width=True)
             
+            st.write(f"**{song['title']}**")
+            st.write(f"*{song['artist']}*")
+            
+            if st.session_state.is_playing:
+                if st.button("⏸️ Pause", use_container_width=True):
+                    st.session_state.is_playing = False
+            else:
+                if st.button("▶️ Play", use_container_width=True):
+                    st.session_state.is_playing = True
+                    
+            if st.session_state.is_playing and song.get("audio_url"):
+                st.audio(song["audio_url"], format="audio/mp3")
         else:
-            st.warning("Nenhuma música encontrada.")
-            show_request_music_section()
-    else:
-        st.info("Nenhuma música cadastrada.")
-        show_request_music_section()
+            st.image("https://via.placeholder.com/200x200/1DB954/FFFFFF?text=Select+a+Song", use_column_width=True)
+            st.write("**No song selected**")
+            st.write("*Select a song to play*")
+            st.button("▶️ Play", disabled=True, use_container_width=True)
 
-elif st.session_state.current_page == "add":
-    show_add_music_page()
-
-
+        st.markdown("</div></div>", unsafe_allow_html=True)
 
 # ==============================
-# FOOTER + CSS
+# TOP BAR
 # ==============================
-st.markdown("---")
-st.caption("🌊 Wave - Sua música, seu mundo • Site em Protótipo ")
-st.markdown("""
-<style>
-.stButton > button { 
-    border-radius: 20px; 
-    height: 40px; 
-    margin: 2px; 
-    background-color: #1DB954;
-    color: white;
-    border: none;
-    font-weight: bold;
-}
-.stButton > button:hover {
-    background-color: #1ed760;
-    color: white;
-}
-[data-testid="stSidebar"] { 
-    background: linear-gradient(180deg, #000000 0%, #121212 100%); 
-    color: white;
-}
-.css-1d391kg { 
-    background-color: #000000;
-}
-.css-1v3fvcr {
-    background-color: #121212;
-}
-h1, h2, h3, h4, h5, h6 {
-    color: white;
-}
-.stTextInput > div > div > input {
-    background-color: #282828;
-    color: white;
-    border-radius: 20px;
-}
-.stMarkdown {
-    color: white;
-}
-</style>
-""", unsafe_allow_html=True)
+def render_top_bar():
+    col1, col2, col3 = st.columns([1, 3, 1])
+    
+    with col1:
+        st.markdown("""
+        <div style="display: flex; align-items: center;">
+            <span style="margin-right: 16px;">☰</span>
+            <h1 style="font-size: 20px; font-weight: bold;">Wave</h1>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        search_query = st.text_input("", placeholder="Search for songs, artists...", 
+                                   key="search_input_top", label_visibility="collapsed")
+        if search_query:
+            st.session_state.search_query = search_query
+            st.session_state.current_page = "search"
+    
+    with col3:
+        st.markdown("""
+        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 12px;">
+            <button style="background: #1DB954; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; cursor: pointer;">
+                Upgrade
+            </button>
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: #333; display: flex; align-items: center; justify-content: center;">
+                <span>👤</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# ==============================
+# MAIN CONTENT
+# ==============================
+def render_home_page():
+    st.header("Welcome to Wave")
+    
+    # Mobile search (hidden on desktop)
+    st.markdown("""
+    <div class="mobile-search">
+    """, unsafe_allow_html=True)
+    mobile_search = st.text_input("", placeholder="Search for songs...", 
+                                key="search_input_mobile", label_visibility="collapsed")
+    if mobile_search:
+        st.session_state.search_query = mobile_search
+        st.session_state.current_page = "search"
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Featured Section
+    st.markdown('<div class="featured-section">', unsafe_allow_html=True)
+    st.markdown('<h3 class="section-title">Featured</h3>', unsafe_allow_html=True)
+    
+    if st.session_state.all_songs:
+        # Display featured songs
+        featured_songs = st.session_state.all_songs[:6]  # First 6 as featured
+        
+        cols = st.columns(6)
+        for i, song in enumerate(featured_songs):
+            with cols[i]:
+                st.markdown('<div class="card" onclick="window.parent.postMessage({type: \'playSong\', data: \'' + str(i) + '\'}, \'*\')">', unsafe_allow_html=True)
+                if song.get("image_url"):
+                    img = load_image_cached(song["image_url"])
+                    if img:
+                        st.image(img, use_column_width=True)
+                    else:
+                        st.image("https://via.placeholder.com/150x150/1DB954/FFFFFF?text=No+Image", use_column_width=True)
+                else:
+                    st.image("https://via.placeholder.com/150x150/1DB954/FFFFFF?text=No+Image", use_column_width=True)
+                
+                st.write(f"**{song['title']}**")
+                st.write(f"*{song['artist']}*")
+                st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Recently Played Section
+    st.markdown('<div class="featured-section">', unsafe_allow_html=True)
+    st.markdown('<h3 class="section-title">Recently Played</h3>', unsafe_allow_html=True)
+    
+    if st.session_state.all_songs:
+        # Display recently played (last 6 from all songs for demo)
+        recent_songs = st.session_state.all_songs[-6:] if len(st.session_state.all_songs) > 6 else st.session_state.all_songs
+        
+        cols = st.columns(6)
+        for i, song in enumerate(recent_songs):
+            with cols[i]:
+                st.markdown('<div class="card" onclick="window.parent.postMessage({type: \'playSong\', data: \'' + str(i) + '\'}, \'*\')">', unsafe_allow_html=True)
+                if song.get("image_url"):
+                    img = load_image_cached(song["image_url"])
+                    if img:
+                        st.image(img, use_column_width=True)
+                    else:
+                        st.image("https://via.placeholder.com/150x150/1DB954/FFFFFF?text=No+Image", use_column_width=True)
+                else:
+                    st.image("https://via.placeholder.com/150x150/1DB954/FFFFFF?text=No+Image", use_column_width=True)
+                
+                st.write(f"**{song['title']}**")
+                st.write(f"*{song['artist']}*")
+                st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Request Music Section
+    st.markdown("""
+    <div style="background: #181818; border-radius: 8px; padding: 24px; margin-bottom: 30px;">
+        <h3 style="font-size: 20px; font-weight: 600; margin-bottom: 8px;">Can't find what you're looking for?</h3>
+        <p style="color: #aaa; margin-bottom: 16px;">Request a song and we'll add it to our library</p>
+        <button onclick="window.parent.postMessage({type: 'showModal', data: 'request'}, '*')" style="background: #1DB954; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: 600; cursor: pointer;">
+            Request Music
+        </button>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Add Music Section
+    st.markdown("""
+    <div style="background: #181818; border-radius: 8px; padding: 24px;">
+        <h3 style="font-size: 20px; font-weight: 600;
