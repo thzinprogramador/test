@@ -411,39 +411,6 @@ def render_player():
     audio_src = track.get("audio_url", "")
 
     autoplay_flag = "autoplay" if st.session_state.is_playing else ""
-
-    audio_html = f'''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {{
-                margin: 0;
-                padding: 0;
-                background: transparent;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 40px;
-            }}
-            audio {{
-                width: 300px;
-                height: 40px;
-                outline: none;
-            }}
-            audio::-webkit-media-controls-panel {{
-                background-color: #1DB954;
-            }}
-            audio::-webkit-media-controls-play-button {{
-                background-color: #1DB954 !important;
-                border-radius: 50%;
-                box-shadow: 0 0 8px rgba(0,0,0,0.4);
-                border: 1px solid #1ed760;
-            }}
-
-        </style>
-    </head>
-    <body>
     
     player_html = f"""
     <div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
