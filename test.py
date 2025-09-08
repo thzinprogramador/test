@@ -525,8 +525,8 @@ with st.sidebar:
     if st.button("Buscar Músicas", key="btn_search", use_container_width=True):
         st.session_state.current_page = "search"
         st.session_state.show_request_form = False
-    if st.button("Adicionar Música", key="btn_add", use_container_width=True):
-        st.session_state.current_page = "add"
+    # if st.button("Adicionar Música", key="btn_add", use_container_width=True):
+        # st.session_state.current_page = "add"
         st.session_state.show_request_form = False
 
 
