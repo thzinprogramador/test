@@ -276,7 +276,7 @@ def play_song(song):
         # Se for a mesma música, apenas toggle play/pause
         st.session_state.is_playing = not st.session_state.is_playing
     
-    if st.session_state.firebase_connected:
+    if st.session_state.firebase_connected and st.session_state.is_playing:
         try:
             ref = db.reference(f"/songs/{song['id']}/play_count")
             current_count = ref.get() or 0
@@ -397,7 +397,8 @@ def render_player():
         return
 
     # Usar ID único para forçar reconstrução do player
-    player_id = f"player_{track['id']}_{int(time.time())}"
+    unique_id = int(time.time() * 1000)
+    player_id = f"audioPlayer_{unique_id}"
     
     cover = load_image_cached(track.get("image_url"))
     if cover is not None:
@@ -426,13 +427,14 @@ def render_player():
     """
     st.markdown(player_html, unsafe_allow_html=True)
     
-    # JavaScript para controlar o player
+    # JavaScript para controlar o player - CORRIGIDO
     if st.session_state.is_playing:
         st.markdown(f"""
         <script>
         document.addEventListener('DOMContentLoaded', function() {{
-            const audio = document.getElementById('audioPlayer');
+            const audio = document.getElementById('{player_id}');
             if (audio) {{
+                // Forçar carregamento do novo áudio
                 audio.src = "{audio_src}";
                 audio.load();
                 audio.play().catch(function(error) {{
@@ -443,17 +445,16 @@ def render_player():
         </script>
         """, unsafe_allow_html=True)
     else:
-        st.markdown("""
+        st.markdown(f"""
         <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const audio = document.getElementById('audioPlayer');
-            if (audio) {
+        document.addEventListener('DOMContentLoaded', function() {{
+            const audio = document.getElementById('{player_id}');
+            if (audio) {{
                 audio.pause();
-            }
-        });
+            }}
+        }});
         </script>
         """, unsafe_allow_html=True)
-
 # ==============================
 # SIDEBAR
 # ==============================
