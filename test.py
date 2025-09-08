@@ -263,26 +263,23 @@ except Exception as e:
 # FUNÇÕES AUXILIARES
 # ==============================
 def play_song(song):
-    # Verificar se é uma música diferente
-    current_id = st.session_state.current_track["id"] if st.session_state.current_track else None
-    new_id = song["id"]
+    # Sempre forçar rerun completo quando uma nova música é selecionada
+    st.session_state.current_track = song
+    st.session_state.is_playing = True
     
-    # Se for música diferente, forçar rerun completo
-    if current_id != new_id:
-        st.session_state.current_track = song
-        st.session_state.is_playing = True
-        st.rerun()
-    else:
-        # Se for a mesma música, apenas toggle play/pause
-        st.session_state.is_playing = not st.session_state.is_playing
+    # Adicionar um timestamp único para forçar reconstrução
+    st.session_state.player_timestamp = time.time()
     
-    if st.session_state.firebase_connected and st.session_state.is_playing:
+    if st.session_state.firebase_connected:
         try:
             ref = db.reference(f"/songs/{song['id']}/play_count")
             current_count = ref.get() or 0
             ref.set(current_count + 1)
         except Exception as e:
             st.error(f"Erro ao atualizar play_count: {e}")
+    
+    # Forçar rerun completo
+    st.rerun()
 
 
 def show_add_music_page():
@@ -396,6 +393,9 @@ def render_player():
         st.info("🔍 Escolha uma música para tocar.")
         return
 
+    # Usar timestamp único para forçar reconstrução
+    timestamp = st.session_state.get('player_timestamp', time.time())
+    
     cover = load_image_cached(track.get("image_url"))
     if cover is not None:
         cover_url = image_to_base64(cover)
@@ -406,22 +406,7 @@ def render_player():
     artist = track.get("artist", "Sem artista")
     audio_src = track.get("audio_url", "")
     
-    # Criar um HTML temporário para o player
     player_html = f"""
-    <!DOCTYPE html>
-    <html>
-    <body>
-        <audio controls {'autoplay' if st.session_state.is_playing else ''}>
-            <source src="{audio_src}" type="audio/mpeg">
-        </audio>
-    </body>
-    </html>
-    """
-    
-    # Codificar o HTML em base64 para usar no iframe
-    player_html_base64 = base64.b64encode(player_html.encode()).decode()
-    
-    container_html = f"""
     <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
                 padding:10px;border-radius:12px;display:flex;align-items:center;gap:10px;z-index:999;">
         <img src="{cover_url}" width="50" height="50" style="border-radius:8px"/>
@@ -429,14 +414,16 @@ def render_player():
             <div style="font-weight:bold;color:white">{title}</div>
             <div style="color:#ccc;font-size:12px">{artist}</div>
         </div>
-        <iframe src="data:text/html;base64,{player_html_base64}" 
-                style="width:300px;height:40px;border:none;margin-left:auto;"></iframe>
+        <audio controls {'autoplay' if st.session_state.is_playing else ''} style="margin-left:auto;">
+            <source src="{audio_src}?t={timestamp}" type="audio/mpeg">
+            Seu navegador não suporta o elemento de áudio.
+        </audio>
     </div>
     """
     
-    st.markdown(container_html, unsafe_allow_html=True)
+    st.markdown(player_html, unsafe_allow_html=True)
 
-
+    
 # ==============================
 # SIDEBAR
 # ==============================
