@@ -461,11 +461,6 @@ with st.sidebar:
         st.write(f"*{song['artist']}*")
         st.caption(f"Duração: {song.get('duration', 'N/A')}")
 
-        if st.session_state.is_playing:
-                st.session_state.is_playing = False
-        else:
-            if st.button("Tocar (2 clique)", use_container_width=True):
-                st.session_state.is_playing = True
 
         if song.get("audio_url"):
             render_player()
