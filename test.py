@@ -20,40 +20,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("""
-<script>
-// Função para desbloquear áudio com interação simulada
-function unlockAudio() {
-    // Criar contexto de áudio invisível
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    
-    // Criar um oscilador muito breve e silencioso
-    const oscillator = audioContext.createOscillator();
-    oscillator.connect(audioContext.destination);
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + 0.001);
-    
-    // Resolver o contexto (necessário para alguns navegadores)
-    if (audioContext.state === 'suspended') {
-        audioContext.resume();
-    }
-    
-    return audioContext;
-}
-
-// Executar quando a página carregar
-document.addEventListener('DOMContentLoaded', function() {
-    // Primeira interação - desbloquear áudio
-    unlockAudio();
-    
-    // Adicionar evento de clique em todo o documento
-    document.body.addEventListener('click', function() {
-        unlockAudio();
-    }, { once: true });
-});
-</script>
-""", unsafe_allow_html=True)
-
 
 # ==============================
 # ESTADO DA SESSÃO
@@ -302,11 +268,10 @@ def play_song(song):
     current_id = st.session_state.current_track["id"] if st.session_state.current_track else None
     new_id = song["id"]
     
-    # Sempre forçar rerun quando uma nova música é selecionada
     st.session_state.current_track = song
     st.session_state.is_playing = True
     
-    # Adicionar timestamp único para forçar reconstrução
+    # Adicionar timestamp único
     st.session_state.player_timestamp = time.time()
     
     if st.session_state.firebase_connected:
@@ -317,9 +282,8 @@ def play_song(song):
         except Exception as e:
             st.error(f"Erro ao atualizar play_count: {e}")
     
-    # Forçar rerun apenas se for música diferente
-    if current_id != new_id:
-        st.rerun()
+    # Sempre forçar rerun para nova música
+    st.rerun()
     
 
 
@@ -764,5 +728,29 @@ h1, h2, h3, h4, h5, h6 {
 .stMarkdown {
     color: white;
 }
+
+/* Melhorar a aparência dos controles customizados */
+#custom_controls button {
+    background: #1DB954 !important;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+#custom_controls button:hover {
+    transform: scale(1.1);
+    background: #1ed760 !important;
+}
+
+#time_display {
+    color: white;
+    font-family: monospace;
+    font-size: 14px;
+    min-width: 40px;
+}
+
 </style>
 """, unsafe_allow_html=True)
