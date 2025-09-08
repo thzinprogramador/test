@@ -50,6 +50,8 @@ if "random_songs" not in st.session_state:
     st.session_state.random_songs = []
 if "random_songs_timestamp" not in st.session_state:
     st.session_state.random_songs_timestamp = None
+if "player_timestamp" not in st.session_state:
+    st.session_state.player_timestamp = time.time()
 
 
 # ==============================
@@ -83,11 +85,11 @@ D2TNWRfB6WgAfbJiLa5larLR5QKBgQC81DnBRHvcvHrfu0lPvK1KCB2gdJKntPRW
 uzO0JamdUw4Te7X4fyvumsJBgJwCUoI233CnJC5Z07bqzqzSxjigVZNolDNuGpuZ
 H0tV0Y9nosaAy9OYL+4bWylUoLPZC4oSGUzYLyCFefS57YImjOk23Rj44TngN5sb
 ol7+HvbLNQKBgQCKYFwMNyzj/C9YhejGhzS2AtjB8obrqg2k+LqAmARQH5dkHkNw
-9P5v5YCTagvlJnD+I60+nm0pkQI8gX3y2K3TFRUugRe3T4649F52tAg6n93mgx64
+9P5v5YCTagvlJnD+I60+nm0pkQI8g极3y2K3TFRUugRe3T4649F52tAg6n93mgx64
 Dgpt+SaRExCBg9N3MBoOUdJwzKvmr0URd8IhFOeTPAijAaSJ1aMpqa1B7QKBgGeq
-6/pbKtVI9PyXyevo3gpi4kERPuKryelD5WLlunURAA1aQdEnoGris/taLExqF+sg
+6/pbKtVI9PyXyevo3g极4kERPuKryelD5WLlunURAA1aQdEnoGris/taLExqF+sg
 SKy6hGf0f9vxk5g0EyqTUNZ9Zq7wFLTAJY/7+QsgpnJXdNd8mPCT3+ECSTrDxw2g
-rjuRw/0Ds4PQDUA05GSmhes9W5TpclJ9lkFVppBxAoGBAKD9+MAOxFum63p3QP4E
+rjuRw/0Ds4PQDUA05GSmhes9W5TpclJ9lkFVppBxAoGBAKD9+MAOxFum63极3QP4E
 rVYYnx1RsyrFIYylSg8Ukuuan94xP5WxayisJnHYKzoOrkhVJ6WMjgT9t3GJADOi
 wrmWQJLtjkvYZN9JQUrobttHnhsL+9qKCUQu/T3/ZI3eJ54LLgZJrbbBr29SVsQo
 7xthJjNZDB89 Ac7bZKGjp0ij
@@ -107,7 +109,7 @@ wrmWQJLtjkvYZN9JQUrobttHnhsL+9qKCUQu/T3/ZI3eJ54LLgZJrbbBr29SVsQo
 def initialize_database():
     try:
         ref = db.reference('/')
-        ref.child("test").set({"test": True, "timestamp": datetime.now().isoformat()})
+        ref.child("test").set({"test": True, "timestamp": datetime.datetime.now().isoformat()})
         ref.child("test").delete()
         return True
     except Exception as e:
@@ -150,7 +152,7 @@ def add_song_to_db(song_data):
             if existing_songs:
                 st.warning("⚠️ Música já existente no banco de dados!")
                 return False
-            song_data["created_at"] = datetime.now().isoformat()
+            song_data["created_at"] = datetime.datetime.now().isoformat()
             ref.push(song_data)
             return True
         return False
@@ -162,7 +164,7 @@ def add_song_request(request_data):
     try:
         if st.session_state.firebase_connected:
             ref = db.reference("/song_requests")
-            request_data["created_at"] = datetime.now().isoformat()
+            request_data["created_at"] = datetime.datetime.now().isoformat()
             request_data["status"] = "pending"
             ref.push(request_data)
             return True
@@ -397,7 +399,6 @@ def image_to_base64(img):
 def render_player():
     track = st.session_state.current_track
     if not track:
-        st.info("🔍 Escolha uma música para tocar.")
         return
 
     cover = load_image_cached(track.get("image_url"))
@@ -473,7 +474,7 @@ def render_player():
     player_html = f"""
     <div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
                 background:rgba(0,0,0,0.8);padding:15px;border-radius:15px;
-                display:flex;align-items:center;gap:15px;z-index:999;
+                display:flex;align-items:center;gap:15px;z-index:9999;
                 box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);
                 width:600px; max-width:90%;">
         <img src="{cover_url}" width="60" height="60" style="border-radius:10px;object-fit:cover"/>
@@ -487,7 +488,7 @@ def render_player():
     </div>
     """
     
-    st.markdown(player_html, unsafe_allow_html=True)
+    components.html(player_html, height=80, scrolling=False)
     
 # ==============================
 # SIDEBAR
@@ -527,6 +528,9 @@ with st.sidebar:
         st.session_state.current_page = "add"
         st.session_state.show_request_form = False
 
+# ==============================
+# PLAYER FIXO (fora do sidebar)
+# ==============================
 if st.session_state.current_track and st.session_state.current_track.get("audio_url"):
     render_player()
 
@@ -659,7 +663,7 @@ st.markdown("""
 .css-1d391kg { 
     background-color: #000000;
 }
-.css-1v3fvcr {
+.css-1v极fvcr {
     background-color: #121212;
 }
 h1, h2, h3, h4, h5, h6 {
@@ -672,6 +676,10 @@ h1, h2, h3, h4, h5, h6 {
 }
 .stMarkdown {
     color: white;
+}
+/* Garantir que o player fique acima do sidebar */
+[data-testid="stSidebar"] {
+    z-index: 999;
 }
 </style>
 """, unsafe_allow_html=True)
