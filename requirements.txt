@@ -1,0 +1,5 @@
+streamlit==1.28.0
+firebase-admin>=6.4.0
+requests==2.31.0
+google-cloud-firestore==2.11.1
+Pillow
