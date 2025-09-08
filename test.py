@@ -406,67 +406,35 @@ def render_player():
     artist = track.get("artist", "Sem artista")
     audio_src = track.get("audio_url", "")
     
-    # ID único para o container do player
-    container_id = f"player_container_{int(time.time() * 1000)}"
-    
+    # Criar um HTML temporário para o player
     player_html = f"""
-    <div id="{container_id}" style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
+    <!DOCTYPE html>
+    <html>
+    <body>
+        <audio controls {'autoplay' if st.session_state.is_playing else ''}>
+            <source src="{audio_src}" type="audio/mpeg">
+        </audio>
+    </body>
+    </html>
+    """
+    
+    # Codificar o HTML em base64 para usar no iframe
+    player_html_base64 = base64.b64encode(player_html.encode()).decode()
+    
+    container_html = f"""
+    <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
                 padding:10px;border-radius:12px;display:flex;align-items:center;gap:10px;z-index:999;">
         <img src="{cover_url}" width="50" height="50" style="border-radius:8px"/>
         <div>
             <div style="font-weight:bold;color:white">{title}</div>
             <div style="color:#ccc;font-size:12px">{artist}</div>
         </div>
-        <audio controls {'autoplay' if st.session_state.is_playing else ''} style="margin-left:auto;">
-            <source src="{audio_src}" type="audio/mpeg">
-            Seu navegador não suporta o elemento de áudio.
-        </audio>
+        <iframe src="data:text/html;base64,{player_html_base64}" 
+                style="width:300px;height:40px;border:none;margin-left:auto;"></iframe>
     </div>
     """
     
-    st.markdown(player_html, unsafe_allow_html=True)
-    
-    # JavaScript para garantir que o áudio seja atualizado
-    st.markdown(f"""
-    <script>
-    function replaceAudioPlayer() {{
-        const container = document.getElementById('{container_id}');
-        if (!container) return;
-        
-        // Remover qualquer player de áudio existente
-        const oldAudios = container.querySelectorAll('audio');
-        oldAudios.forEach(audio => audio.remove());
-        
-        // Criar novo player de áudio
-        const newAudio = document.createElement('audio');
-        newAudio.controls = true;
-        newAudio.style.marginLeft = 'auto';
-        
-        const source = document.createElement('source');
-        source.src = "{audio_src}";
-        source.type = "audio/mpeg";
-        newAudio.appendChild(source);
-        
-        // Adicionar autoplay se necessário
-        {'newAudio.autoplay = true;' if st.session_state.is_playing else ''}
-        
-        // Adicionar evento para quando o áudio terminar
-        newAudio.onended = function() {{
-            // Lógica para quando a música terminar
-        }};
-        
-        // Adicionar o novo player ao container
-        container.appendChild(newAudio);
-    }}
-    
-    // Executar quando o DOM estiver pronto
-    if (document.readyState === 'loading') {{
-        document.addEventListener('DOMContentLoaded', replaceAudioPlayer);
-    }} else {{
-        replaceAudioPlayer();
-    }}
-    </script>
-    """, unsafe_allow_html=True)
+    st.markdown(container_html, unsafe_allow_html=True)
 
 
 # ==============================
