@@ -375,6 +375,9 @@ def show_request_music_section():
 # ==============================
 # RENDER PLAYER COM AUTOPLAY
 # ==============================
+# ==============================
+# RENDER PLAYER COM AUTOPLAY
+# ==============================
 def image_to_base64(img):
     buffered = BytesIO()
     img.save(buffered, format="PNG")
@@ -387,23 +390,22 @@ def render_player():
         st.info("🔍 Escolha uma música para tocar.")
         return
 
+    # Determinar se deve autoplay
+    autoplay_attr = "autoplay" if st.session_state.is_playing else ""
+    
+    # Obter URL do áudio
+    audio_src = track.get("audio_url", "")
+    
+    # Carregar imagem
     cover = load_image_cached(track.get("image_url"))
     if cover is not None:
         cover_url = image_to_base64(cover)
     else:
         cover_url = "https://via.placeholder.com/80x80?text=Sem+Imagem"
 
-    
     title = track.get("title", "Sem título")
     artist = track.get("artist", "Sem artista")
-    duration = track.get("duration", "0:00")
-    player_html = f"""
-    <audio controls {autoplay_attr} style="margin-left:auto;" id="player_{track['id']}">
-        <source src="{audio_src}" type="audio/mpeg">
-        Seu navegador não suporta o elemento de áudio.
-    </audio>
-    """
-
+    
     player_html = f"""
     <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
                 padding:10px;border-radius:12px;display:flex;align-items:center;gap:10px;z-index:999;">
@@ -420,6 +422,22 @@ def render_player():
     """
     st.markdown(player_html, unsafe_allow_html=True)
 
+    # Adicione isso após o player_html
+    st.markdown("""
+    <script>
+    // Função para controlar o player
+    function togglePlayback() {
+        const audio = document.querySelector('audio');
+        if (audio) {
+            if (audio.paused) {
+                audio.play();
+            } else {
+                audio.pause();
+            }
+        }
+    }
+    </script>
+    """, unsafe_allow_html=True)
 
 # ==============================
 # SIDEBAR
