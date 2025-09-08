@@ -679,9 +679,22 @@ h1, h2, h3, h4, h5, h6 {
 .stMarkdown {
     color: white;
 }
-/* Garantir que o player fique acima do sidebar */
-[data-testid="stSidebar"] {
-    z-index: 999;
+/* Garantir que o player fique acima de tudo */
+div[data-testid="stAppViewContainer"] {
+    position: relative;
+    z-index: 1;
 }
+
+/* Sidebar com z-index menor que o player */
+[data-testid="stSidebar"] {
+    z-index: 100;
+}
+
+/* Player com z-index maior */
+iframe {
+    z-index: 1000 !important;
+    position: relative;
+}
+
 </style>
 """, unsafe_allow_html=True)
