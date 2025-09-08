@@ -397,6 +397,7 @@ def image_to_base64(img):
 def render_player():
     track = st.session_state.current_track
     if not track:
+        st.info("🔍 Escolha uma música para tocar.")
         return
 
     cover = load_image_cached(track.get("image_url"))
@@ -408,37 +409,81 @@ def render_player():
     title = track.get("title", "Sem título")
     artist = track.get("artist", "Sem artista")
     audio_src = track.get("audio_url", "")
-
-    html_content = f"""
-    <div style="
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background-color: #1c1c1e;
-        padding: 12px 24px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        z-index: 9999;
-        box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.4);
-        border-top: 1px solid #333;
-    ">
-        <div style="display: flex; align-items: center; gap: 16px;">
-            <img src="{cover_url}" alt="Capa" width="60" height="60" style="border-radius: 8px; object-fit: cover;" />
-            <div>
-                <div style="color: white; font-weight: 600; font-size: 16px;">{title}</div>
-                <div style="color: #bbb; font-size: 14px;">{artist}</div>
-            </div>
-        </div>
-        <audio controls autoplay style="width: 320px; height: 40px; outline: none;">
+    
+    audio_html = f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                background: transparent;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 40px;
+            }}
+            audio {{
+                width: 300px;
+                height: 40px;
+                outline: none;
+            }}
+            audio::-webkit-media-controls-panel {{
+                background-color: #1DB954;
+            }}
+            audio::-webkit-media-controls-play-button {{
+                background-color: #1DB954 !important;
+                border-radius: 50%;
+                box-shadow: 0 0 8px rgba(0,0,0,0.4);
+                border: 1px solid #1ed760;
+            }}
+        </style>
+    </head>
+    <body>
+        <audio controls {'autoplay' if st.session_state.is_playing else ''}>
             <source src="{audio_src}" type="audio/mpeg">
-            Seu navegador não suporta o player de áudio.
         </audio>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {{
+                const audio = document.querySelector('audio');
+                if (audio && {str(st.session_state.is_playing).lower()}) {{
+                    const playPromise = audio.play();
+                    if (playPromise !== undefined) {{
+                        playPromise.catch(error => {{
+                            console.log('Autoplay prevented:', error);
+                            audio.controls = true;
+                        }});
+                    }}
+                }}
+            }});
+        </script>
+    </body>
+    </html>
+    '''
+    
+    audio_html_encoded = base64.b64encode(audio_html.encode()).decode()
+    
+    player_html = f"""
+    <div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
+                background:rgba(0,0,0,0.8);padding:15px;border-radius:15px;
+                display:flex;align-items:center;gap:15px;z-index:999;
+                box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);
+                width:600px; max-width:90%;">
+
+        <img src="{cover_url}" width="60" height="60" style="border-radius:10px;object-fit:cover"/>
+        <div style="flex:1;">
+            <div style="font-weight:bold;color:white;font-size:16px;margin-bottom:5px">{title}</div>
+            <div style="color:#ccc;font-size:14px">{artist}</div>
+        </div>
+        <iframe src="data:text/html;base64,{audio_html_encoded}" 
+                style="width:320px;height:50px;border:none;margin-left:auto;border-radius:8px;
+                       overflow:hidden;"></iframe>
     </div>
     """
+    
+    st.markdown(player_html, unsafe_allow_html=True)
 
-    components.html(html_content, height=100, scrolling=False)
 
     
 # ==============================
