@@ -480,13 +480,13 @@ with st.sidebar:
         st.caption(f"Duração: {song.get('duration', 'N/A')}")
 
 
+    if song.get("audio_url"):
+        render_player()
+
     else:
         st.info("🔍 Escolha uma música")
 
     st.markdown("---")
-
-    if song.get("audio_url"):
-        render_player()
 
     if st.button("Página Inicial", key="btn_home", use_container_width=True):
         st.session_state.current_page = "home"
