@@ -385,7 +385,7 @@ def render_player():
     if cover is not None:
         cover_url = track.get("image_url")  # só pra exibir a URL
     else:
-    cover_url = "https://via.placeholder.com/80x80?text=Sem+Imagem"
+        cover_url = "https://via.placeholder.com/80x80?text=Sem+Imagem"
 
     
     title = track.get("title", "Sem título")
