@@ -20,39 +20,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-
-# JavaScript global para desbloquear áudio
-st.markdown("""
-<script>
-// Função para desbloquear autoplay
-function unlockAudio() {
-    // Criar e descartar um contexto de áudio breve
-    try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === 'suspended') {
-            audioContext.resume();
-        }
-        // Criar um oscilador muito breve
-        const oscillator = audioContext.createOscillator();
-        oscillator.connect(audioContext.destination);
-        oscillator.start();
-        oscillator.stop(audioContext.currentTime + 0.001);
-    } catch (e) {
-        console.log('Audio unlock failed:', e);
-    }
-}
-
-// Executar quando a página carregar
-document.addEventListener('DOMContentLoaded', unlockAudio);
-
-// Também executar no primeiro clique do usuário
-document.addEventListener('click', function() {
-    unlockAudio();
-}, { once: true });
-</script>
-""", unsafe_allow_html=True)
-
-
 # ==============================
 # ESTADO DA SESSÃO
 # ==============================
@@ -300,24 +267,24 @@ def play_song(song):
     current_id = st.session_state.current_track["id"] if st.session_state.current_track else None
     new_id = song["id"]
     
-    # Se for música diferente, forçar rerun
+    # Sempre forçar rerun quando uma nova música é selecionada
+    st.session_state.current_track = song
+    st.session_state.is_playing = True
+    
+    # Adicionar timestamp único para forçar reconstrução
+    st.session_state.player_timestamp = time.time()
+    
+    if st.session_state.firebase_connected:
+        try:
+            ref = db.reference(f"/songs/{song['id']}/play_count")
+            current_count = ref.get() or 0
+            ref.set(current_count + 1)
+        except Exception as e:
+            st.error(f"Erro ao atualizar play_count: {e}")
+    
+    # Forçar rerun apenas se for música diferente
     if current_id != new_id:
-        st.session_state.current_track = song
-        st.session_state.is_playing = True
-        
-        if st.session_state.firebase_connected:
-            try:
-                ref = db.reference(f"/songs/{song['id']}/play_count")
-                current_count = ref.get() or 0
-                ref.set(current_count + 1)
-            except Exception as e:
-                st.error(f"Erro ao atualizar play_count: {e}")
-        
-        # Forçar rerun para reconstruir o player
         st.rerun()
-    else:
-        # Se for a mesma música, apenas toggle play/pause
-        st.session_state.is_playing = not st.session_state.is_playing
     
 
 
@@ -442,8 +409,62 @@ def render_player():
     artist = track.get("artist", "Sem artista")
     audio_src = track.get("audio_url", "")
     
-    # ID único para forçar reconstrução
-    unique_id = int(time.time() * 1000)
+    # Criar HTML para o iframe com melhor estilização
+    audio_html = f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                background: transparent;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 40px;
+            }}
+            audio {{
+                width: 300px;
+                height: 40px;
+                outline: none;
+            }}
+            audio::-webkit-media-controls-panel {{
+                background-color: #1DB954;
+            }}
+            audio::-webkit-media-controls-play-button {{
+                background-color: #000;
+                border-radius: 50%;
+            }}
+        </style>
+    </head>
+    <body>
+        <audio controls {'autoplay' if st.session_state.is_playing else ''}>
+            <source src="{audio_src}" type="audio/mpeg">
+        </audio>
+        <script>
+            // Tentar forçar autoplay com interação simulada
+            document.addEventListener('DOMContentLoaded', function() {{
+                const audio = document.querySelector('audio');
+                if (audio && {str(st.session_state.is_playing).lower()}) {{
+                    // Tentar play com tratamento de erro
+                    const playPromise = audio.play();
+                    if (playPromise !== undefined) {{
+                        playPromise.catch(error => {{
+                            console.log('Autoplay prevented:', error);
+                            // Mostrar botão de play se autoplay falhar
+                            audio.controls = true;
+                        }});
+                    }}
+                }}
+            }});
+        </script>
+    </body>
+    </html>
+    '''
+    
+    # Codificar para data URL
+    audio_html_encoded = base64.b64encode(audio_html.encode()).decode()
     
     player_html = f"""
     <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.8);
@@ -454,51 +475,13 @@ def render_player():
             <div style="font-weight:bold;color:white;font-size:16px;margin-bottom:5px">{title}</div>
             <div style="color:#ccc;font-size:14px">{artist}</div>
         </div>
-        <audio id="audio_player_{unique_id}" controls {'autoplay' if st.session_state.is_playing else ''} style="width:300px;height:40px;margin-left:auto;">
-            <source src="{audio_src}" type="audio/mpeg">
-        </audio>
+        <iframe src="data:text/html;base64,{audio_html_encoded}" 
+                style="width:320px;height:50px;border:none;margin-left:auto;border-radius:8px;
+                       overflow:hidden;"></iframe>
     </div>
     """
     
     st.markdown(player_html, unsafe_allow_html=True)
-    
-    # JavaScript simples para garantir o autoplay
-    if st.session_state.is_playing:
-        st.markdown(f"""
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {{
-            const audio = document.getElementById('audio_player_{unique_id}');
-            if (audio) {{
-                // Forçar recarregamento do áudio
-                audio.load();
-                
-                // Tentar autoplay com várias estratégias
-                function attemptPlay() {{
-                    const playPromise = audio.play();
-                    
-                    if (playPromise !== undefined) {{
-                        playPromise.catch(error => {{
-                            // Estratégia 1: Esperar um pouco e tentar novamente
-                            setTimeout(() => {{
-                                audio.play().catch(e => {{
-                                    // Estratégia 2: Simular clique do usuário
-                                    console.log('Autoplay failed, simulating user interaction');
-                                }});
-                            }}, 300);
-                        }});
-                    }}
-                }}
-                
-                // Esperar o áudio carregar
-                if (audio.readyState >= 2) {{
-                    attemptPlay();
-                }} else {{
-                    audio.addEventListener('loadeddata', attemptPlay);
-                }}
-            }}
-        }});
-        </script>
-        """, unsafe_allow_html=True)
     
 # ==============================
 # SIDEBAR
@@ -686,57 +669,5 @@ h1, h2, h3, h4, h5, h6 {
 .stMarkdown {
     color: white;
 }
-
-/* Melhorar a aparência dos controles customizados */
-#custom_controls button {
-    background: #1DB954 !important;
-    border: none;
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    cursor: pointer;
-    transition: transform 0.2s;
-}
-
-#custom_controls button:hover {
-    transform: scale(1.1);
-    background: #1ed760 !important;
-}
-
-#time_display {
-    color: white;
-    font-family: monospace;
-    font-size: 14px;
-    min-width: 40px;
-}
-
-/* Estilização do player de áudio */
-audio {
-    border-radius: 25px;
-    height: 40px;
-    background-color: #1DB954;
-}
-
-audio::-webkit-media-controls-panel {
-    background-color: #1DB954;
-}
-
-audio::-webkit-media-controls-play-button {
-    background-color: #000;
-    border-radius: 50%;
-}
-
-audio::-webkit-media-controls-current-time-display,
-audio::-webkit-media-controls-time-remaining-display {
-    color: #000;
-    font-weight: bold;
-}
-
-/* Melhorar a aparência geral */
-div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stVerticalBlock"]) {
-    padding-bottom: 80px;
-}
-
-
 </style>
 """, unsafe_allow_html=True)
