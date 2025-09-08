@@ -581,7 +581,7 @@ if st.session_state.current_page == "home":
                     st.write(f"*{song['artist']}*")
 
                     song_key = song.get("id", f"home_{idx}")
-                    if st.button("Tocar (2 clique)", key=f"play_{song_key}", use_container_width=True):
+                    if st.button("Tocar", key=f"play_{song_key}", use_container_width=True):
                         play_song(song)
                         
         # Mostrar seção de pedidos de música
@@ -614,7 +614,7 @@ elif st.session_state.current_page == "search":
                         st.image("https://via.placeholder.com/150x150/1DB954/FFFFFF?text=Sem+Imagem", caption="Imagem não disponível")
                     st.write(f"**{song['title']}**")
                     st.write(f"*{song['artist']}*")
-                    if st.button("Tocar (2 clique)", key=f"search_{i}", use_container_width=True):
+                    if st.button("Tocar", key=f"search_{i}", use_container_width=True):
                         play_song(song)
                         #st.rerun()
                         
