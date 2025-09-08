@@ -21,6 +21,38 @@ st.set_page_config(
 )
 
 
+# JavaScript global para desbloquear áudio
+st.markdown("""
+<script>
+// Função para desbloquear autoplay
+function unlockAudio() {
+    // Criar e descartar um contexto de áudio breve
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+        // Criar um oscilador muito breve
+        const oscillator = audioContext.createOscillator();
+        oscillator.connect(audioContext.destination);
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.001);
+    } catch (e) {
+        console.log('Audio unlock failed:', e);
+    }
+}
+
+// Executar quando a página carregar
+document.addEventListener('DOMContentLoaded', unlockAudio);
+
+// Também executar no primeiro clique do usuário
+document.addEventListener('click', function() {
+    unlockAudio();
+}, { once: true });
+</script>
+""", unsafe_allow_html=True)
+
+
 # ==============================
 # ESTADO DA SESSÃO
 # ==============================
@@ -268,22 +300,24 @@ def play_song(song):
     current_id = st.session_state.current_track["id"] if st.session_state.current_track else None
     new_id = song["id"]
     
-    st.session_state.current_track = song
-    st.session_state.is_playing = True
-    
-    # Adicionar timestamp único
-    st.session_state.player_timestamp = time.time()
-    
-    if st.session_state.firebase_connected:
-        try:
-            ref = db.reference(f"/songs/{song['id']}/play_count")
-            current_count = ref.get() or 0
-            ref.set(current_count + 1)
-        except Exception as e:
-            st.error(f"Erro ao atualizar play_count: {e}")
-    
-    # Sempre forçar rerun para nova música
-    st.rerun()
+    # Se for música diferente, forçar rerun
+    if current_id != new_id:
+        st.session_state.current_track = song
+        st.session_state.is_playing = True
+        
+        if st.session_state.firebase_connected:
+            try:
+                ref = db.reference(f"/songs/{song['id']}/play_count")
+                current_count = ref.get() or 0
+                ref.set(current_count + 1)
+            except Exception as e:
+                st.error(f"Erro ao atualizar play_count: {e}")
+        
+        # Forçar rerun para reconstruir o player
+        st.rerun()
+    else:
+        # Se for a mesma música, apenas toggle play/pause
+        st.session_state.is_playing = not st.session_state.is_playing
     
 
 
@@ -408,6 +442,9 @@ def render_player():
     artist = track.get("artist", "Sem artista")
     audio_src = track.get("audio_url", "")
     
+    # ID único para forçar reconstrução
+    unique_id = int(time.time() * 1000)
+    
     player_html = f"""
     <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.8);
                 padding:15px;border-radius:15px;display:flex;align-items:center;gap:15px;z-index:999;
@@ -417,130 +454,51 @@ def render_player():
             <div style="font-weight:bold;color:white;font-size:16px;margin-bottom:5px">{title}</div>
             <div style="color:#ccc;font-size:14px">{artist}</div>
         </div>
-        <audio id="main_audio_player" controls style="width:300px;height:40px;margin-left:auto;display:none;">
+        <audio id="audio_player_{unique_id}" controls {'autoplay' if st.session_state.is_playing else ''} style="width:300px;height:40px;margin-left:auto;">
             <source src="{audio_src}" type="audio/mpeg">
         </audio>
-        <div id="custom_controls" style="display:flex;align-items:center;gap:10px;">
-            <button onclick="togglePlayback()" style="background:#1DB954;color:white;border:none;padding:10px;border-radius:50%;width:40px;height:40px;">
-                ▶️
-            </button>
-            <span id="time_display" style="color:white;font-size:12px;">0:00</span>
-        </div>
     </div>
     """
     
     st.markdown(player_html, unsafe_allow_html=True)
     
-    # JavaScript avançado para contornar bloqueios
-    st.markdown(f"""
-    <script>
-    let audioContext;
-    let audioBuffer;
-    let audioSource;
-    let isPlaying = false;
-    let startTime = 0;
-    let pausedTime = 0;
-    
-    // Carregar áudio usando Web Audio API
-    async function loadAudio() {{
-        try {{
-            if (!audioContext) {{
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    # JavaScript simples para garantir o autoplay
+    if st.session_state.is_playing:
+        st.markdown(f"""
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {{
+            const audio = document.getElementById('audio_player_{unique_id}');
+            if (audio) {{
+                // Forçar recarregamento do áudio
+                audio.load();
+                
+                // Tentar autoplay com várias estratégias
+                function attemptPlay() {{
+                    const playPromise = audio.play();
+                    
+                    if (playPromise !== undefined) {{
+                        playPromise.catch(error => {{
+                            // Estratégia 1: Esperar um pouco e tentar novamente
+                            setTimeout(() => {{
+                                audio.play().catch(e => {{
+                                    // Estratégia 2: Simular clique do usuário
+                                    console.log('Autoplay failed, simulating user interaction');
+                                }});
+                            }}, 300);
+                        }});
+                    }}
+                }}
+                
+                // Esperar o áudio carregar
+                if (audio.readyState >= 2) {{
+                    attemptPlay();
+                }} else {{
+                    audio.addEventListener('loadeddata', attemptPlay);
+                }}
             }}
-            
-            const response = await fetch("{audio_src}");
-            const arrayBuffer = await response.arrayBuffer();
-            audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-            
-            // Iniciar reprodução automaticamente se necessário
-            {'setTimeout(() => togglePlayback(), 100);' if st.session_state.is_playing else ''}
-        }} catch (error) {{
-            console.error('Error loading audio:', error);
-            fallbackToHTML5Audio();
-        }}
-    }}
-    
-    function togglePlayback() {{
-        if (!audioBuffer) {{
-            loadAudio();
-            return;
-        }}
-        
-        if (isPlaying) {{
-            pauseAudio();
-        }} else {{
-            playAudio();
-        }}
-    }}
-    
-    function playAudio() {{
-        if (audioContext.state === 'suspended') {{
-            audioContext.resume();
-        }}
-        
-        audioSource = audioContext.createBufferSource();
-        audioSource.buffer = audioBuffer;
-        audioSource.connect(audioContext.destination);
-        
-        // Configurar o tempo de início
-        startTime = audioContext.currentTime - pausedTime;
-        audioSource.start(0, pausedTime);
-        
-        isPlaying = true;
-        updateButton();
-        updateTimeDisplay();
-    }}
-    
-    function pauseAudio() {{
-        if (audioSource) {{
-            pausedTime = audioContext.currentTime - startTime;
-            audioSource.stop();
-            audioSource = null;
-            isPlaying = false;
-            updateButton();
-        }}
-    }}
-    
-    function updateButton() {{
-        const button = document.querySelector('#custom_controls button');
-        if (button) {{
-            button.innerHTML = isPlaying ? '⏸️' : '▶️';
-        }}
-    }}
-    
-    function updateTimeDisplay() {{
-        if (isPlaying) {{
-            const currentTime = audioContext.currentTime - startTime;
-            const minutes = Math.floor(currentTime / 60);
-            const seconds = Math.floor(currentTime % 60);
-            document.getElementById('time_display').textContent = 
-                `${{minutes}}:${{seconds.toString().padStart(2, '0')}}`;
-            
-            requestAnimationFrame(updateTimeDisplay);
-        }}
-    }}
-    
-    function fallbackToHTML5Audio() {{
-        // Fallback para o player HTML5 normal
-        const audio = document.getElementById('main_audio_player');
-        if (audio) {{
-            audio.style.display = 'block';
-            document.getElementById('custom_controls').style.display = 'none';
-            {'audio.play().catch(e => console.log("Fallback autoplay failed:", e));' if st.session_state.is_playing else ''}
-        }}
-    }}
-    
-    // Iniciar quando a página carregar
-    {'setTimeout(loadAudio, 500);' if st.session_state.is_playing else ''}
-    
-    // Adicionar evento de clique em todo o documento para "desbloquear" audio
-    document.addEventListener('click', function() {{
-        if (audioContext && audioContext.state === 'suspended') {{
-            audioContext.resume();
-        }}
-    }}, {{ once: true }});
-    </script>
-    """, unsafe_allow_html=True)
+        }});
+        </script>
+        """, unsafe_allow_html=True)
     
 # ==============================
 # SIDEBAR
@@ -751,6 +709,34 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 14px;
     min-width: 40px;
 }
+
+/* Estilização do player de áudio */
+audio {
+    border-radius: 25px;
+    height: 40px;
+    background-color: #1DB954;
+}
+
+audio::-webkit-media-controls-panel {
+    background-color: #1DB954;
+}
+
+audio::-webkit-media-controls-play-button {
+    background-color: #000;
+    border-radius: 50%;
+}
+
+audio::-webkit-media-controls-current-time-display,
+audio::-webkit-media-controls-time-remaining-display {
+    color: #000;
+    font-weight: bold;
+}
+
+/* Melhorar a aparência geral */
+div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stVerticalBlock"]) {
+    padding-bottom: 80px;
+}
+
 
 </style>
 """, unsafe_allow_html=True)
