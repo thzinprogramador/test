@@ -4,6 +4,7 @@ import requests
 import datetime 
 import random
 import time
+import base64
 from firebase_admin import credentials, db
 from io import BytesIO
 from PIL import Image
@@ -374,16 +375,21 @@ def show_request_music_section():
 # ==============================
 # RENDER PLAYER COM AUTOPLAY
 # ==============================
+def image_to_base64(img):
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    return f"data:image/png;base64,{img_str}"
+
 def render_player():
     track = st.session_state.current_track
     if not track:
         st.info("🔍 Escolha uma música para tocar.")
         return
 
-    audio_src = track.get("audio_url", "")
-    cover = load_image_cached(track.get("image_url"))  # já faz conversão do Drive
+    cover = load_image_cached(track.get("image_url"))
     if cover is not None:
-        cover_url = track.get("image_url")  # só pra exibir a URL
+        cover_url = image_to_base64(cover)
     else:
         cover_url = "https://via.placeholder.com/80x80?text=Sem+Imagem"
 
@@ -391,7 +397,12 @@ def render_player():
     title = track.get("title", "Sem título")
     artist = track.get("artist", "Sem artista")
     duration = track.get("duration", "0:00")
-    autoplay_attr = "autoplay" if st.session_state.is_playing else ""
+    player_html = f"""
+    <audio controls {autoplay_attr} style="margin-left:auto;" id="player_{track['id']}">
+        <source src="{audio_src}" type="audio/mpeg">
+        Seu navegador não suporta o elemento de áudio.
+    </audio>
+    """
 
     player_html = f"""
     <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
