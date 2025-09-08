@@ -601,40 +601,38 @@ if current:
 
     # Render player HTML (uso do audio nativo)
     player_html = f"""
-    <div class="player-bar" role="region" aria-label="player-bar">
-      <div class="player-left">
-        <img src="{cover or 'https://via.placeholder.com/80x80/1DB954/FFFFFF?text=Sem+Imagem'}" width="56" height="56" style="border-radius:8px;object-fit:cover"/>
-        <div>
-          <div style="font-weight:700">{title}</div>
-          <div style="color:#bcd3df;font-size:13px">{artist}</div>
-        </div>
-      </div>
-      <div class="player-middle">
-        <div class="player-controls">
-          <button id="prevBtnClient" style="background:transparent;border:none;color:white;cursor:pointer">⏮️</button>
-          <button id="playPauseBtnClient" class="play-btn">{'▶' if not st.session_state.is_playing else '❚❚'}</button>
-          <button id="nextBtnClient" style="background:transparent;border:none;color:white;cursor:pointer">⏭️</button>
-        </div>
-        <div style="width:100%;display:flex;align-items:center;gap:8px">
-          <span style="font-size:12px;">0:00</span>
-          <div style="flex:1;">
-            <div class="progress"><div class="progress-inner" style="width:0%"></div></div>
-          </div>
-          <span style="font-size:12px;">{duration}</span>
-        </div>
-      </div>
-      <div style="min-width:160px;display:flex;gap:10px;align-items:center;justify-content:flex-end">
-        <audio id="wave_audio" controls {autoplay_attr} style="width:260px;">
-          <source src="{audio_src}" type="audio/mpeg">
-          Seu navegador não suporta o elemento de áudio.
-        </audio>
-      </div>
+<div class="player-bar" role="region" aria-label="player-bar">
+  <div class="player-left">
+    <img src="{cover or 'https://via.placeholder.com/80x80/1DB954/FFFFFF?text=Sem+Imagem'}" width="56" height="56" style="border-radius:8px;object-fit:cover"/>
+    <div>
+      <div style="font-weight:700">{title}</div>
+      <div style="color:#bcd3df;font-size:13px">{artist}</div>
     </div>
+  </div>
+  <div class="player-middle">
+    <div class="player-controls">
+      <button id="prevBtnClient" style="background:transparent;border:none;color:white;cursor:pointer">⏮️</button>
+      <button id="playPauseBtnClient" class="play-btn">{'▶' if not st.session_state.is_playing else '❚❚'}</button>
+      <button id="nextBtnClient" style="background:transparent;border:none;color:white;cursor:pointer">⏭️</button>
+    </div>
+    <div style="width:100%;display:flex;align-items:center;gap:8px">
+      <span style="font-size:12px;">0:00</span>
+      <div style="flex:1;">
+        <div class="progress"><div class="progress-inner" style="width:0%"></div></div>
+      </div>
+      <span style="font-size:12px;">{duration}</span>
+    </div>
+  </div>
+  <div style="min-width:160px;display:flex;gap:10px;align-items:center;justify-content:flex-end">
+    <audio id="wave_audio" controls {autoplay_attr} style="width:260px;">
+      <source src="{audio_src}" type="audio/mpeg">
+      Seu navegador não suporta o elemento de áudio.
+    </audio>
+  </div>
+</div>
 
-    player_html = f"""
 <script>
 function findAndClickHiddenBtn(textMatch) {{
-    // procura buttons do Streamlit com o label correspondente e "clica" (simula).
     const buttons = window.parent.document.querySelectorAll('button');
     for (let b of buttons) {{
         if (b.innerText && b.innerText.trim().includes(textMatch)) {{
@@ -647,8 +645,6 @@ function findAndClickHiddenBtn(textMatch) {{
 </script>
 """
 
-
-    """
 
     st.markdown(player_html, unsafe_allow_html=True)
 
