@@ -456,8 +456,6 @@ def render_player():
     components.html(html, height=100, scrolling=False)
 
 
-    if song.get("audio_url"):
-        render_player()
 # ==============================
 # SIDEBAR
 # ==============================
@@ -495,6 +493,9 @@ with st.sidebar:
     if st.button("Adicionar Música", key="btn_add", use_container_width=True):
         st.session_state.current_page = "add"
         st.session_state.show_request_form = False
+
+if song.get("audio_url"):
+    render_player()
 
 # ==============================
 # PÁGINAS
