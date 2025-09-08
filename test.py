@@ -394,10 +394,9 @@ def image_to_base64(img):
     img_str = base64.b64encode(buffered.getvalue()).decode()
     return f"data:image/png;base64,{img_str}"
 
-def render_player():
+ef render_player():
     track = st.session_state.current_track
     if not track:
-        st.info("🔍 Escolha uma música para tocar.")
         return
 
     cover = load_image_cached(track.get("image_url"))
@@ -411,15 +410,26 @@ def render_player():
     audio_src = track.get("audio_url", "")
 
     html_content = f"""
-    <div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
-                background:rgba(0,0,0,0.8);padding:15px;border-radius:15px;
-                display:flex;align-items:center;gap:15px;z-index:999;
-                box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);
-                width:600px; max-width:90%;">
-        <img src="{cover_url}" width="60" height="60" style="border-radius:10px;object-fit:cover"/>
-        <div style="flex:1;">
-            <div style="font-weight:bold;color:white;font-size:16px;margin-bottom:5px">{title}</div>
-            <div style="color:#ccc;font-size:14px">{artist}</div>
+    <div style="
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: #1c1c1e;
+        padding: 12px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        z-index: 9999;
+        box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.4);
+        border-top: 1px solid #333;
+    ">
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <img src="{cover_url}" alt="Capa" width="60" height="60" style="border-radius: 8px; object-fit: cover;" />
+            <div>
+                <div style="color: white; font-weight: 600; font-size: 16px;">{title}</div>
+                <div style="color: #bbb; font-size: 14px;">{artist}</div>
+            </div>
         </div>
         <audio controls autoplay style="width: 320px; height: 40px; outline: none;">
             <source src="{audio_src}" type="audio/mpeg">
