@@ -263,10 +263,19 @@ except Exception as e:
 # FUNÇÕES AUXILIARES
 # ==============================
 def play_song(song):
-    st.session_state.current_track = song
-    if not st.session_state.is_playing:
+    # Verificar se é uma música diferente
+    current_id = st.session_state.current_track["id"] if st.session_state.current_track else None
+    new_id = song["id"]
+    
+    # Se for música diferente, forçar rerun completo
+    if current_id != new_id:
+        st.session_state.current_track = song
         st.session_state.is_playing = True
-
+        st.rerun()
+    else:
+        # Se for a mesma música, apenas toggle play/pause
+        st.session_state.is_playing = not st.session_state.is_playing
+    
     if st.session_state.firebase_connected:
         try:
             ref = db.reference(f"/songs/{song['id']}/play_count")
@@ -375,9 +384,6 @@ def show_request_music_section():
 # ==============================
 # RENDER PLAYER COM AUTOPLAY
 # ==============================
-# ==============================
-# RENDER PLAYER COM AUTOPLAY
-# ==============================
 def image_to_base64(img):
     buffered = BytesIO()
     img.save(buffered, format="PNG")
@@ -390,13 +396,9 @@ def render_player():
         st.info("🔍 Escolha uma música para tocar.")
         return
 
-    # Determinar se deve autoplay
-    autoplay_attr = "autoplay" if st.session_state.is_playing else ""
+    # Usar ID único para forçar reconstrução do player
+    player_id = f"player_{track['id']}_{int(time.time())}"
     
-    # Obter URL do áudio
-    audio_src = track.get("audio_url", "")
-    
-    # Carregar imagem
     cover = load_image_cached(track.get("image_url"))
     if cover is not None:
         cover_url = image_to_base64(cover)
@@ -405,6 +407,8 @@ def render_player():
 
     title = track.get("title", "Sem título")
     artist = track.get("artist", "Sem artista")
+    audio_src = track.get("audio_url", "")
+    autoplay_attr = "autoplay" if st.session_state.is_playing else ""
     
     player_html = f"""
     <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
@@ -414,30 +418,41 @@ def render_player():
             <div style="font-weight:bold;color:white">{title}</div>
             <div style="color:#ccc;font-size:12px">{artist}</div>
         </div>
-        <audio controls {autoplay_attr} style="margin-left:auto;">
+        <audio controls {autoplay_attr} id="{player_id}" style="margin-left:auto;">
             <source src="{audio_src}" type="audio/mpeg">
             Seu navegador não suporta o elemento de áudio.
         </audio>
     </div>
     """
     st.markdown(player_html, unsafe_allow_html=True)
-
-    # Adicione isso após o player_html
-    st.markdown("""
-    <script>
-    // Função para controlar o player
-    function togglePlayback() {
-        const audio = document.querySelector('audio');
-        if (audio) {
-            if (audio.paused) {
-                audio.play();
-            } else {
+    
+    # JavaScript para controlar o player
+    if st.session_state.is_playing:
+        st.markdown(f"""
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {{
+            const audio = document.getElementById('audioPlayer');
+            if (audio) {{
+                audio.src = "{audio_src}";
+                audio.load();
+                audio.play().catch(function(error) {{
+                    console.log('Autoplay prevented: ', error);
+                }});
+            }}
+        }});
+        </script>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const audio = document.getElementById('audioPlayer');
+            if (audio) {
                 audio.pause();
             }
-        }
-    }
-    </script>
-    """, unsafe_allow_html=True)
+        });
+        </script>
+        """, unsafe_allow_html=True)
 
 # ==============================
 # SIDEBAR
