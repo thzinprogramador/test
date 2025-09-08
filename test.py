@@ -408,14 +408,56 @@ def render_player():
     artist = track.get("artist", "Sem artista")
     audio_src = track.get("audio_url", "")
     
-    # Criar HTML para o iframe
+    # Criar HTML para o iframe com melhor estilização
     audio_html = f'''
     <!DOCTYPE html>
     <html>
-    <body style="margin:0;padding:0;">
-        <audio controls {'autoplay' if st.session_state.is_playing else ''} style="width:300px;height:40px;">
+    <head>
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                background: transparent;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 40px;
+            }}
+            audio {{
+                width: 300px;
+                height: 40px;
+                outline: none;
+            }}
+            audio::-webkit-media-controls-panel {{
+                background-color: #1DB954;
+            }}
+            audio::-webkit-media-controls-play-button {{
+                background-color: #000;
+                border-radius: 50%;
+            }}
+        </style>
+    </head>
+    <body>
+        <audio controls {'autoplay' if st.session_state.is_playing else ''}>
             <source src="{audio_src}" type="audio/mpeg">
         </audio>
+        <script>
+            // Tentar forçar autoplay com interação simulada
+            document.addEventListener('DOMContentLoaded', function() {{
+                const audio = document.querySelector('audio');
+                if (audio && {str(st.session_state.is_playing).lower()}) {{
+                    // Tentar play com tratamento de erro
+                    const playPromise = audio.play();
+                    if (playPromise !== undefined) {{
+                        playPromise.catch(error => {{
+                            console.log('Autoplay prevented:', error);
+                            // Mostrar botão de play se autoplay falhar
+                            audio.controls = true;
+                        }});
+                    }}
+                }}
+            }});
+        </script>
     </body>
     </html>
     '''
@@ -424,15 +466,17 @@ def render_player():
     audio_html_encoded = base64.b64encode(audio_html.encode()).decode()
     
     player_html = f"""
-    <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
-                padding:10px;border-radius:12px;display:flex;align-items:center;gap:10px;z-index:999;">
-        <img src="{cover_url}" width="50" height="50" style="border-radius:8px"/>
-        <div>
-            <div style="font-weight:bold;color:white">{title}</div>
-            <div style="color:#ccc;font-size:12px">{artist}</div>
+    <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.8);
+                padding:15px;border-radius:15px;display:flex;align-items:center;gap:15px;z-index:999;
+                box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);">
+        <img src="{cover_url}" width="60" height="60" style="border-radius:10px;object-fit:cover"/>
+        <div style="flex:1;">
+            <div style="font-weight:bold;color:white;font-size:16px;margin-bottom:5px">{title}</div>
+            <div style="color:#ccc;font-size:14px">{artist}</div>
         </div>
         <iframe src="data:text/html;base64,{audio_html_encoded}" 
-                style="width:300px;height:40px;border:none;margin-left:auto;"></iframe>
+                style="width:320px;height:50px;border:none;margin-left:auto;border-radius:8px;
+                       overflow:hidden;"></iframe>
     </div>
     """
     
