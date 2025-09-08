@@ -488,7 +488,9 @@ def render_player():
     </div>
     """
     
+    # Usar components.html em vez de st.markdown para melhor controle
     components.html(player_html, height=80, scrolling=False)
+
     
 # ==============================
 # SIDEBAR
