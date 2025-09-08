@@ -406,11 +406,11 @@ def render_player():
     artist = track.get("artist", "Sem artista")
     audio_src = track.get("audio_url", "")
     
-    # Forçar reconstrução completa com key única
-    unique_key = f"player_{track['id']}_{int(time.time() * 1000)}"
+    # ID único para o container do player
+    container_id = f"player_container_{int(time.time() * 1000)}"
     
     player_html = f"""
-    <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
+    <div id="{container_id}" style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
                 padding:10px;border-radius:12px;display:flex;align-items:center;gap:10px;z-index:999;">
         <img src="{cover_url}" width="50" height="50" style="border-radius:8px"/>
         <div>
@@ -424,8 +424,49 @@ def render_player():
     </div>
     """
     
-    # Usar container com key única para forçar reconstrução
-    st.markdown(f'<div id="{unique_key}">{player_html}</div>', unsafe_allow_html=True)
+    st.markdown(player_html, unsafe_allow_html=True)
+    
+    # JavaScript para garantir que o áudio seja atualizado
+    st.markdown(f"""
+    <script>
+    function replaceAudioPlayer() {{
+        const container = document.getElementById('{container_id}');
+        if (!container) return;
+        
+        // Remover qualquer player de áudio existente
+        const oldAudios = container.querySelectorAll('audio');
+        oldAudios.forEach(audio => audio.remove());
+        
+        // Criar novo player de áudio
+        const newAudio = document.createElement('audio');
+        newAudio.controls = true;
+        newAudio.style.marginLeft = 'auto';
+        
+        const source = document.createElement('source');
+        source.src = "{audio_src}";
+        source.type = "audio/mpeg";
+        newAudio.appendChild(source);
+        
+        // Adicionar autoplay se necessário
+        {'newAudio.autoplay = true;' if st.session_state.is_playing else ''}
+        
+        // Adicionar evento para quando o áudio terminar
+        newAudio.onended = function() {{
+            // Lógica para quando a música terminar
+        }};
+        
+        // Adicionar o novo player ao container
+        container.appendChild(newAudio);
+    }}
+    
+    // Executar quando o DOM estiver pronto
+    if (document.readyState === 'loading') {{
+        document.addEventListener('DOMContentLoaded', replaceAudioPlayer);
+    }} else {{
+        replaceAudioPlayer();
+    }}
+    </script>
+    """, unsafe_allow_html=True)
 
 
 # ==============================
