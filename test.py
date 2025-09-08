@@ -396,10 +396,6 @@ def render_player():
         st.info("🔍 Escolha uma música para tocar.")
         return
 
-    # Usar ID único para forçar reconstrução do player
-    unique_id = int(time.time() * 1000)
-    player_id = f"audioPlayer_{unique_id}"
-    
     cover = load_image_cached(track.get("image_url"))
     if cover is not None:
         cover_url = image_to_base64(cover)
@@ -409,7 +405,9 @@ def render_player():
     title = track.get("title", "Sem título")
     artist = track.get("artist", "Sem artista")
     audio_src = track.get("audio_url", "")
-    autoplay_attr = "autoplay" if st.session_state.is_playing else ""
+    
+    # Forçar reconstrução completa com key única
+    unique_key = f"player_{track['id']}_{int(time.time() * 1000)}"
     
     player_html = f"""
     <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
@@ -419,42 +417,17 @@ def render_player():
             <div style="font-weight:bold;color:white">{title}</div>
             <div style="color:#ccc;font-size:12px">{artist}</div>
         </div>
-        <audio controls {autoplay_attr} id="{player_id}" style="margin-left:auto;">
+        <audio controls {'autoplay' if st.session_state.is_playing else ''} style="margin-left:auto;">
             <source src="{audio_src}" type="audio/mpeg">
             Seu navegador não suporta o elemento de áudio.
         </audio>
     </div>
     """
-    st.markdown(player_html, unsafe_allow_html=True)
     
-    # JavaScript para controlar o player - CORRIGIDO
-    if st.session_state.is_playing:
-        st.markdown(f"""
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {{
-            const audio = document.getElementById('{player_id}');
-            if (audio) {{
-                // Forçar carregamento do novo áudio
-                audio.src = "{audio_src}";
-                audio.load();
-                audio.play().catch(function(error) {{
-                    console.log('Autoplay prevented: ', error);
-                }});
-            }}
-        }});
-        </script>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {{
-            const audio = document.getElementById('{player_id}');
-            if (audio) {{
-                audio.pause();
-            }}
-        }});
-        </script>
-        """, unsafe_allow_html=True)
+    # Usar container com key única para forçar reconstrução
+    st.markdown(f'<div id="{unique_key}">{player_html}</div>', unsafe_allow_html=True)
+
+
 # ==============================
 # SIDEBAR
 # ==============================
