@@ -412,9 +412,6 @@ def render_player():
 
     autoplay_flag = "autoplay" if st.session_state.is_playing else ""
 
-    if song.get("audio_url"):
-            render_player()
-
     html = f"""
     <div style="
         position: fixed;
@@ -459,7 +456,8 @@ def render_player():
     components.html(html, height=100, scrolling=False)
 
 
-
+if song.get("audio_url"):
+            render_player()
 
     
 # ==============================
