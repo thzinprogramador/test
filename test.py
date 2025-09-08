@@ -391,9 +391,6 @@ def render_player():
         st.info("🔍 Escolha uma música para tocar.")
         return
 
-    # Usar timestamp único para forçar reconstrução
-    timestamp = st.session_state.get('player_timestamp', time.time())
-    
     cover = load_image_cached(track.get("image_url"))
     if cover is not None:
         cover_url = image_to_base64(cover)
@@ -404,22 +401,77 @@ def render_player():
     artist = track.get("artist", "Sem artista")
     audio_src = track.get("audio_url", "")
     
+    # ID único para o container
+    container_id = f"audio_player_{int(time.time() * 1000)}"
+    
+    # HTML do player
     player_html = f"""
-    <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
+    <div id="{container_id}" style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.5);
                 padding:10px;border-radius:12px;display:flex;align-items:center;gap:10px;z-index:999;">
         <img src="{cover_url}" width="50" height="50" style="border-radius:8px"/>
         <div>
             <div style="font-weight:bold;color:white">{title}</div>
             <div style="color:#ccc;font-size:12px">{artist}</div>
         </div>
-        <audio controls {'autoplay' if st.session_state.is_playing else ''} style="margin-left:auto;">
-            <source src="{audio_src}?t={timestamp}" type="audio/mpeg">
-            Seu navegador não suporta o elemento de áudio.
-        </audio>
+        <div id="audio_container_{container_id}" style="margin-left:auto;">
+            <audio controls {'autoplay' if st.session_state.is_playing else ''}>
+                <source src="{audio_src}" type="audio/mpeg">
+            </audio>
+        </div>
     </div>
     """
     
     st.markdown(player_html, unsafe_allow_html=True)
+    
+    # JavaScript para garantir que o áudio seja atualizado
+    st.markdown(f"""
+    <script>
+    (function() {{
+        // Remover qualquer player de áudio anterior
+        const oldPlayers = document.querySelectorAll('div[id^="audio_player_"]');
+        oldPlayers.forEach(player => {{
+            if (player.id !== '{container_id}') {{
+                player.remove();
+            }}
+        }});
+        
+        // Forçar recarregamento do áudio atual
+        const audioElement = document.querySelector('#{container_id} audio');
+        if (audioElement) {{
+            // Guardar o tempo atual se estiver tocando
+            let currentTime = 0;
+            let wasPlaying = !audioElement.paused;
+            
+            if (wasPlaying) {{
+                currentTime = audioElement.currentTime;
+            }}
+            
+            // Recriar o elemento de áudio completamente
+            const newAudio = document.createElement('audio');
+            newAudio.controls = true;
+            {'newAudio.autoplay = true;' if st.session_state.is_playing else ''}
+            
+            const source = document.createElement('source');
+            source.src = "{audio_src}";
+            source.type = "audio/mpeg";
+            newAudio.appendChild(source);
+            
+            // Substituir o áudio antigo
+            const container = document.querySelector('#audio_container_{container_id}');
+            if (container) {{
+                container.innerHTML = '';
+                container.appendChild(newAudio);
+                
+                // Restaurar o tempo se estava tocando
+                if (wasPlaying) {{
+                    newAudio.currentTime = currentTime;
+                    newAudio.play().catch(e => console.log('Autoplay prevented:', e));
+                }}
+            }}
+        }}
+    }})();
+    </script>
+    """, unsafe_allow_html=True)
 
     
 # ==============================
