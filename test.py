@@ -10,6 +10,42 @@ from io import BytesIO
 from PIL import Image
 
 
+st.markdown("""
+<script>
+// Função para desbloquear áudio com interação simulada
+function unlockAudio() {
+    // Criar contexto de áudio invisível
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Criar um oscilador muito breve e silencioso
+    const oscillator = audioContext.createOscillator();
+    oscillator.connect(audioContext.destination);
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + 0.001);
+    
+    // Resolver o contexto (necessário para alguns navegadores)
+    if (audioContext.state === 'suspended') {
+        audioContext.resume();
+    }
+    
+    return audioContext;
+}
+
+// Executar quando a página carregar
+document.addEventListener('DOMContentLoaded', function() {
+    // Primeira interação - desbloquear áudio
+    unlockAudio();
+    
+    // Adicionar evento de clique em todo o documento
+    document.body.addEventListener('click', function() {
+        unlockAudio();
+    }, { once: true });
+});
+</script>
+""", unsafe_allow_html=True)
+
+
+
 # ==============================
 # CONFIGURAÇÃO DA PÁGINA
 # ==============================
@@ -409,63 +445,6 @@ def render_player():
     artist = track.get("artist", "Sem artista")
     audio_src = track.get("audio_url", "")
     
-    # Criar HTML para o iframe com melhor estilização
-    audio_html = f'''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {{
-                margin: 0;
-                padding: 0;
-                background: transparent;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 40px;
-            }}
-            audio {{
-                width: 300px;
-                height: 40px;
-                outline: none;
-            }}
-            audio::-webkit-media-controls-panel {{
-                background-color: #1DB954;
-            }}
-            audio::-webkit-media-controls-play-button {{
-                background-color: #000;
-                border-radius: 50%;
-            }}
-        </style>
-    </head>
-    <body>
-        <audio controls {'autoplay' if st.session_state.is_playing else ''}>
-            <source src="{audio_src}" type="audio/mpeg">
-        </audio>
-        <script>
-            // Tentar forçar autoplay com interação simulada
-            document.addEventListener('DOMContentLoaded', function() {{
-                const audio = document.querySelector('audio');
-                if (audio && {str(st.session_state.is_playing).lower()}) {{
-                    // Tentar play com tratamento de erro
-                    const playPromise = audio.play();
-                    if (playPromise !== undefined) {{
-                        playPromise.catch(error => {{
-                            console.log('Autoplay prevented:', error);
-                            // Mostrar botão de play se autoplay falhar
-                            audio.controls = true;
-                        }});
-                    }}
-                }}
-            }});
-        </script>
-    </body>
-    </html>
-    '''
-    
-    # Codificar para data URL
-    audio_html_encoded = base64.b64encode(audio_html.encode()).decode()
-    
     player_html = f"""
     <div style="position:fixed;bottom:10px;left:10px;right:10px;background:rgba(0,0,0,0.8);
                 padding:15px;border-radius:15px;display:flex;align-items:center;gap:15px;z-index:999;
@@ -475,13 +454,130 @@ def render_player():
             <div style="font-weight:bold;color:white;font-size:16px;margin-bottom:5px">{title}</div>
             <div style="color:#ccc;font-size:14px">{artist}</div>
         </div>
-        <iframe src="data:text/html;base64,{audio_html_encoded}" 
-                style="width:320px;height:50px;border:none;margin-left:auto;border-radius:8px;
-                       overflow:hidden;"></iframe>
+        <audio id="main_audio_player" controls style="width:300px;height:40px;margin-left:auto;display:none;">
+            <source src="{audio_src}" type="audio/mpeg">
+        </audio>
+        <div id="custom_controls" style="display:flex;align-items:center;gap:10px;">
+            <button onclick="togglePlayback()" style="background:#1DB954;color:white;border:none;padding:10px;border-radius:50%;width:40px;height:40px;">
+                ▶️
+            </button>
+            <span id="time_display" style="color:white;font-size:12px;">0:00</span>
+        </div>
     </div>
     """
     
     st.markdown(player_html, unsafe_allow_html=True)
+    
+    # JavaScript avançado para contornar bloqueios
+    st.markdown(f"""
+    <script>
+    let audioContext;
+    let audioBuffer;
+    let audioSource;
+    let isPlaying = false;
+    let startTime = 0;
+    let pausedTime = 0;
+    
+    // Carregar áudio usando Web Audio API
+    async function loadAudio() {{
+        try {{
+            if (!audioContext) {{
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }}
+            
+            const response = await fetch("{audio_src}");
+            const arrayBuffer = await response.arrayBuffer();
+            audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            
+            // Iniciar reprodução automaticamente se necessário
+            {'setTimeout(() => togglePlayback(), 100);' if st.session_state.is_playing else ''}
+        }} catch (error) {{
+            console.error('Error loading audio:', error);
+            fallbackToHTML5Audio();
+        }}
+    }}
+    
+    function togglePlayback() {{
+        if (!audioBuffer) {{
+            loadAudio();
+            return;
+        }}
+        
+        if (isPlaying) {{
+            pauseAudio();
+        }} else {{
+            playAudio();
+        }}
+    }}
+    
+    function playAudio() {{
+        if (audioContext.state === 'suspended') {{
+            audioContext.resume();
+        }}
+        
+        audioSource = audioContext.createBufferSource();
+        audioSource.buffer = audioBuffer;
+        audioSource.connect(audioContext.destination);
+        
+        // Configurar o tempo de início
+        startTime = audioContext.currentTime - pausedTime;
+        audioSource.start(0, pausedTime);
+        
+        isPlaying = true;
+        updateButton();
+        updateTimeDisplay();
+    }}
+    
+    function pauseAudio() {{
+        if (audioSource) {{
+            pausedTime = audioContext.currentTime - startTime;
+            audioSource.stop();
+            audioSource = null;
+            isPlaying = false;
+            updateButton();
+        }}
+    }}
+    
+    function updateButton() {{
+        const button = document.querySelector('#custom_controls button');
+        if (button) {{
+            button.innerHTML = isPlaying ? '⏸️' : '▶️';
+        }}
+    }}
+    
+    function updateTimeDisplay() {{
+        if (isPlaying) {{
+            const currentTime = audioContext.currentTime - startTime;
+            const minutes = Math.floor(currentTime / 60);
+            const seconds = Math.floor(currentTime % 60);
+            document.getElementById('time_display').textContent = 
+                `${{minutes}}:${{seconds.toString().padStart(2, '0')}}`;
+            
+            requestAnimationFrame(updateTimeDisplay);
+        }}
+    }}
+    
+    function fallbackToHTML5Audio() {{
+        // Fallback para o player HTML5 normal
+        const audio = document.getElementById('main_audio_player');
+        if (audio) {{
+            audio.style.display = 'block';
+            document.getElementById('custom_controls').style.display = 'none';
+            {'audio.play().catch(e => console.log("Fallback autoplay failed:", e));' if st.session_state.is_playing else ''}
+        }}
+    }}
+    
+    // Iniciar quando a página carregar
+    {'setTimeout(loadAudio, 500);' if st.session_state.is_playing else ''}
+    
+    // Adicionar evento de clique em todo o documento para "desbloquear" audio
+    document.addEventListener('click', function() {{
+        if (audioContext && audioContext.state === 'suspended') {{
+            audioContext.resume();
+        }}
+    }}, {{ once: true }});
+    </script>
+    """, unsafe_allow_html=True)
     
 # ==============================
 # SIDEBAR
