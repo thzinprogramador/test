@@ -412,35 +412,51 @@ def render_player():
 
     autoplay_flag = "autoplay" if st.session_state.is_playing else ""
 
-    html = f"""
-    <div style="
-        position: fixed;
-        bottom: 10px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(0,0,0,0.8);
-        padding: 15px;
-        border-radius: 15px;
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        z-index: 9999;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-        backdrop-filter: blur(10px);
-        width: 600px;
-        max-width: 90vw;  /* Responsivo: no máximo 90% da largura da viewport */
-        margin-left: 250px; /* Compensa a largura da sidebar */
-    ">
+    audio_html = f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                background: transparent;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 40px;
+            }}
+            audio {{
+                width: 300px;
+                height: 40px;
+                outline: none;
+            }}
+            audio::-webkit-media-controls-panel {{
+                background-color: #1DB954;
+            }}
+            audio::-webkit-media-controls-play-button {{
+                background-color: #1DB954 !important;
+                border-radius: 50%;
+                box-shadow: 0 0 8px rgba(0,0,0,0.4);
+                border: 1px solid #1ed760;
+            }}
+
+        </style>
+    </head>
+    <body>
+    
+        player_html = f"""
+    <div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
+                background:rgba(0,0,0,0.8);padding:15px;border-radius:15px;
+                display:flex;align-items:center;gap:15px;z-index:999;
+                box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);
+                width:600px; max-width:90%;">
         <img src="{cover_url}" width="60" height="60" style="border-radius:10px;object-fit:cover"/>
         <div style="flex:1;">
             <div style="font-weight:bold;color:white;font-size:16px;margin-bottom:5px">{title}</div>
             <div style="color:#ccc;font-size:14px">{artist}</div>
         </div>
-        <audio id="wave-player" controls {autoplay_flag} style="width:300px;height:40px;">
-            <source src="{audio_src}" type="audio/mpeg">
-            Seu navegador não suporta áudio.
-        </audio>
-    </div>
+
     <script>
         const audio = document.getElementById("wave-player");
         if (audio && {str(st.session_state.is_playing).lower()}) {{
