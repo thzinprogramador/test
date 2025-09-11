@@ -1,3 +1,116 @@
+# ==============================
+# FUNÇÕES DE TESTE
+# ==============================
+def test_url_conversion():
+    """Testa a conversão de URLs do GitHub para JS Delivr"""
+    st.header("🔍 Teste de Conversão de URLs")
+    
+    # URLs de exemplo para testar
+    test_urls = [
+        "https://raw.githubusercontent.com/usuario/repo/main/audio/song.mp3",
+        "https://raw.githubusercontent.com/artist/music/master/songs/track1.mp3",
+        "https://raw.githubusercontent.com/company/project/v1.0/sounds/effect.wav",
+        "https://example.com/regular-audio.mp3",  # URL não GitHub (não deve ser convertida)
+    ]
+    
+    st.subheader("Teste de Conversão de URLs")
+    
+    for i, url in enumerate(test_urls):
+        original = url
+        converted = convert_github_to_jsdelivr(url)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"**Original {i+1}:**")
+            st.code(original, language="url")
+        with col2:
+            st.write(f"**Convertido {i+1}:**")
+            st.code(converted, language="url")
+        
+        # Verificar se a conversão foi bem-sucedida
+        if "raw.githubusercontent.com" in original and "cdn.jsdelivr.net" in converted:
+            st.success("✅ Conversão bem-sucedida")
+        elif "raw.githubusercontent.com" not in original and original == converted:
+            st.info("ℹ️ URL não GitHub - mantida original")
+        else:
+            st.error("❌ Erro na conversão")
+        
+        st.markdown("---")
+
+def test_audio_playback():
+    """Testa a reprodução de áudio com URLs convertidas"""
+    st.header("🎵 Teste de Reprodução de Áudio")
+    
+    # URLs de áudio de exemplo (substitua por URLs reais se disponíveis)
+    test_audios = [
+        {
+            "title": "Música de Exemplo 1",
+            "original_url": "https://raw.githubusercontent.com/usuario/repo/main/audio/song1.mp3",
+            "converted_url": convert_github_to_jsdelivr("https://raw.githubusercontent.com/usuario/repo/main/audio/song1.mp3")
+        },
+        {
+            "title": "Música de Exemplo 2", 
+            "original_url": "https://raw.githubusercontent.com/artist/music/master/songs/track1.mp3",
+            "converted_url": convert_github_to_jsdelivr("https://raw.githubusercontent.com/artist/music/master/songs/track1.mp3")
+        }
+    ]
+    
+    for audio in test_audios:
+        st.subheader(audio["title"])
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**URL Original:**")
+            st.code(audio["original_url"], language="url")
+        with col2:
+            st.write("**URL Convertida:**")
+            st.code(audio["converted_url"], language="url")
+        
+        # Tentar reproduzir o áudio com a URL convertida
+        st.write("**Teste de reprodução:**")
+        
+        # Verificar se a URL foi convertida corretamente
+        if "cdn.jsdelivr.net" in audio["converted_url"]:
+            st.success("✅ URL convertida com sucesso")
+            
+            # Tentar reproduzir o áudio
+            try:
+                st.audio(audio["converted_url"], format="audio/mp3")
+                st.success("🎵 Áudio carregado com sucesso!")
+            except Exception as e:
+                st.warning(f"⚠️ Não foi possível carregar o áudio: {str(e)}")
+                st.info("Isso pode ser normal se a URL for apenas um exemplo")
+        else:
+            st.error("❌ Falha na conversão da URL")
+        
+        st.markdown("---")
+
+# ==============================
+# ADICIONE ESTE MENU DE TESTE NO SEU CÓDIGO
+# ==============================
+# No seu menu principal/sidebar, adicione uma opção para testes:
+if st.sidebar.button("🧪 Testar Conversão de URLs"):
+    st.session_state.current_page = "test_conversion"
+
+# Na seção de páginas, adicione:
+elif st.session_state.current_page == "test_conversion":
+    st.header("🧪 Testes de Conversão URL")
+    
+    tab1, tab2 = st.tabs(["Teste de Conversão", "Teste de Reprodução"])
+    
+    with tab1:
+        test_url_conversion()
+    
+    with tab2:
+        test_audio_playback()
+    
+    if st.button("Voltar para o Player"):
+        st.session_state.current_page = "home"
+
+
+
+
+
 import streamlit as st
 import firebase_admin
 import requests
