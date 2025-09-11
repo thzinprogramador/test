@@ -14,7 +14,7 @@ from PIL import Image
 # CONFIGURAÇÃO DA PÁGINA
 # ==============================
 st.set_page_config(
-    page_title="Wave - Sua Música, Seu Mundo",
+    page_title="Wave",
     page_icon="⚙️",
     layout="wide",
     initial_sidebar_state="expanded"
