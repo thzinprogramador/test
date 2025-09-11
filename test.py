@@ -1,3 +1,116 @@
+Analisando seu código, vejo que você está armazenando URLs do GitHub (raw.githubusercontent.com) no Firebase e quer convertê-las para URLs do jsDelivr CDN na hora da reprodução. Vou criar uma função para fazer essa conversão e integrá-la ao seu código.
+
+Aqui estão as modificações necessárias:
+
+```python
+# ==============================
+# FUNÇÕES AUXILIARES
+# ==============================
+def convert_github_to_jsdelivr(url):
+    """
+    Converte URLs do raw.githubusercontent.com para cdn.jsdelivr.net
+    Formato esperado: https://raw.githubusercontent.com/usuario/repo/ramo/caminho/arquivo
+    Formato convertido: https://cdn.jsdelivr.net/gh/usuario/repo@ramo/caminho/arquivo
+    """
+    if not url or "raw.githubusercontent.com" not in url:
+        return url
+    
+    try:
+        # Extrai as partes da URL
+        parts = url.split("/")
+        usuario = parts[3]
+        repo = parts[4]
+        ramo = parts[5]
+        caminho_arquivo = "/".join(parts[6:])
+        
+        # Constrói a nova URL do jsDelivr
+        nova_url = f"https://cdn.jsdelivr.net/gh/{usuario}/{repo}@{ramo}/{caminho_arquivo}"
+        return nova_url
+    except Exception as e:
+        st.error(f"Erro ao converter URL: {e}")
+        return url
+
+# Modifique a função play_song para usar a URL convertida
+def play_song(song):
+    # Verificar se é uma música diferente
+    current_id = st.session_state.current_track["id"] if st.session_state.current_track else None
+    new_id = song["id"]
+    
+    # Converter URL do GitHub para jsDelivr se necessário
+    if "audio_url" in song and "raw.githubusercontent.com" in song["audio_url"]:
+        song = song.copy()  # Criar uma cópia para não modificar o original
+        song["audio_url"] = convert_github_to_jsdelivr(song["audio_url"])
+    
+    # Sempre forçar rerun quando uma nova música é selecionada
+    st.session_state.current_track = song
+    st.session_state.is_playing = True
+    
+    # Adicionar timestamp único para forçar reconstrução
+    st.session_state.player_timestamp = time.time()
+    
+    if st.session_state.firebase_connected:
+        try:
+            ref = db.reference(f"/songs/{song['id']}/play_count")
+            current_count = ref.get() or 0
+            ref.set(current_count + 1)
+        except Exception as e:
+            st.error(f"Erro ao atualizar play_count: {e}")
+    
+    # Forçar rerun apenas se for música diferente
+    if current_id != new_id:
+        st.rerun()
+
+# Modifique também a função que carrega imagens para usar URLs convertidas
+def load_image(url):
+    try:
+        # Converter URL do GitHub para jsDelivr se necessário
+        if "raw.githubusercontent.com" in url:
+            url = convert_github_to_jsdelivr(url)
+            
+        # Para URLs do Google Drive, use a conversão
+        if "drive.google.com" in url:
+            url = convert_google_drive_url(url)
+        
+        # Tenta carregar a imagem
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            img = Image.open(BytesIO(response.content))
+            return img
+        else:
+            return None
+    except Exception as e:
+        return None
+```
+
+Explicação das modificações:
+
+1. Função `convert_github_to_jsdelivr`:
+   · Converte URLs do formato GitHub para formato jsDelivr
+   · Exemplo: https://raw.githubusercontent.com/usuario/repo/ramo/pasta/arquivo.mp3 → https://cdn.jsdelivr.net/gh/usuario/repo@ramo/pasta/arquivo.mp3
+2. Modificação na função `play_song`:
+   · Antes de definir a música atual, verifica se a URL de áudio é do GitHub
+   · Se for, converte para jsDelivr CDN
+   · Isso garante que o player use a URL convertida na reprodução
+3. Modificação na função `load_image`:
+   · Também converte URLs de imagens do GitHub para jsDelivr
+   · Isso melhora o carregamento das capas dos álbuns
+
+Como funciona:
+
+· Você continua armazenando as URLs originais do GitHub no Firebase
+· Na hora da reprodução, o código automaticamente converte para jsDelivr
+· Isso permite que o áudio passe por redes corporativas que bloqueiam o GitHub mas permitem o jsDelivr
+
+Esta solução é não-invasiva e mantém a compatibilidade com URLs existentes no seu banc
+
+
+
+
+
+
+
+
+
 import streamlit as st
 import firebase_admin
 import requests
