@@ -106,7 +106,7 @@ wrmWQJLtjkvYZN9JQUrobttHnhsL+9qKCUQu/T3/ZI3eJ54LLgZJrbbBr29SVsQo
 def initialize_database():
     try:
         ref = db.reference('/')
-        ref.child("test").set({"test": True, "timestamp": datetime.now().isoformat()})
+        ref.child("test").set({"test": True, "timestamp": datetime.datetime.now().isoformat()})
         ref.child("test").delete()
         return True
     except Exception as e:
@@ -149,7 +149,7 @@ def add_song_to_db(song_data):
             if existing_songs:
                 st.warning("⚠️ Música já existente no banco de dados!")
                 return False
-            song_data["created_at"] = datetime.now().isoformat()
+            song_data["created_at"] = datetime.datetime.now().isoformat()
             ref.push(song_data)
             return True
         return False
@@ -291,6 +291,13 @@ def convert_github_to_jsdelivr(url):
     except Exception as e:
         st.error(f"Erro ao converter URL: {e}")
         return url
+
+def get_converted_audio_url(song):
+    """Retorna a URL do áudio convertida se for do GitHub"""
+    audio_url = song.get("audio_url", "")
+    if "github.com" in audio_url:
+        return convert_github_to_jsdelivr(audio_url)
+    return audio_url
 
 
 def play_song(song):
@@ -532,6 +539,9 @@ def render_player():
         st.info("🔍 Escolha uma música para tocar.")
         return
 
+    # Converter URL do áudio se for do GitHub
+    audio_src = get_converted_audio_url(track)
+    
     cover = load_image_cached(track.get("image_url"))
     if cover is not None:
         cover_url = image_to_base64(cover)
@@ -540,7 +550,6 @@ def render_player():
 
     title = track.get("title", "Sem título")
     artist = track.get("artist", "Sem artista")
-    audio_src = track.get("audio_url", "")
     
     # Criar HTML para o iframe com melhor estilização
     audio_html = f'''
@@ -776,9 +785,31 @@ elif st.session_state.current_page == "test_github_conversion":
 
     if st.button("Voltar para o Player"):
         st.session_state.current_page = "home"
+
+# ==============================
+# VERIFICAÇÃO DE CONVERSÃO EM TEMPO REAL
+# ==============================
+if st.sidebar.checkbox("🔍 Verificar conversões em tempo real"):
+    st.sidebar.header("Status de Conversão das URLs")
     
-
-
+    github_count = 0
+    converted_count = 0
+    
+    for song in st.session_state.all_songs:
+        audio_url = song.get("audio_url", "")
+        if "github.com" in audio_url:
+            github_count += 1
+            converted_url = convert_github_to_jsdelivr(audio_url)
+            if "cdn.jsdelivr.net" in converted_url:
+                converted_count += 1
+    
+    st.sidebar.write(f"**Total de URLs do GitHub:** {github_count}")
+    st.sidebar.write(f"**URLs convertíveis:** {converted_count}")
+    
+    if github_count > 0 and converted_count == github_count:
+        st.sidebar.success("✅ Todas as URLs do GitHub podem ser convertidas!")
+    elif github_count > 0:
+        st.sidebar.warning(f"⚠️ Apenas {converted_count}/{github_count} URLs podem ser convertidas")
 
 # ==============================
 # FOOTER + CSS
