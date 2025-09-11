@@ -1,15 +1,7 @@
-File "/home/adminuser/venv/lib/python3.13/site-packages/streamlit/runtime/scriptrunner/script_runner.py", line 534, in _run_script
-    exec(code, module.__dict__)
-    ~~~~^^^^^^^^^^^^^^^^^^^^^^^
-File "/mount/src/wavesong/Wavesong.py", line 772, in <module>
-    test_url_conversion()
-    ^^^^^^^^^^^^^^^^^^^
-
-
 import streamlit as st
 import firebase_admin
-import requests
-import datetime 
+import requests 
+import datetime
 import random
 import time
 import base64
@@ -169,7 +161,7 @@ def add_song_request(request_data):
     try:
         if st.session_state.firebase_connected:
             ref = db.reference("/song_requests")
-            request_data["created_at"] = datetime.now().isoformat()
+            request_data["created_at"] = datetime.datetime.now().isoformat()
             request_data["status"] = "pending"
             ref.push(request_data)
             return True
@@ -270,10 +262,47 @@ except Exception as e:
 # ==============================
 # FUNÇÕES AUXILIARES
 # ==============================
+def convert_github_to_jsdelivr(url):
+    """
+    Converte URLs do github.com para cdn.jsdelivr.net
+    Formato esperado: https://github.com/usuario/repo/raw/ramo/caminho/arquivo
+    Formato convertido: https://cdn.jsdelivr.net/gh/usuario/repo@ramo/caminho/arquivo
+    """
+    if not url or "github.com" not in url:
+        return url
+    
+    try:
+        # Verifica se é uma URL do GitHub no formato que você usa
+        if "/raw/" in url:
+            # Extrai as partes da URL
+            parts = url.split("/")
+            # Encontra a posição do "raw" na URL
+            raw_index = parts.index("raw")
+            usuario = parts[3]
+            repo = parts[4]
+            ramo = parts[raw_index + 1]
+            caminho_arquivo = "/".join(parts[raw_index + 2:])
+            
+            # Constrói a nova URL do jsDelivr
+            nova_url = f"https://cdn.jsdelivr.net/gh/{usuario}/{repo}@{ramo}/{caminho_arquivo}"
+            return nova_url
+        else:
+            return url
+    except Exception as e:
+        st.error(f"Erro ao converter URL: {e}")
+        return url
+
+
 def play_song(song):
     # Verificar se é uma música diferente
     current_id = st.session_state.current_track["id"] if st.session_state.current_track else None
     new_id = song["id"]
+    
+    # Converter URL do GitHub para jsDelivr se necessário
+    if "audio_url" in song and "github.com" in song["audio_url"]:
+        song_copy = song.copy()  # Criar uma cópia para não modificar o original
+        song_copy["audio_url"] = convert_github_to_jsdelivr(song["audio_url"])
+        song = song_copy
     
     # Sempre forçar rerun quando uma nova música é selecionada
     st.session_state.current_track = song
@@ -390,6 +419,102 @@ def show_request_music_section():
                     st.session_state.show_request_form = False
                 else:
                     st.error("❌ Erro ao enviar pedido. Tente novamente.")
+
+
+# ==============================
+# FUNÇÕES DE TESTE
+# ==============================
+def test_github_conversion():
+    """Testa a conversão de URLs do GitHub para JS Delivr com seu formato específico"""
+    st.header("🔍 Teste de Conversão de URLs - Formato GitHub")
+    
+    # URLs no formato que você usa
+    test_urls = [
+        "https://github.com/thzinprogramador/songs/raw/refs/heads/main/God's%20Plan%20-%20drake.mp3",
+        "https://github.com/usuario/repo/raw/refs/heads/main/music/song.mp3",
+        "https://github.com/artist/album/raw/branch/sounds/track.wav",
+        "https://example.com/regular-audio.mp3",  # URL não GitHub (não deve ser convertida)
+    ]
+    
+    for i, url in enumerate(test_urls):
+        original = url
+        converted = convert_github_to_jsdelivr(url)
+        
+        st.subheader(f"Teste {i+1}")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**URL Original:**")
+            st.code(original, language="url")
+        with col2:
+            st.write("**URL Convertida:**")
+            st.code(converted, language="url")
+        
+        # Verificar se a conversão foi bem-sucedida
+        if "github.com" in original and "cdn.jsdelivr.net" in converted:
+            st.success("✅ Conversão bem-sucedida")
+            
+            # Mostrar diferença
+            st.write("**Diferença:**")
+            st.info(f"Original: `{original}`")
+            st.info(f"Convertido: `{converted}`")
+        elif "github.com" not in original and original == converted:
+            st.info("ℹ️ URL não GitHub - mantida original")
+        else:
+            st.error("❌ Erro na conversão")
+        
+        st.markdown("---")
+
+
+
+def test_audio_playback():
+    """Testa a reprodução de áudio com URLs convertidas"""
+    st.header("🎵 Teste de Reprodução de Áudio")
+    
+    # URLs de áudio de exemplo (substitua por URLs reais se disponíveis)
+    test_audios = [
+        {
+            "title": "Música de Exemplo 1",
+            "original_url": "https://github.com/thzinprogramador/songs/raw/refs/heads/main/Congratulations%20-%20post%20malone.mp3",
+            "converted_url": convert_github_to_jsdelivr("https://github.com/thzinprogramador/songs/raw/refs/heads/main/Congratulations%20-%20post%20malone.mp3")
+        },
+        {
+            "title": "Música de Exemplo 2", 
+            "original_url": "https://github.com/thzinprogramador/songs/raw/refs/heads/main/God's%20Plan%20-%20drake.mp3",
+            "converted_url": convert_github_to_jsdelivr("https://github.com/thzinprogramador/songs/raw/refs/heads/main/God's%20Plan%20-%20drake.mp3")
+        }
+    ]
+    
+    for audio in test_audios:
+        st.subheader(audio["title"])
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**URL Original:**")
+            st.code(audio["original_url"], language="url")
+        with col2:
+            st.write("**URL Convertida:**")
+            st.code(audio["converted_url"], language="url")
+        
+        # Tentar reproduzir o áudio com a URL convertida
+        st.write("**Teste de reprodução:**")
+        
+        # Verificar se a URL foi convertida corretamente
+        if "cdn.jsdelivr.net" in audio["converted_url"]:
+            st.success("✅ URL convertida com sucesso")
+            
+            # Tentar reproduzir o áudio
+            try:
+                st.audio(audio["converted_url"], format="audio/mp3")
+                st.success("🎵 Áudio carregado com sucesso!")
+            except Exception as e:
+                st.warning(f"⚠️ Não foi possível carregar o áudio: {str(e)}")
+                st.info("Isso pode ser normal se a URL for apenas um exemplo")
+        else:
+            st.error("❌ Falha na conversão da URL")
+        
+        st.markdown("---")
+
 
 
 # ==============================
@@ -533,9 +658,12 @@ with st.sidebar:
     if st.button("Buscar Músicas", key="btn_search", use_container_width=True):
         st.session_state.current_page = "search"
         st.session_state.show_request_form = False
+    if st.sidebar.button("🧪 Testar Conversão de URLs"):
+        st.session_state.current_page = "test_github_conversion"
+        
     # if st.button("Adicionar Música", key="btn_add", use_container_width=True):
         # st.session_state.current_page = "add"
-        st.session_state.show_request_form = False
+        # st.session_state.show_request_form = False
 
 
 
@@ -636,8 +764,19 @@ elif st.session_state.current_page == "search":
         st.info("Nenhuma música cadastrada.")
         show_request_music_section()
 
-elif st.session_state.current_page == "add":
-    show_add_music_page()
+elif st.session_state.current_page == "test_github_conversion":
+    st.header("🧪 Testes de Conversão URL")
+    tab1, tab2 = st.tabs(["Teste de Conversão", "Teste de Reprodução"])
+
+    with tab1:
+        test_github_conversion()
+
+    with tab2:
+        test_audio_playback()
+
+    if st.button("Voltar para o Player"):
+        st.session_state.current_page = "home"
+    
 
 
 
@@ -645,7 +784,7 @@ elif st.session_state.current_page == "add":
 # FOOTER + CSS
 # ==============================
 st.markdown("---")
-st.caption("🌊 Wave - Sua música, seu mundo • Site em Protótipo ")
+st.caption("🌊 Wave - Sua música, seu mundo • Site em Desenvolvimento ")
 st.markdown("""
 <style>
 .stButton > button { 
