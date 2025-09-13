@@ -732,7 +732,7 @@ with st.sidebar:
         
     # Verificação de conversão em tempo real
     if st.checkbox("🔍 Verificar conversões em tempo real"):
-        st.header("Status de Conversão das URLs")
+        st.header("Status de Funcionabilidade:")
         
         github_count = 0
         converted_count = 0
@@ -748,15 +748,15 @@ with st.sidebar:
                 else:
                     problematic_urls.append(audio_url)
         
-        st.write(f"**Total de URLs do GitHub:** {github_count}")
-        st.write(f"**URLs convertíveis:** {converted_count}")
+        st.write(f"**Total musicas em sistema:** {github_count}")
+        st.write(f"**música em funcionamento:** {converted_count}")
         
         if github_count > 0 and converted_count == github_count:
-            st.success("✅ Todas as URLs do GitHub podem ser convertidas!")
+            st.success("✅ Todas as músicas podem ser ouvidas!")
         elif github_count > 0:
-            st.warning(f"⚠️ Apenas {converted_count}/{github_count} URLs podem ser convertidas")
-            st.write("**URLs com problemas:**")
-            for url in problematic_urls:
+            # st.warning(f"⚠️ Apenas {converted_count}/{github_count} URLs podem ser convertidas")
+            st.write("**⚠️ nem todas as musicas estão disponível para ouvir**")
+            # for url in problematic_urls:
                 st.code(url)
 
             
