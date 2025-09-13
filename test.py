@@ -136,10 +136,6 @@ def show_welcome_popup():
         </div>
     """, unsafe_allow_html=True)
 
-# =========================
-# Chamando o popup
-# =========================
-show_welcome_popup()
         
 
 # ==============================
