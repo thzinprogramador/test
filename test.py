@@ -140,8 +140,12 @@ def show_welcome_popup():
             font-size: 16px;
             margin-top: 20px;
         }
+
+        /* Ajuste no sidebar se necessário */
+        .sidebar {
+            z-index: 1; /* Garantir que o sidebar tenha um z-index menor que o do pop-up */
+        }
         </style>
-        <div class="overlay"></div>
     """, unsafe_allow_html=True)
 
     # Criar o conteúdo do pop-up
