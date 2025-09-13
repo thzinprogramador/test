@@ -59,6 +59,7 @@ if "popup_closed" not in st.session_state:
     st.session_state.popup_closed = False
 if "popup_shown" not in st.session_state:
     st.session_state.popup_shown = False
+    
 if "unread_notifications_cache" not in st.session_state:
     st.session_state.unread_notifications_cache = None
 
