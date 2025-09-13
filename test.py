@@ -301,6 +301,7 @@ def send_global_notification(message):
         notification_data = {
             "message": message,
             "admin": "Schutz",
+            "timestamp": datetime.datetime.now().isoformat(),
             "read_by": {}  # Dicionário para controlar quem leu
         }
         ref.push(notification_data)
@@ -332,7 +333,8 @@ def check_unread_notifications():
                     unread.append({
                         "id": note_id,
                         "message": note_data.get("message", ""),
-                        "timestamp": note_data.get("timestamp", "")
+                        "timestamp": note_data.get("timestamp", ""),
+                        "admin": note_data.get("admin", "Admin")
                     })
         
         return unread
@@ -604,15 +606,39 @@ def show_notification_panel():
     st.subheader("Histórico de Notificações")
     try:
         ref = db.reference("/global_notifications")
-        notifications = ref.order_by_child("timestamp").limit_to_last(10).get()
+        notifications = ref.order_by_child("timestamp").limit_to_last(20).get()
         
         if notifications:
+            # Converter para lista e reverter para mostrar as mais recentes primeiro
+            notifications_list = []
             for note_id, note_data in notifications.items():
-                with st.expander(f"Notificação de {note_data.get('timestamp', '')}"):
-                    st.write(note_data.get("message", ""))
-                    st.caption(f"Lida por {len(note_data.get('read_by', {}))} usuários")
+                notifications_list.append({
+                    "id": note_id,
+                    "admin": note_data.get("admin", "Admin"),
+                    "message": note_data.get("message", ""),
+                    "timestamp": note_data.get("timestamp", "")
+                })
+            
+            # Mostrar em ordem reversa (mais recente primeiro)
+            for note in reversed(notifications_list):
+                st.markdown(f"""
+                <div style='
+                    background-color: #1f2937;
+                    padding: 15px;
+                    border-radius: 10px;
+                    margin-bottom: 10px;
+                    border-left: 4px solid #1DB954;
+                '>
+                    <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
+                        🛡️ <strong>{note['admin']}</strong> • {note['timestamp'][:10] if note['timestamp'] else 'Data não disponível'}
+                    </p>
+                    <p style='color: white; font-size: 14px; margin: 5px 0 0 0;'>
+                        {note['message']}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
         else:
-            st.info("Nenhuma notificação enviada ainda.")
+            st.info("📝 Nenhuma notificação enviada ainda.")
     except Exception as e:
         st.error(f"❌ Erro ao carregar histórico: {e}")
     
@@ -1093,8 +1119,11 @@ elif st.session_state.current_page == "notifications":
                         margin-bottom:10px;
                         color:#f9fafb;
                         box-shadow: 2px 2px 10px rgba(0,0,0,0.3);
+                        border-left: 4px solid #1DB954;
                     '>
-                        <p style='font-size:12px;color:#9ca3af;'>{notification['timestamp']}</p>
+                        <p style='font-size:12px;color:#9ca3af;'>
+                            🛡️ <strong>{notification.get('admin', 'Admin')}</strong> • {notification['timestamp'][:10] if notification.get('timestamp') else 'Data não disponível'}
+                        </p>
                         <p style='font-size:16px;margin-top:5px;'>{notification['message']}</p>
                     </div>
                     """,
