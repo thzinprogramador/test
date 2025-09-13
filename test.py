@@ -1157,8 +1157,8 @@ elif st.session_state.current_page == "notifications":
                         st.session_state[f"read_{notification['id']}"] = True
                         st.success("✅ Notificação marcada como lida!")
 
-                         # Atualizar a lista de não lidas sem recarregar a página completa
-                         st.session_state.unread_notifications_cache = None
+                        # Atualizar a lista de não lidas sem recarregar a página completa
+                        st.session_state.unread_notifications_cache = None
 
             st.markdown("---")
     else:
