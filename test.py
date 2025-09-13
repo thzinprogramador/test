@@ -68,89 +68,108 @@ ADMIN_PASSWORD = "wavesong9090"
 # FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (VERSÃO CORRIGIDA)
 # ==============================
 def show_welcome_popup():
+    """
+    Pop-up com efeito glass. O botão é HTML e faz um reload com ?popup_closed=1.
+    O Python detecta esse param, seta session_state e limpa a URL.
+    """
+
+    # Se já fechado, não exibe
     if st.session_state.get("popup_closed", False):
         return
 
-    # CSS do popup
-    st.markdown("""
+    # Se houver o query param, marca como fechado, limpa a url e rerun
+    params = st.experimental_get_query_params()
+    if params.get("popup_closed", ["0"])[0] == "1":
+        st.session_state.popup_closed = True
+        # Limpa os query params (remove ?popup_closed)
+        st.experimental_set_query_params()
+        st.experimental_rerun()
+
+    # HTML + CSS do pop-up (botão HTML envia ?popup_closed=1)
+    st.markdown(
+    """
     <style>
+    /* overlay */
     .ws-overlay {
         position: fixed;
-        top: 0; left: 0;
-        width: 100%; height: 100%;
+        inset: 0;
         background: rgba(0,0,0,0.7);
         z-index: 9998;
     }
+    /* caixa (glass) */
     .ws-popup {
-        background: rgba(0,0,0,0.45);
-        backdrop-filter: blur(10px);
-        padding: 28px;
-        border-radius: 14px;
-        color: white;
-        border: 2px solid #1DB954;
-        width: 60%;
-        max-width: 700px;
-        min-width: 320px;
         position: fixed;
-        top: 50%; left: 50%;
+        top: 50%;
+        left: 50%;
         transform: translate(-50%, -50%);
+        width: min(80%, 900px);
+        background: rgba(10,10,10,0.55);
+        backdrop-filter: blur(10px);
+        border: 2px solid #1DB954;
+        border-radius: 14px;
+        padding: 26px;
+        color: #fff;
         z-index: 9999;
         text-align: center;
-        box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.6);
     }
-    .ws-popup h2 { margin: 0 0 10px 0; font-size: 26px; }
-    .ws-popup .sub { font-size: 14px; opacity: 0.8; margin-bottom: 14px; }
+    .ws-popup h2 { margin: 0 0 8px 0; font-size: 28px; }
+    .ws-popup .sub { font-size: 14px; opacity: 0.85; margin-bottom: 14px; }
     .ws-instructions {
-        background: rgba(0,0,0,0.55);
-        padding: 14px;
+        background: rgba(0,0,0,0.6);
         border-radius: 10px;
+        padding: 14px;
         margin-bottom: 18px;
         text-align: left;
     }
-    .ws-instructions h4 { margin: 0 0 8px 0; color: #1DB954; }
-    .ws-footer { font-size:12px; opacity:0.8; margin-bottom: 25px; }
+    .ws-instructions h4 { margin:0 0 8px 0; color: #1DB954; }
 
-    /* Força o último botão a ficar dentro do popup */
-    .stApp .stButton:last-of-type {
-        position: fixed !important;
-        top: 66% !important;  /* ajuste vertical conforme sua tela */
-        left: 50% !important;
-        transform: translateX(-50%) !important;
-        z-index: 10000 !important;
+    /* botão (html) */
+    .ws-close-btn {
+        display: inline-block;
+        background: #1DB954;
+        color: white;
+        padding: 10px 22px;
+        border-radius: 10px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 16px;
+        margin-top: 4px;
+        box-shadow: none;
+        border: none;
     }
-    .stApp .stButton:last-of-type > button {
-        background-color: #1DB954 !important;
-        color: #fff !important;
-        padding: 10px 22px !important;
-        border-radius: 10px !important;
-        font-size: 16px !important;
-        border: none !important;
+
+    /* responsivo */
+    @media (max-width: 460px) {
+        .ws-popup { width: 94%; padding: 18px; }
+        .ws-popup h2 { font-size: 20px; }
+        .ws-close-btn { padding: 9px 14px; font-size: 14px; }
     }
     </style>
 
     <div class="ws-overlay"></div>
-    <div class="ws-popup">
+
+    <div class="ws-popup" role="dialog" aria-label="Bem-vindo ao Wave">
         <h2>🌊 Bem-vindo ao Wave!</h2>
         <div class="sub">Site em desenvolvimento!</div>
 
         <div class="ws-instructions">
             <h4>🎯 Instruções Importantes:</h4>
-            <ol style="margin:0; padding-left:20px;">
+            <ol style="margin:0; padding-left:18px;">
                 <li>Clique nos <strong>'3 pontinhos'</strong> no canto superior direito</li>
                 <li>Vá em <strong>Settings</strong></li>
                 <li>Escolha <strong>"Dark theme"</strong> para melhor experiência</li>
             </ol>
         </div>
 
-        <div class="ws-footer">Shutz agradece, bom proveito!!! 🎵</div>
+        <div style="font-size:12px; opacity:0.85; margin-bottom:12px;">Shutz agradece, bom proveito!!! 🎵</div>
+
+        <!-- Botão: faz reload adicionando ?popup_closed=1 ao caminho atual -->
+        <a class="ws-close-btn" href="?popup_closed=1">Entendi, vamos lá! 🎧</a>
     </div>
-    """, unsafe_allow_html=True)
-
-    # Botão real do Streamlit (vai ser reposicionado pelo CSS acima)
-    if st.button("Entendi, vamos lá! 🎧", key="close_popup"):
-        st.session_state.popup_closed = True
-        st.experimental_rerun()
-
+    """,
+    unsafe_allow_html=True
+    )
         
 
 # ==============================
