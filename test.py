@@ -68,108 +68,85 @@ ADMIN_PASSWORD = "wavesong9090"
 # FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (VERSÃO CORRIGIDA)
 # ==============================
 def show_welcome_popup():
-    """
-    Pop-up com efeito glass. O botão é HTML e faz um reload com ?popup_closed=1.
-    O Python detecta esse param, seta session_state e limpa a URL.
-    """
+    """Exibe um pop-up de boas-vindas com overlay e opção de fechar."""
 
-    # Se já fechado, não exibe
+    # Só mostra se ainda não foi fechado
     if st.session_state.get("popup_closed", False):
         return
 
-    # Se houver o query param, marca como fechado, limpa a url e rerun
-    params = st.experimental_get_query_params()
-    if params.get("popup_closed", ["0"])[0] == "1":
+    # Verifica se o usuário já clicou para fechar via query param
+    query_params = st.query_params
+    if "popup_closed" in query_params:
         st.session_state.popup_closed = True
-        # Limpa os query params (remove ?popup_closed)
-        st.experimental_set_query_params()
-        st.experimental_rerun()
+        st.query_params.clear()  # limpa a URL
+        return
 
-    # HTML + CSS do pop-up (botão HTML envia ?popup_closed=1)
-    st.markdown(
-    """
-    <style>
-    /* overlay */
-    .ws-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.7);
-        z-index: 9998;
-    }
-    /* caixa (glass) */
-    .ws-popup {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: min(80%, 900px);
-        background: rgba(10,10,10,0.55);
-        backdrop-filter: blur(10px);
-        border: 2px solid #1DB954;
-        border-radius: 14px;
-        padding: 26px;
-        color: #fff;
-        z-index: 9999;
-        text-align: center;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.6);
-    }
-    .ws-popup h2 { margin: 0 0 8px 0; font-size: 28px; }
-    .ws-popup .sub { font-size: 14px; opacity: 0.85; margin-bottom: 14px; }
-    .ws-instructions {
-        background: rgba(0,0,0,0.6);
-        border-radius: 10px;
-        padding: 14px;
-        margin-bottom: 18px;
-        text-align: left;
-    }
-    .ws-instructions h4 { margin:0 0 8px 0; color: #1DB954; }
+    # CSS + JS para overlay, popup, botão e fechamento ao clicar fora
+    st.markdown("""
+        <style>
+        .ws-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9998;
+        }
+        .ws-popup {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            border: 2px solid #1DB954;
+            border-radius: 15px;
+            padding: 25px;
+            width: 45%;
+            color: white;
+            text-align: center;
+            z-index: 9999;
+        }
+        .ws-popup h2 { margin-top: 0; }
+        .ws-instructions {
+            background: rgba(0,0,0,0.5);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .ws-close {
+            position: absolute;
+            top: 10px; right: 15px;
+            font-size: 20px;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+        }
+        </style>
 
-    /* botão (html) */
-    .ws-close-btn {
-        display: inline-block;
-        background: #1DB954;
-        color: white;
-        padding: 10px 22px;
-        border-radius: 10px;
-        text-decoration: none;
-        font-weight: 600;
-        font-size: 16px;
-        margin-top: 4px;
-        box-shadow: none;
-        border: none;
-    }
+        <div class="ws-overlay" onclick="document.getElementById('close-popup-link').click()"></div>
 
-    /* responsivo */
-    @media (max-width: 460px) {
-        .ws-popup { width: 94%; padding: 18px; }
-        .ws-popup h2 { font-size: 20px; }
-        .ws-close-btn { padding: 9px 14px; font-size: 14px; }
-    }
-    </style>
+        <div class="ws-popup">
+            <span class="ws-close" onclick="document.getElementById('close-popup-link').click()">×</span>
+            <h2>🌊 Bem-vindo ao Wave!</h2>
+            <p style="opacity:0.8; font-size:14px;">Site em desenvolvimento!</p>
+            
+            <div class="ws-instructions">
+                <h4>🎯 Instruções Importantes:</h4>
+                <ol>
+                    <li>Clique nos <b>'3 pontinhos'</b> no canto superior direito</li>
+                    <li>Vá em <b>Settings</b></li>
+                    <li>Escolha <b>"Dark theme"</b> para melhor experiência</li>
+                </ol>
+            </div>
 
-    <div class="ws-overlay"></div>
+            <div style="font-size:12px; opacity:0.7; margin-top:20px;">
+                Shutz agradece, bom proveito!!! 🎵
+            </div>
 
-    <div class="ws-popup" role="dialog" aria-label="Bem-vindo ao Wave">
-        <h2>🌊 Bem-vindo ao Wave!</h2>
-        <div class="sub">Site em desenvolvimento!</div>
-
-        <div class="ws-instructions">
-            <h4>🎯 Instruções Importantes:</h4>
-            <ol style="margin:0; padding-left:18px;">
-                <li>Clique nos <strong>'3 pontinhos'</strong> no canto superior direito</li>
-                <li>Vá em <strong>Settings</strong></li>
-                <li>Escolha <strong>"Dark theme"</strong> para melhor experiência</li>
-            </ol>
+            <!-- Link escondido que fecha o popup -->
+            <a id="close-popup-link" href="?popup_closed=1" style="display:none;"></a>
         </div>
-
-        <div style="font-size:12px; opacity:0.85; margin-bottom:12px;">Shutz agradece, bom proveito!!! 🎵</div>
-
-        <!-- Botão: faz reload adicionando ?popup_closed=1 ao caminho atual -->
-        <a class="ws-close-btn" href="?popup_closed=1">Entendi, vamos lá! 🎧</a>
-    </div>
-    """,
-    unsafe_allow_html=True
-    )
+    """, unsafe_allow_html=True)
         
 
 # ==============================
