@@ -67,14 +67,13 @@ ADMIN_PASSWORD = "wavesong9090"
 # ==============================
 # FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (VERSÃO CORRIGIDA)
 # ==============================
-import streamlit as st
-
 def show_welcome_popup():
-    """Exibe um pop-up de boas-vindas com instruções usando componentes nativos do Streamlit"""
+    """Exibe um pop-up de boas-vindas com efeito de vidro fosco e instruções usando Streamlit."""
 
     # Criar um overlay escuro
     st.markdown("""
         <style>
+        /* Overlay de fundo escuro */
         .overlay {
             position: fixed;
             top: 0;
@@ -84,34 +83,42 @@ def show_welcome_popup():
             background: rgba(0, 0, 0, 0.7);
             z-index: 999;
         }
+        
+        /* Efeito de vidro fosco no pop-up */
         .popup-container {
-            background: linear-gradient(135deg, #1DB954, #191414);
+            background: rgba(0, 0, 0, 0.5);  /* Fundo translúcido */
+            backdrop-filter: blur(10px);  /* Desfoque no fundo */
             padding: 25px;
             border-radius: 15px;
             color: white;
             border: 2px solid #1DB954;
-            margin-top: 100px;
-            text-align: center;
             width: 60%;
             margin-left: 20%;
             box-sizing: border-box;
-            position: relative;
-            z-index: 1000;  /* Assegura que o pop-up fique acima do overlay */
+            position: fixed;
+            top: 20%;
+            left: 20%;
+            z-index: 1000;  /* Garante que o pop-up esteja acima do overlay */
+            text-align: center;
         }
+
         .popup-container h2 {
             margin: 0;
             color: white;
         }
+
         .popup-container .instructions {
-            background: rgba(0,0,0,0.3);
+            background: rgba(0,0,0,0.7);
             padding: 15px;
             border-radius: 10px;
             margin-bottom: 20px;
         }
+
         .popup-container .instructions h4 {
             margin: 0 0 15px 0;
             color: #1DB954;
         }
+
         .popup-container .footer {
             text-align: center;
             font-size: 12px;
@@ -141,11 +148,10 @@ def show_welcome_popup():
         </div>
     """, unsafe_allow_html=True)
 
-    # Botão para fechar (fora da sobreposição para garantir que seja clicável)
+    # Botão para fechar, fora da sobreposição para garantir que o botão seja clicável
     if st.button("Entendi, vamos lá! 🎧", use_container_width=True, key="close_popup"):
         st.session_state.popup_closed = True
-        st.rerun()
-
+        st.experimental_rerun()
 
 # ==============================
 # FIREBASE CONFIG (JSON DIRETO)
