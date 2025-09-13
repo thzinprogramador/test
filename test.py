@@ -69,7 +69,7 @@ ADMIN_PASSWORD = "wavesong9090"
 # ==============================
 def show_welcome_popup():
     """Exibe um pop-up de boas-vindas com instruções usando componentes nativos do Streamlit"""
-    
+
     # Criar um overlay escuro
     st.markdown("""
         <style>
@@ -79,63 +79,69 @@ def show_welcome_popup():
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0, 0, 0, 0.7);
             z-index: 999;
+        }
+        .popup-container {
+            background: linear-gradient(135deg, #1DB954, #191414);
+            padding: 25px;
+            border-radius: 15px;
+            color: white;
+            border: 2px solid #1DB954;
+            margin-top: 100px;
+            text-align: center;
+            width: 60%;
+            margin-left: 20%;
+            box-sizing: border-box;
+        }
+        .popup-container h2 {
+            margin: 0;
+            color: white;
+        }
+        .popup-container .instructions {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .popup-container .instructions h4 {
+            margin: 0 0 15px 0;
+            color: #1DB954;
+        }
+        .popup-container .footer {
+            text-align: center;
+            font-size: 12px;
+            opacity: 0.7;
+            margin-bottom: 15px;
         }
         </style>
         <div class="overlay"></div>
     """, unsafe_allow_html=True)
-    
-    # Criar o pop-up usando columns e container
-    col1, col2, col3 = st.columns([1, 2, 1])
-    
-    with col2:
-        # Container do pop-up
-        with st.container():
-            st.markdown("""
-                <style>
-                .popup-container {
-                    background: linear-gradient(135deg, #1DB954, #191414);
-                    padding: 25px;
-                    border-radius: 15px;
-                    color: white;
-                    border: 2px solid #1DB954;
-                    margin-top: 100px;
-                }
-                </style>
-            """, unsafe_allow_html=True)
-            
-            # Conteúdo do pop-up
-            st.markdown(
-                """
-                <div class="popup-container">
-                    <div style="text-align: center; margin-bottom: 20px;">
-                        <h2 style="margin: 0; color: white;">🌊 Bem-vindo ao Wave!</h2>
-                        <div style="font-size: 14px; opacity: 0.8; margin-top: 5px;">Site em desenvolvimento!</div>
-                    </div>
-                    
-                    <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-                        <h4 style="margin: 0 0 15px 0; color: #1DB954;">🎯 Instruções Importantes:</h4>
-                        <ol style="margin: 0; padding-left: 20px; font-size: 14px;">
-                            <li>Clique nos <strong>'3 pontinhos'</strong> no canto superior direito</li>
-                            <li>Vá em <strong>Settings</strong></li>
-                            <li>Escolha <strong>"Dark theme"</strong> para melhor experiência</li>
-                        </ol>
-                    </div>
-                    
-                    <div style="text-align: center; font-size: 12px; opacity: 0.7; margin-bottom: 15px;">
-                        Shutz agradece, bom proveito!!! 🎵
-                    </div>
-                </div>
-                """, 
-                unsafe_allow_html=True
-            )
-            
-            # Botão para fechar
-            if st.button("Entendi, vamos lá! 🎧", use_container_width=True, 
-                        key="close_popup", type="primary"):
-                st.session_state.popup_closed = True
-                st.rerun()
+
+    # Criar o conteúdo do pop-up
+    st.markdown("""
+        <div class="popup-container">
+            <h2>🌊 Bem-vindo ao Wave!</h2>
+            <div style="font-size: 14px; opacity: 0.8; margin-top: 5px;">Site em desenvolvimento!</div>
+            <div class="instructions">
+                <h4>🎯 Instruções Importantes:</h4>
+                <ol style="margin: 0; padding-left: 20px; font-size: 14px;">
+                    <li>Clique nos <strong>'3 pontinhos'</strong> no canto superior direito</li>
+                    <li>Vá em <strong>Settings</strong></li>
+                    <li>Escolha <strong>"Dark theme"</strong> para melhor experiência</li>
+                </ol>
+            </div>
+            <div class="footer">
+                Shutz agradece, bom proveito!!! 🎵
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # Botão para fechar
+    if st.button("Entendi, vamos lá! 🎧", use_container_width=True, key="close_popup"):
+        st.session_state.popup_closed = True
+        st.rerun()
+
 
 # ==============================
 # FIREBASE CONFIG (JSON DIRETO)
