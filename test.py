@@ -1110,8 +1110,10 @@ if st.session_state.current_page == "notifications":
         st.info("Não há notificações não lidas.")
         
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("⬅️ Voltar para o Início", key="back_from_notifications"):
+    if st.button("Voltar para o Início", key="back_from_notifications"):
         st.session_state.current_page = "home"
+
+    show_notification_panel()
 
 # ==============================
 # FOOTER + CSS
