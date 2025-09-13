@@ -307,7 +307,7 @@ def load_image(url):
 
 
 @st.cache_data
-极def load_image_cached(url):
+def load_image_cached(url):
     return load_image(url)
 
 
