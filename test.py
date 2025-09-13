@@ -97,11 +97,10 @@ def show_welcome_popup():
             color: white;
             border: 2px solid #1DB954;
             width: 50%;
-            margin-left: 25%;
-            box-sizing: border-box;
             position: fixed;
-            top: 20%;
-            left: 25%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);  /* Centraliza o pop-up na tela */
             z-index: 1000;  /* Garante que o pop-up esteja acima do overlay */
             text-align: center;
         }
