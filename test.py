@@ -68,15 +68,12 @@ ADMIN_PASSWORD = "wavesong9090"
 # FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (VERSÃO CORRIGIDA)
 # ==============================
 def show_welcome_popup():
-    """Mostra pop-up com aparência glass + usa um st.button posicionado por CSS para 'parecer' dentro do popup."""
     if st.session_state.get("popup_closed", False):
         return
 
-    # HTML + CSS do pop-up (overlay)
-    st.markdown(
-    """
+    # CSS do popup
+    st.markdown("""
     <style>
-    /* Overlay (fundo escuro) */
     .ws-overlay {
         position: fixed;
         top: 0; left: 0;
@@ -84,8 +81,6 @@ def show_welcome_popup():
         background: rgba(0,0,0,0.7);
         z-index: 9998;
     }
-
-    /* Caixa do popup (glass) */
     .ws-popup {
         background: rgba(0,0,0,0.45);
         backdrop-filter: blur(10px);
@@ -94,40 +89,35 @@ def show_welcome_popup():
         color: white;
         border: 2px solid #1DB954;
         width: 60%;
-        max-width: 980px;
-        min-width: 420px;
+        max-width: 700px;
+        min-width: 320px;
         position: fixed;
-        top: 50%;
-        left: 50%;
+        top: 50%; left: 50%;
         transform: translate(-50%, -50%);
-        z-index: 9999;  /* abaixo do botão customizado, acima do overlay */
+        z-index: 9999;
         text-align: center;
         box-shadow: 0 8px 40px rgba(0,0,0,0.6);
     }
-
-    .ws-popup h2 { margin: 0 0 10px 0; font-size: 30px; }
+    .ws-popup h2 { margin: 0 0 10px 0; font-size: 26px; }
     .ws-popup .sub { font-size: 14px; opacity: 0.8; margin-bottom: 14px; }
     .ws-instructions {
         background: rgba(0,0,0,0.55);
         padding: 14px;
         border-radius: 10px;
         margin-bottom: 18px;
+        text-align: left;
     }
     .ws-instructions h4 { margin: 0 0 8px 0; color: #1DB954; }
+    .ws-footer { font-size:12px; opacity:0.8; margin-bottom: 25px; }
 
-    /* ====== HACK: posiciona o st.button (último .stButton) exatamente sobre o botão visual do popup ====== */
-    /* Selecionamos o último botão da página e o transformamos em fixed para posicionar dentro do popup */
+    /* Força o último botão a ficar dentro do popup */
     .stApp .stButton:last-of-type {
-        position: fixed;
-        left: 50%;
-        top: 63%; /* ajusta verticalmente — aumentar ou diminuir se necessário */
-        transform: translate(-50%, -50%);
-        z-index: 10000; /* acima do popup */
-        width: auto;    /* permitir ajustar largura */
-        pointer-events: auto;
+        position: fixed !important;
+        top: 66% !important;  /* ajuste vertical conforme sua tela */
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        z-index: 10000 !important;
     }
-
-    /* Estilo do botão para combinar com o design do popup */
     .stApp .stButton:last-of-type > button {
         background-color: #1DB954 !important;
         color: #fff !important;
@@ -135,43 +125,31 @@ def show_welcome_popup():
         border-radius: 10px !important;
         font-size: 16px !important;
         border: none !important;
-        box-shadow: none !important;
     }
     </style>
 
-    <div class="ws-overlay" id="ws-overlay"></div>
-
-    <div class="ws-popup" role="dialog" aria-label="Bem-vindo ao Wave">
+    <div class="ws-overlay"></div>
+    <div class="ws-popup">
         <h2>🌊 Bem-vindo ao Wave!</h2>
         <div class="sub">Site em desenvolvimento!</div>
 
         <div class="ws-instructions">
             <h4>🎯 Instruções Importantes:</h4>
-            <ol style="margin:0; padding-left:20px; text-align:left;">
+            <ol style="margin:0; padding-left:20px;">
                 <li>Clique nos <strong>'3 pontinhos'</strong> no canto superior direito</li>
                 <li>Vá em <strong>Settings</strong></li>
                 <li>Escolha <strong>"Dark theme"</strong> para melhor experiência</li>
             </ol>
         </div>
 
-        <div style="font-size:12px; opacity:0.8; margin-bottom: 40px;">
-            Shutz agradece, bom proveito!!! 🎵
-        </div>
-
-        <!-- Note: o botão real do Streamlit será posicionado por CSS sobre este local -->
-        <div style="height: 1px;"></div>
+        <div class="ws-footer">Shutz agradece, bom proveito!!! 🎵</div>
     </div>
-    """,
-    unsafe_allow_html=True
-    )
+    """, unsafe_allow_html=True)
 
-    # Criamos o botão logo após o HTML para garantir que seja o último .stButton
-    btn_placeholder = st.empty()
-    if btn_placeholder.button("Entendi, vamos lá! 🎧", key="close_popup"):
+    # Botão real do Streamlit (vai ser reposicionado pelo CSS acima)
+    if st.button("Entendi, vamos lá! 🎧", key="close_popup"):
         st.session_state.popup_closed = True
-        # opcional: pode usar st.experimental_rerun() para redraw imediato
         st.experimental_rerun()
-
 
         
 
