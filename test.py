@@ -5,7 +5,6 @@ import datetime
 import random
 import time
 import base64
-from urllib.parse import parse_qs, urlparse
 from firebase_admin import credentials, db
 from io import BytesIO
 from PIL import Image
@@ -69,20 +68,13 @@ ADMIN_PASSWORD = "wavesong9090"
 # FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (VERSÃO CORRIGIDA)
 # ==============================
 def show_welcome_popup():
-    """Exibe um pop-up de boas-vindas com overlay e opção de fechar."""
+    """Exibe um pop-up de boas-vindas com efeito de vidro fosco e um X para fechar."""
 
-    # Só mostra se ainda não foi fechado
+    # Se já foi fechado, não mostra mais
     if st.session_state.get("popup_closed", False):
         return
 
-    # Verifica se o usuário já clicou para fechar via query param
-    query_params = st.query_params
-    if "popup_closed" in query_params:
-        st.session_state.popup_closed = True
-        st.query_params.clear()  # limpa a URL
-        return
-
-    # CSS + JS para overlay, popup, botão e fechamento ao clicar fora
+    # CSS e HTML do popup
     st.markdown("""
         <style>
         .ws-overlay {
@@ -96,8 +88,8 @@ def show_welcome_popup():
             position: fixed;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(10px);
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(12px);
             border: 2px solid #1DB954;
             border-radius: 15px;
             padding: 25px;
@@ -124,10 +116,10 @@ def show_welcome_popup():
         }
         </style>
 
-        <div class="ws-overlay" onclick="document.getElementById('close-popup-link').click()"></div>
+        <div class="ws-overlay"></div>
 
         <div class="ws-popup">
-            <span class="ws-close" onclick="document.getElementById('close-popup-link').click()">×</span>
+            <span class="ws-close" onclick="window.parent.postMessage({type: 'popup_close'}, '*')">×</span>
             <h2>🌊 Bem-vindo ao Wave!</h2>
             <p style="opacity:0.8; font-size:14px;">Site em desenvolvimento!</p>
             
@@ -143,11 +135,23 @@ def show_welcome_popup():
             <div style="font-size:12px; opacity:0.7; margin-top:20px;">
                 Shutz agradece, bom proveito!!! 🎵
             </div>
-
-            <!-- Link escondido que fecha o popup -->
-            <a id="close-popup-link" href="?popup_closed=1" style="display:none;"></a>
         </div>
+
+        <script>
+        window.addEventListener("message", (event) => {
+            if (event.data.type === "popup_close") {
+                const streamlitEvents = window.parent.streamlitEvents || [];
+                streamlitEvents.push("close_popup");
+                window.parent.streamlitEvents = streamlitEvents;
+            }
+        });
+        </script>
     """, unsafe_allow_html=True)
+
+    # Captura o evento do X (gambiarra leve, mas funciona no Streamlit)
+    if "streamlitEvents" in st.session_state and "close_popup" in st.session_state.streamlitEvents:
+        st.session_state.popup_closed = True
+        st.session_state.streamlitEvents.remove("close_popup")
         
 
 # ==============================
