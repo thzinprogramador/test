@@ -145,6 +145,11 @@ def show_welcome_popup():
         .sidebar {
             z-index: 1; /* Garantir que o sidebar tenha um z-index menor que o do pop-up */
         }
+
+        /* Esconde o botão fora do pop-up */
+        .close-btn-outside {
+            display: none;
+        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -172,6 +177,7 @@ def show_welcome_popup():
     if st.button("Entendi, vamos lá! 🎧", use_container_width=True, key="close_popup"):
         st.session_state.popup_closed = True  # Marca o pop-up como fechado
         st.experimental_rerun()  # Recarrega a página, mas sem o pop-up
+
         
 
 # ==============================
