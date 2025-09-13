@@ -85,9 +85,9 @@ def show_welcome_popup():
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.7);  /* Fundo escuro para destacar o pop-up */
-            z-index: 1000; /* Garante que o overlay fique acima de tudo */
+            z-index: 999; /* Garante que o overlay fique acima de tudo */
         }
-        
+
         /* Efeito de vidro fosco no pop-up */
         .popup-container {
             background: rgba(0, 0, 0, 0.5);  /* Fundo translúcido */
@@ -101,7 +101,7 @@ def show_welcome_popup():
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);  /* Centraliza o pop-up na tela */
-            z-index: 10001;  /* Garante que o pop-up esteja acima do overlay e do sidebar */
+            z-index: 1000;  /* Garante que o pop-up esteja acima do overlay e sidebar */
             text-align: center;
         }
 
@@ -164,7 +164,7 @@ def show_welcome_popup():
         </div>
     """, unsafe_allow_html=True)
 
-    # Marcar o pop-up como fechado após clicar no botão
+    # Botão para fechar o pop-up
     if st.button("Entendi, vamos lá! 🎧", use_container_width=True, key="close_popup"):
         st.session_state.popup_closed = True  # Marca o pop-up como fechado
         st.experimental_rerun()  # Recarrega a página, mas sem o pop-up
