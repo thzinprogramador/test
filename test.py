@@ -334,12 +334,7 @@ def check_unread_notifications():
             for note_id, note_data in notifications.items():
                 # Verificar se o usuário atual já leu esta notificação
                 read_by = note_data.get("read_by", {})
-                user_key = st.experimental_user.get("email", "anonymous") if hasattr(st.experimental_user, "get") else "anonymous"
-                
-                # Verificar se já foi marcada como lida nesta sessão
-                session_key = f"read_{note_id}"
-                if session_key in st.session_state and st.session_state[session_key]:
-                    continue
+                user_key = "anonymous"  # Simplificado para usuários anônimos
                 
                 if user_key not in read_by or not read_by[user_key]:
                     unread.append({
@@ -356,19 +351,23 @@ def check_unread_notifications():
         st.error(f"❌ Erro ao verificar notificações: {e}")
         return []
 
+
+
 def mark_notification_as_read(notification_id):
     """Marca uma notificação como lida pelo usuário atual"""
     if not st.session_state.firebase_connected:
         return False
     
     try:
-        user_key = st.experimental_user.get("email", "anonymous") if hasattr(st.experimental_user, "get") else "anonymous"
+        user_key = "anonymous"  # Simplificado para usuários anônimos
         ref = db.reference(f"/global_notifications/{notification_id}/read_by/{user_key}")
         ref.set(True)
         return True
     except Exception as e:
         st.error(f"❌ Erro ao marcar notificação como lida: {e}")
         return False
+
+
 
 def setup_telegram_commands():
     """Configura os comandos do Telegram para enviar notificações"""
@@ -1151,14 +1150,17 @@ elif st.session_state.current_page == "notifications":
                     unsafe_allow_html=True
                 )
 
-                if st.button("✅ Marcar como lida", key=f"read_{notification['id']}"):
-                    if mark_notification_as_read(notification['id']):
-                        # Usar session state para controlar o estado em vez de rerun
-                        st.session_state[f"read_{notification['id']}"] = True
-                        st.success("✅ Notificação marcada como lida!")
 
-                        # Atualizar a lista de não lidas sem recarregar a página completa
+                short_key = f"read_{hash(notification['id']) % 10000}"
+                if st.button("✅ Marcar como lida", key=short_key):
+                    if mark_notification_as_read(notification['id']):
+                        # Usar uma abordagem mais simples sem session_state complexo
+                        st.success("✅ Notificação marcada como lida!")
+        
+                        # Forçar atualização da lista de não lidas
                         st.session_state.unread_notifications_cache = None
+                        time.sleep(0.5)  # Pequeno delay para visualização
+                        st.rerun()  # Recarregar a página para atualizar a lista
 
             st.markdown("---")
     else:
