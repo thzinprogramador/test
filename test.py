@@ -67,6 +67,8 @@ ADMIN_PASSWORD = "wavesong9090"
 # ==============================
 # FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (VERSÃO CORRIGIDA)
 # ==============================
+import streamlit as st
+
 def show_welcome_popup():
     """Exibe um pop-up de boas-vindas com efeito de vidro fosco, instruções e um botão para fechar, exibido uma única vez."""
 
@@ -85,7 +87,7 @@ def show_welcome_popup():
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.7);
-            z-index: 9999; /* Garantir que fique acima de qualquer outro componente */
+            z-index: 1000; /* Coloca o overlay na frente de tudo */
         }
         
         /* Efeito de vidro fosco no pop-up */
@@ -101,7 +103,7 @@ def show_welcome_popup():
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);  /* Centraliza o pop-up na tela */
-            z-index: 10000;  /* Garante que o pop-up esteja acima do overlay e sidebar */
+            z-index: 10001;  /* Garante que o pop-up esteja acima do overlay e sidebar */
             text-align: center;
         }
 
