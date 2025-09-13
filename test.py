@@ -841,7 +841,6 @@ with st.sidebar:
 # ==============================
 # POP-UP DE BOAS-VINDAS
 # ==============================
-if st.session_state.show_welcome_popup and not st.session_state.popup_closed:
     show_welcome_popup()
 
 # ==============================
