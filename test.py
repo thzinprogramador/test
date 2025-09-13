@@ -85,7 +85,7 @@ def show_welcome_popup():
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.7);  /* Fundo escuro para destacar o pop-up */
-            z-index: 999; /* Garante que o overlay fique acima de tudo */
+            z-index: 9999; /* Garante que o overlay fique acima de tudo */
         }
 
         /* Efeito de vidro fosco no pop-up */
@@ -101,7 +101,7 @@ def show_welcome_popup():
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);  /* Centraliza o pop-up na tela */
-            z-index: 1000;  /* Garante que o pop-up esteja acima do overlay e sidebar */
+            z-index: 10000;  /* Garante que o pop-up esteja acima do overlay e do sidebar */
             text-align: center;
         }
 
