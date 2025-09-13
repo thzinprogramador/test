@@ -727,8 +727,8 @@ with st.sidebar:
         st.session_state.current_page = "search"
         st.session_state.show_request_form = False
         
-    if st.sidebar.button("🧪 Testar Conversão de URLs"):
-        st.session_state.current_page = "test_github_conversion"
+    # if st.sidebar.button("🧪 Testar Conversão de URLs"):
+        # st.session_state.current_page = "test_github_conversion"
         
     # Verificação de conversão em tempo real
     if st.checkbox("🔍 Verificar conversões em tempo real"):
@@ -761,8 +761,8 @@ with st.sidebar:
 
             
 
-    if st.sidebar.button("🐛 Debug Conversão URLs"):
-        st.session_state.current_page = "debug_conversion"
+    # if st.sidebar.button("🐛 Debug Conversão URLs"):
+        # st.session_state.current_page = "debug_conversion"
 
 
 # ==============================
