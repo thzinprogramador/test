@@ -70,28 +70,23 @@ ADMIN_PASSWORD = "wavesong9090"
 def show_welcome_popup():
     """Exibe um pop-up de boas-vindas com efeito de vidro fosco, instruções e um botão para fechar, exibido uma única vez."""
 
-    # Verifica se o pop-up já foi fechado
     if 'popup_closed' in st.session_state and st.session_state.popup_closed:
-        return  # Não exibe o pop-up se já foi fechado
+        return
 
-    # Criar um overlay escuro
     st.markdown("""
         <style>
-        /* Overlay de fundo escuro */
         .overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.7);  /* Fundo escuro para destacar o pop-up */
-            z-index: 9999; /* Garante que o overlay fique acima de tudo */
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9999;
         }
-
-        /* Efeito de vidro fosco no pop-up */
         .popup-container {
-            background: rgba(0, 0, 0, 0.5);  /* Fundo translúcido */
-            backdrop-filter: blur(10px);  /* Desfoque no fundo */
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
             padding: 25px;
             border-radius: 15px;
             color: white;
@@ -100,36 +95,27 @@ def show_welcome_popup():
             position: fixed;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%);  /* Centraliza o pop-up na tela */
-            z-index: 10000;  /* Garante que o pop-up esteja acima do overlay e do sidebar */
+            transform: translate(-50%, -50%);
+            z-index: 10000;
             text-align: center;
         }
-
-        .popup-container h2 {
-            margin: 0;
-            color: white;
-        }
-
+        .popup-container h2 { margin: 0; color: white; }
         .popup-container .instructions {
             background: rgba(0,0,0,0.7);
             padding: 15px;
             border-radius: 10px;
             margin-bottom: 20px;
         }
-
         .popup-container .instructions h4 {
             margin: 0 0 15px 0;
             color: #1DB954;
         }
-
         .popup-container .footer {
             text-align: center;
             font-size: 12px;
             opacity: 0.7;
             margin-bottom: 15px;
         }
-
-        /* Botão de fechar */
         .close-btn {
             background-color: #1DB954;
             color: white;
@@ -140,43 +126,50 @@ def show_welcome_popup():
             font-size: 16px;
             margin-top: 20px;
         }
-
-        /* Ajuste no sidebar se necessário */
-        .sidebar {
-            z-index: 1; /* Garantir que o sidebar tenha um z-index menor que o do pop-up */
-        }
         </style>
-    """, unsafe_allow_html=True)
-
-    # Criar o conteúdo do pop-up
-    st.markdown("""
-        <div class="popup-container">
-            <h2>🌊 Bem-vindo ao Wave!</h2>
-            <div style="font-size: 14px; opacity: 0.8; margin-top: 5px;">Site em desenvolvimento!</div>
-            <div class="instructions">
-                <h4>🎯 Instruções Importantes:</h4>
-                <ol style="margin: 0; padding-left: 20px; font-size: 14px;">
-                    <li>Clique nos <strong>'3 pontinhos'</strong> no canto superior direito</li>
-                    <li>Vá em <strong>Settings</strong></li>
-                    <li>Escolha <strong>"Dark theme"</strong> para melhor experiência</li>
-                </ol>
+        <div class="overlay" id="popup-overlay">
+            <div class="popup-container">
+                <h2>🌊 Bem-vindo ao Wave!</h2>
+                <div style="font-size: 14px; opacity: 0.8; margin-top: 5px;">Site em desenvolvimento!</div>
+                <div class="instructions">
+                    <h4>🎯 Instruções Importantes:</h4>
+                    <ol style="margin: 0; padding-left: 20px; font-size: 14px;">
+                        <li>Clique nos <strong>'3 pontinhos'</strong> no canto superior direito</li>
+                        <li>Vá em <strong>Settings</strong></li>
+                        <li>Escolha <strong>"Dark theme"</strong> para melhor experiência</li>
+                    </ol>
+                </div>
+                <div class="footer">Shutz agradece, bom proveito!!! 🎵</div>
+                <button class="close-btn" onclick="document.getElementById('popup-overlay').style.display='none'; 
+                                                   fetch('/_stcore/close_popup', {method:'POST'})">
+                    Entendi, vamos lá! 🎧
+                </button>
             </div>
-            <div class="footer">
-                Shutz agradece, bom proveito!!! 🎵
-            </div>
-            <button class="close-btn" onclick="window.location.reload();">Entendi, vamos lá! 🎧</button>
         </div>
     """, unsafe_allow_html=True)
 
-    # Remover qualquer botão fora do pop-up, garantindo que apenas o do pop-up seja exibido
-    # O botão "Entendi, vamos lá!" só será dentro do pop-up e acionará o fechamento
+    # "Gambiarra" → endpoint fake p/ salvar estado via Streamlit
+    from streamlit.runtime.scriptrunner import add_script_run_ctx
+    from threading import Thread
+    import http.server, socketserver
 
-    if 'popup_closed' not in st.session_state:
-        st.session_state.popup_closed = False
-    
-    if st.button("Entendi, vamos lá! 🎧", use_container_width=True, key="close_popup"):
-        st.session_state.popup_closed = True  # Marca o pop-up como fechado
-        st.experimental_rerun()  # Recarrega a página, mas sem o pop-up
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        def do_POST(self):
+            if self.path == "/_stcore/close_popup":
+                st.session_state.popup_closed = True
+                st.experimental_rerun()
+            self.send_response(200)
+            self.end_headers()
+
+    def serve():
+        with socketserver.TCPServer(("localhost", 8501), Handler) as httpd:
+            httpd.serve_forever()
+
+    if 'server_started' not in st.session_state:
+        st.session_state.server_started = True
+        t = Thread(target=serve, daemon=True)
+        add_script_run_ctx(t)
+        t.start()
 
 
         
