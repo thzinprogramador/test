@@ -53,12 +53,101 @@ if "search_input" not in st.session_state:
     st.session_state.search_input = ""
 if "player_timestamp" not in st.session_state:
     st.session_state.player_timestamp = time.time()
+if "show_welcome_popup" not in st.session_state:
+    st.session_state.show_welcome_popup = True  # Novo estado para controlar o pop-up
 
 
 # ==============================
 # CONFIGURAÇÕES DE SEGURANÇA
 # ==============================
 ADMIN_PASSWORD = "wavesong9090" 
+
+# ==============================
+# FUNÇÃO PARA O POP-UP DE BOAS-VINDAS
+# ==============================
+def show_welcome_popup():
+    """Exibe um pop-up de boas-vindas com instruções"""
+    popup_html = """
+    <div id="welcomePopup" style="
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: linear-gradient(135deg, #1DB954, #191414);
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        z-index: 1000;
+        width: 400px;
+        max-width: 90%;
+        color: white;
+        font-family: Arial, sans-serif;
+        border: 2px solid #1DB954;
+    ">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="margin: 0; color: white;">🌊 Bem-vindo ao Wave!</h2>
+            <div style="font-size: 14px; opacity: 0.8; margin-top: 5px;">Site em desenvolvimento!</div>
+        </div>
+        
+        <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+            <h4 style="margin: 0 0 15px 0; color: #1DB954;">🎯 Instruções Importantes:</h4>
+            <ol style="margin: 0; padding-left: 20px; font-size: 14px;">
+                <li>Clique nos <strong>'3 pontinhos'</strong> no canto superior direito</li>
+                <li>Vá em <strong>Settings</strong></li>
+                <li>Escolha <strong>"Dark theme"</strong> para melhor experiência</li>
+            </ol>
+        </div>
+        
+        <div style="text-align: center; font-size: 12px; opacity: 0.7; margin-bottom: 15px;">
+            Shutz agradece, bom proveito!!! 🎵
+        </div>
+        
+        <button onclick="document.getElementById('welcomePopup').style.display='none'" 
+                style="
+                    background: #1DB954;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 20px;
+                    cursor: pointer;
+                    width: 100%;
+                    font-weight: bold;
+                    transition: background 0.3s;
+                "
+                onmouseover="this.style.background='#1ED760'"
+                onmouseout="this.style.background='#1DB954'">
+            Entendi, vamos lá! 🎧
+        </button>
+    </div>
+    
+    <div id="overlay" style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.7);
+        z-index: 999;
+    "></div>
+    
+    <script>
+        // Fechar pop-up ao clicar no overlay
+        document.getElementById('overlay').addEventListener('click', function() {
+            document.getElementById('welcomePopup').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+        });
+        
+        // Fechar pop-up com ESC
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                document.getElementById('welcomePopup').style.display = 'none';
+                document.getElementById('overlay').style.display = 'none';
+            }
+        });
+    </script>
+    """
+    
+    st.markdown(popup_html, unsafe_allow_html=True)
 
 # ==============================
 # FIREBASE CONFIG (JSON DIRETO)
@@ -294,43 +383,10 @@ def convert_github_to_jsdelivr(url):
         print(f"Erro ao converter URL {url}: {e}")
         return url
 
-def debug_github_conversion():
-    """Função para debug das conversões de URL"""
-    st.header("🐛 Debug de Conversão de URLs")
-    
-    # URLs de exemplo para testar
-    test_urls = [
-        "https://github.com/thzinprogramador/songs/raw/refs/heads/main/albuns/matue/4TAL.mp3",
-        "https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/Matu%C3%AA%20-%20Maria%20-%20333.mp3",
-        "https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/album/outra_musica.mp3"
-    ]
-    
-    for i, url in enumerate(test_urls):
-        st.subheader(f"Teste {i+1}: {url}")
-        
-        # Mostrar análise da URL
-        st.write("**Análise da URL:**")
-        parts = url.split("/")
-        for j, part in enumerate(parts):
-            st.write(f"  {j}: `{part}`")
-        
-        # Testar conversão
-        converted = convert_github_to_jsdelivr(url)
-        st.write("**Resultado da conversão:**")
-        st.code(converted)
-        
-        if converted != url and "cdn.jsdelivr.net" in converted:
-            st.success("✅ Conversão bem-sucedida!")
-        else:
-            st.error("❌ Falha na conversão")
-        
-        st.markdown("---")
-
-
 def get_converted_audio_url(song):
     """Retorna a URL do áudio convertida se for do GitHub"""
     audio_url = song.get("audio_url", "")
-    if "github.com" in audio_url:
+    if "github.com" in audio_url or "raw.githubusercontent.com" in audio_url:
         return convert_github_to_jsdelivr(audio_url)
     return audio_url
 
@@ -341,7 +397,7 @@ def play_song(song):
     new_id = song["id"]
     
     # Converter URL do GitHub para jsDelivr se necessário
-    if "audio_url" in song and "github.com" in song["audio_url"]:
+    if "audio_url" in song and ("github.com" in song["audio_url"] or "raw.githubusercontent.com" in song["audio_url"]):
         song_copy = song.copy()  # Criar uma cópia para não modificar o original
         song_copy["audio_url"] = convert_github_to_jsdelivr(song["audio_url"])
         song = song_copy
@@ -722,17 +778,15 @@ with st.sidebar:
     if st.button("Página Inicial", key="btn_home", use_container_width=True):
         st.session_state.current_page = "home"
         st.session_state.show_request_form = False
-        
     if st.button("Buscar Músicas", key="btn_search", use_container_width=True):
         st.session_state.current_page = "search"
         st.session_state.show_request_form = False
-        
-    # if st.sidebar.button("🧪 Testar Conversão de URLs"):
-        # st.session_state.current_page = "test_github_conversion"
+    if st.sidebar.button("🧪 Testar Conversão de URLs"):
+        st.session_state.current_page = "test_github_conversion"
         
     # Verificação de conversão em tempo real
-    if st.checkbox("🔍 Verificação em tempo real"):
-        st.header("Status de Funcionalidade:")
+    if st.checkbox("🔍 Verificar conversões em tempo real"):
+        st.header("Status de Conversão das URLs")
         
         github_count = 0
         converted_count = 0
@@ -748,22 +802,23 @@ with st.sidebar:
                 else:
                     problematic_urls.append(audio_url)
         
-        st.write(f"**Total musicas em sistema:** {github_count}")
-        st.write(f"**música em funcionamento:** {converted_count}")
+        st.write(f"**Total de URLs do GitHub:** {github_count}")
+        st.write(f"**URLs convertíveis:** {converted_count}")
         
         if github_count > 0 and converted_count == github_count:
-            st.success("✅ Todas as músicas podem ser ouvidas!")
+            st.success("✅ Todas as URLs do GitHub podem ser convertidas!")
         elif github_count > 0:
-          # st.warning(f"⚠️ Apenas {converted_count}/{github_count} URLs podem ser convertidas")
-            st.write("**⚠️ nem todas as musicas estão disponível para ouvir**")
+            st.warning(f"⚠️ Apenas {converted_count}/{github_count} URLs podem ser convertidas")
+            st.write("**URLs com problemas:**")
             for url in problematic_urls:
                 st.code(url)
 
-            
 
-    # if st.sidebar.button("🐛 Debug Conversão URLs"):
-        # st.session_state.current_page = "debug_conversion"
-
+# ==============================
+# POP-UP DE BOAS-VINDAS
+# ==============================
+if st.session_state.show_welcome_popup:
+    show_welcome_popup()
 
 # ==============================
 # PÁGINAS
@@ -859,8 +914,8 @@ elif st.session_state.current_page == "search":
         st.info("Nenhuma música cadastrada.")
         show_request_music_section()
 
-# elif st.session_state.current_page == "test_github_conversion":
-    # st.header("🧪 Testes de Conversão URL")
+elif st.session_state.current_page == "test_github_conversion":
+    st.header("🧪 Testes de Conversão URL")
     tab1, tab2 = st.tabs(["Teste de Conversão", "Teste de Reprodução"])
 
     with tab1:
@@ -868,9 +923,6 @@ elif st.session_state.current_page == "search":
 
     with tab2:
         test_audio_playback()
-
-# elif st.session_state.current_page == "debug_conversion":
-    # debug_github_conversion()
 
     if st.button("Voltar para o Player"):
         st.session_state.current_page = "home"
