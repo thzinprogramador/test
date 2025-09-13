@@ -795,8 +795,8 @@ with st.sidebar:
     if st.button("Buscar Músicas", key="btn_search", use_container_width=True):
         st.session_state.current_page = "search"
         st.session_state.show_request_form = False
-    if st.sidebar.button("🧪 Testar Conversão de URLs"):
-        st.session_state.current_page = "test_github_conversion"
+    #if st.sidebar.button("🧪 Testar Conversão de URLs"):
+        #st.session_state.current_page = "test_github_conversion"
         
     # Verificação de conversão em tempo real
     if st.checkbox("🔍 Verificar conversões em tempo real"):
