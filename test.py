@@ -49,6 +49,10 @@ if "random_songs" not in st.session_state:
     st.session_state.random_songs = []
 if "random_songs_timestamp" not in st.session_state:
     st.session_state.random_songs_timestamp = None
+if "search_input" not in st.session_state:
+    st.session_state.search_input = ""
+if "player_timestamp" not in st.session_state:
+    st.session_state.player_timestamp = time.time()
 
 
 # ==============================
@@ -239,57 +243,49 @@ def get_daily_random_songs(all_songs, top6_songs):
     
     return st.session_state.random_songs
 
-
-
-
 # ==============================
-# CONEXÃO FIREBASE
-# ==============================
-try:
-    if not firebase_admin._apps:
-        cred = credentials.Certificate(firebase_config)
-        firebase_admin.initialize_app(cred, {
-            "databaseURL": "https://wavesong-default-rtdb.firebaseio.com/"
-        })
-    st.session_state.firebase_connected = True
-    if initialize_database():
-        st.session_state.all_songs = get_all_songs_cached()
-except Exception as e:
-    st.session_state.firebase_connected = False
-    st.session_state.all_songs = get_all_songs_cached()
-
-
-# ==============================
-# FUNÇÕES AUXILIARES
+# FUNÇÃO DE CONVERSÃO DE URL CORRIGIDA
 # ==============================
 def convert_github_to_jsdelivr(url):
     """
     Converte URLs do github.com para cdn.jsdelivr.net
-    Formato esperado: https://github.com/usuario/repo/raw/ramo/caminho/arquivo
-    Formato convertido: https://cdn.jsdelivr.net/gh/usuario/repo@ramo/caminho/arquivo
+    Suporta dois formatos:
+    1. https://github.com/usuario/repo/raw/ramo/caminho/arquivo
+    2. https://raw.githubusercontent.com/usuario/repo/ramo/caminho/arquivo
     """
     if not url or "github.com" not in url:
         return url
     
     try:
-        # Verifica se é uma URL do GitHub no formato que você usa
+        # Formato 1: https://github.com/usuario/repo/raw/ramo/caminho/arquivo
         if "/raw/" in url:
-            # Extrai as partes da URL
             parts = url.split("/")
-            # Encontra a posição do "raw" na URL
             raw_index = parts.index("raw")
             usuario = parts[3]
             repo = parts[4]
             ramo = parts[raw_index + 1]
             caminho_arquivo = "/".join(parts[raw_index + 2:])
             
-            # Constrói a nova URL do jsDelivr
             nova_url = f"https://cdn.jsdelivr.net/gh/{usuario}/{repo}@{ramo}/{caminho_arquivo}"
             return nova_url
+        
+        # Formato 2: https://raw.githubusercontent.com/usuario/repo/ramo/caminho/arquivo
+        elif "raw.githubusercontent.com" in url:
+            parts = url.split("/")
+            # Encontra a posição após o domínio
+            usuario = parts[3]
+            repo = parts[4]
+            ramo = parts[5]
+            caminho_arquivo = "/".join(parts[6:])
+            
+            nova_url = f"https://cdn.jsdelivr.net/gh/{usuario}/{repo}@{ramo}/{caminho_arquivo}"
+            return nova_url
+        
+        # Se não for nenhum dos formatos suportados, retorna original
         else:
             return url
+            
     except Exception as e:
-        st.error(f"Erro ao converter URL: {e}")
         return url
 
 def get_converted_audio_url(song):
@@ -435,12 +431,18 @@ def test_github_conversion():
     """Testa a conversão de URLs do GitHub para JS Delivr com seu formato específico"""
     st.header("🔍 Teste de Conversão de URLs - Formato GitHub")
     
-    # URLs no formato que você usa
+    # URLs nos formatos suportados
     test_urls = [
+        # Formato antigo
+        "https://github.com/thzinprogramador/songs/raw/refs/heads/main/albuns/matue/4TAL.mp3",
         "https://github.com/thzinprogramador/songs/raw/refs/heads/main/God's%20Plan%20-%20drake.mp3",
-        "https://github.com/usuario/repo/raw/refs/heads/main/music/song.mp3",
-        "https://github.com/artist/album/raw/branch/sounds/track.wav",
-        "https://example.com/regular-audio.mp3",  # URL não GitHub (não deve ser convertida)
+        
+        # Formato novo
+        "https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/Matu%C3%AA%20-%20Maria%20-%20333.mp3",
+        "https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/album/nova_musica.mp3",
+        
+        # URL não GitHub (não deve ser convertida)
+        "https://example.com/regular-audio.mp3",
     ]
     
     for i, url in enumerate(test_urls):
@@ -478,17 +480,17 @@ def test_audio_playback():
     """Testa a reprodução de áudio com URLs convertidas"""
     st.header("🎵 Teste de Reprodução de Áudio")
     
-    # URLs de áudio de exemplo (substitua por URLs reais se disponíveis)
+    # URLs de áudio de exemplo
     test_audios = [
         {
-            "title": "Música de Exemplo 1",
+            "title": "Música Formato Antigo",
             "original_url": "https://github.com/thzinprogramador/songs/raw/refs/heads/main/Congratulations%20-%20post%20malone.mp3",
             "converted_url": convert_github_to_jsdelivr("https://github.com/thzinprogramador/songs/raw/refs/heads/main/Congratulations%20-%20post%20malone.mp3")
         },
         {
-            "title": "Música de Exemplo 2", 
-            "original_url": "https://github.com/thzinprogramador/songs/raw/refs/heads/main/God's%20Plan%20-%20drake.mp3",
-            "converted_url": convert_github_to_jsdelivr("https://github.com/thzinprogramador/songs/raw/refs/heads/main/God's%20Plan%20-%20drake.mp3")
+            "title": "Música Formato Novo", 
+            "original_url": "https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/Matu%C3%AA%20-%20Maria%20-%20333.mp3",
+            "converted_url": convert_github_to_jsdelivr("https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/Matu%C3%AA%20-%20Maria%20-%20333.mp3")
         }
     ]
     
@@ -631,6 +633,23 @@ def render_player():
     st.markdown(player_html, unsafe_allow_html=True)
     
 # ==============================
+# CONEXÃO FIREBASE
+# ==============================
+try:
+    if not firebase_admin._apps:
+        cred = credentials.Certificate(firebase_config)
+        firebase_admin.initialize_app(cred, {
+            "databaseURL": "https://wavesong-default-rtdb.firebaseio.com/"
+        })
+    st.session_state.firebase_connected = True
+    if initialize_database():
+        st.session_state.all_songs = get_all_songs_cached()
+except Exception as e:
+    st.session_state.firebase_connected = False
+    st.session_state.all_songs = get_all_songs_cached()
+
+
+# ==============================
 # SIDEBAR
 # ==============================
 with st.sidebar:
@@ -670,10 +689,28 @@ with st.sidebar:
     if st.sidebar.button("🧪 Testar Conversão de URLs"):
         st.session_state.current_page = "test_github_conversion"
         
-    # if st.button("Adicionar Música", key="btn_add", use_container_width=True):
-        # st.session_state.current_page = "add"
-        # st.session_state.show_request_form = False
-
+    # Verificação de conversão em tempo real
+    if st.checkbox("🔍 Verificar conversões em tempo real"):
+        st.header("Status de Conversão das URLs")
+        
+        github_count = 0
+        converted_count = 0
+        
+        for song in st.session_state.all_songs:
+            audio_url = song.get("audio_url", "")
+            if "github.com" in audio_url:
+                github_count += 1
+                converted_url = convert_github_to_jsdelivr(audio_url)
+                if "cdn.jsdelivr.net" in converted_url:
+                    converted_count += 1
+        
+        st.write(f"**Total de URLs do GitHub:** {github_count}")
+        st.write(f"**URLs convertíveis:** {converted_count}")
+        
+        if github_count > 0 and converted_count == github_count:
+            st.success("✅ Todas as URLs do GitHub podem ser convertidas!")
+        elif github_count > 0:
+            st.warning(f"⚠️ Apenas {converted_count}/{github_count} URLs podem ser convertidas")
 
 
 # ==============================
@@ -738,9 +775,6 @@ if st.session_state.current_page == "home":
 elif st.session_state.current_page == "search":
     st.header("Buscar Músicas")
 
-    if "search_input" not in st.session_state:
-        st.session_state.search_input = ""
-
     search_input = st.text_input("Digite o nome da música ou artista...", key="search_input")
 
     if st.session_state.all_songs:
@@ -785,31 +819,6 @@ elif st.session_state.current_page == "test_github_conversion":
 
     if st.button("Voltar para o Player"):
         st.session_state.current_page = "home"
-
-# ==============================
-# VERIFICAÇÃO DE CONVERSÃO EM TEMPO REAL
-# ==============================
-if st.sidebar.checkbox("🔍 Verificar conversões em tempo real"):
-    st.sidebar.header("Status de Conversão das URLs")
-    
-    github_count = 0
-    converted_count = 0
-    
-    for song in st.session_state.all_songs:
-        audio_url = song.get("audio_url", "")
-        if "github.com" in audio_url:
-            github_count += 1
-            converted_url = convert_github_to_jsdelivr(audio_url)
-            if "cdn.jsdelivr.net" in converted_url:
-                converted_count += 1
-    
-    st.sidebar.write(f"**Total de URLs do GitHub:** {github_count}")
-    st.sidebar.write(f"**URLs convertíveis:** {converted_count}")
-    
-    if github_count > 0 and converted_count == github_count:
-        st.sidebar.success("✅ Todas as URLs do GitHub podem ser convertidas!")
-    elif github_count > 0:
-        st.sidebar.warning(f"⚠️ Apenas {converted_count}/{github_count} URLs podem ser convertidas")
 
 # ==============================
 # FOOTER + CSS
