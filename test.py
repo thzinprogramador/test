@@ -59,6 +59,8 @@ if "popup_closed" not in st.session_state:
     st.session_state.popup_closed = False
 if "popup_shown" not in st.session_state:
     st.session_state.popup_shown = False
+if "unread_notifications_cache" not in st.session_state:
+    st.session_state.unread_notifications_cache = None
 
 
 # ==============================
@@ -318,6 +320,10 @@ def check_unread_notifications():
     if not st.session_state.firebase_connected:
         return []
     
+    # Usar cache para evitar múltiplas chamadas
+    if st.session_state.unread_notifications_cache is not None:
+        return st.session_state.unread_notifications_cache
+    
     try:
         ref = db.reference("/global_notifications")
         notifications = ref.get()
@@ -329,6 +335,11 @@ def check_unread_notifications():
                 read_by = note_data.get("read_by", {})
                 user_key = st.experimental_user.get("email", "anonymous") if hasattr(st.experimental_user, "get") else "anonymous"
                 
+                # Verificar se já foi marcada como lida nesta sessão
+                session_key = f"read_{note_id}"
+                if session_key in st.session_state and st.session_state[session_key]:
+                    continue
+                
                 if user_key not in read_by or not read_by[user_key]:
                     unread.append({
                         "id": note_id,
@@ -337,6 +348,8 @@ def check_unread_notifications():
                         "admin": note_data.get("admin", "Admin")
                     })
         
+        # Armazenar em cache
+        st.session_state.unread_notifications_cache = unread
         return unread
     except Exception as e:
         st.error(f"❌ Erro ao verificar notificações: {e}")
@@ -606,7 +619,7 @@ def show_notification_panel():
     st.subheader("Histórico de Notificações")
     try:
         ref = db.reference("/global_notifications")
-        notifications = ref.order_by_child("timestamp").limit_to_last(20).get()
+        notifications = ref.get()  # Remove a ordenação por enquanto
         
         if notifications:
             # Converter para lista e reverter para mostrar as mais recentes primeiro
@@ -618,9 +631,16 @@ def show_notification_panel():
                     "message": note_data.get("message", ""),
                     "timestamp": note_data.get("timestamp", "")
                 })
+
+            # Ordenar por timestamp se disponível, caso contrário manter ordem original
+            try:
+                notifications_list.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+            except:
+                # Se houver erro na ordenação, simplesmente reverter a lista
+                notifications_list.reverse()
             
             # Mostrar em ordem reversa (mais recente primeiro)
-            for note in reversed(notifications_list):
+            for note in notifications_list:
                 st.markdown(f"""
                 <div style='
                     background-color: #1f2937;
@@ -1132,8 +1152,13 @@ elif st.session_state.current_page == "notifications":
 
                 if st.button("✅ Marcar como lida", key=f"read_{notification['id']}"):
                     if mark_notification_as_read(notification['id']):
-                        st.success("Notificação marcada como lida!")
-                        st.rerun()
+                        # Usar session state para controlar o estado em vez de rerun
+                        st.session_state[f"read_{notification['id']}"] = True
+                        st.success("✅ Notificação marcada como lida!")
+
+                         # Atualizar a lista de não lidas sem recarregar a página completa
+                         st.session_state.unread_notifications_cache = None
+
             st.markdown("---")
     else:
         st.info("Não há notificações não lidas.")
@@ -1141,6 +1166,10 @@ elif st.session_state.current_page == "notifications":
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("Voltar para o Início", key="back_from_notifications"):
         st.session_state.current_page = "home"
+        
+    if st.button("🔄 Recarregar Notificações"):
+        st.session_state.unread_notifications_cache = None
+        st.rerun()
 
 # PAINEL DE NOTIFICAÇÕES ADMIN
 elif st.session_state.current_page == "notification_panel":
