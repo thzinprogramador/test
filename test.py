@@ -53,8 +53,6 @@ if "search_input" not in st.session_state:
     st.session_state.search_input = ""
 if "player_timestamp" not in st.session_state:
     st.session_state.player_timestamp = time.time()
-if "show_welcome_popup" not in st.session_state:
-    st.session_state.show_welcome_popup = True
 if "popup_closed" not in st.session_state:
     st.session_state.popup_closed = False
 
@@ -68,6 +66,7 @@ ADMIN_PASSWORD = "wavesong9090"
 # FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (VERSÃO CORRIGIDA)
 # ==============================
 def show_welcome_popup():
+    # Verifica se o popup já foi fechado
     if st.session_state.popup_closed:
         return
 
@@ -115,12 +114,11 @@ def show_welcome_popup():
         </style>
     """, unsafe_allow_html=True)
 
-    # Botão "X" invisível que vai fechar o popup
+    # Botão para fechar o popup
     if st.button("Fechar Popup", key="close_popup_button"):
         st.session_state.popup_closed = True
-        st.experimental_rerun()
 
-    # HTML do popup com X funcional
+    # HTML do popup
     st.markdown(f"""
         <div class="ws-overlay"></div>
         <div class="ws-popup">
@@ -142,7 +140,6 @@ def show_welcome_popup():
             </div>
         </div>
     """, unsafe_allow_html=True)
-
         
 
 # ==============================
