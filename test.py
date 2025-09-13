@@ -732,7 +732,7 @@ with st.sidebar:
         
     # Verificação de conversão em tempo real
     if st.checkbox("🔍 Verificação em tempo real"):
-        st.header("Status de Funcionabilidade:")
+        st.header("Status de Funcionalidade:")
         
         github_count = 0
         converted_count = 0
