@@ -65,6 +65,18 @@ ADMIN_PASSWORD = "wavesong9090"
 # ==============================
 # FUNÇÃO PARA O POP-UP DE BOAS-VINDAS
 # ==============================
+import streamlit as st
+import time
+
+# ==============================
+# ESTADO DA SESSÃO
+# ==============================
+if "popup_closed" not in st.session_state:
+    st.session_state.popup_closed = False
+
+# ==============================
+# FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (FECHAMENTO AUTOMÁTICO)
+# ==============================
 def show_welcome_popup():
     # Verifica se o popup já foi fechado
     if st.session_state.popup_closed:
@@ -114,11 +126,10 @@ def show_welcome_popup():
         </style>
     """, unsafe_allow_html=True)
 
-    # HTML do popup com o botão "X" de fechar
+    # HTML do popup com mensagem de fechamento automático
     st.markdown(f"""
         <div class="ws-overlay"></div>
         <div class="ws-popup">
-            <div class="ws-close" onclick="window.location.reload();">×</div>
             <h2>🌊 Bem-vindo ao Wave!</h2>
             <p style="opacity:0.8; font-size:14px;">Site em desenvolvimento!</p>
 
@@ -135,16 +146,13 @@ def show_welcome_popup():
                 Shutz agradece, bom proveito!!! 🎵
             </div>
 
-            <button style="background-color: #1DB954; color: white; border: none; padding: 10px 20px; border-radius: 5px;" 
-                    onclick="window.location.reload();">
-                Fechar Popup
-            </button>
+            <p style="font-size:12px; opacity:0.6;">Este pop-up será fechado automaticamente em breve...</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # Quando o usuário clica no botão "Fechar Popup", marca o popup como fechado
-    if st.button("Fechar Popup", key="close_popup_button"):
-        st.session_state.popup_closed = True
+    # Fechar automaticamente após 5 segundos
+    time.sleep(5)
+    st.session_state.popup_closed = True  # Fecha o popup após 5 segundos
 
 
         
