@@ -2,6 +2,7 @@ import streamlit as st
 import firebase_admin
 import requests 
 import datetime
+import telebot 
 import random
 import time
 import base64
@@ -65,112 +66,19 @@ if "popup_shown" not in st.session_state:
 ADMIN_PASSWORD = "wavesong9090" 
 
 # ==============================
-# FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (CORRIGIDA)
+# CONFIGURAÇÕES DO TELEGRAM
 # ==============================
-def show_welcome_popup():
-    # Verifica se o popup já foi fechado ou já foi mostrado
-    if st.session_state.popup_closed or st.session_state.popup_shown:
-        return
+TELEGRAM_BOT_TOKEN = "7680456440:AAFRmCOdehS13VjYY5qKttBbm-hDZRDFjP4"  # Obtenha com @BotFather
+TELEGRAM_ADMIN_CHAT_ID = "5919571280 "  # Obtenha com @userinfobot
+TELEGRAM_NOTIFICATIONS_ENABLED = False  # Inicialmente desativado
 
-    # Usar um container vazio para controlar a exibição
-    popup_container = st.empty()
-    
-    with popup_container:
-        # CSS do popup
-        st.markdown("""
-            <style>
-            .ws-overlay {
-                position: fixed;
-                top: 0; left: 0;
-                width: 100%; height: 100%;
-                background: rgba(0, 0, 0, 0.7);
-                z-index: 9998;
-            }
-            .ws-popup {
-                position: fixed;
-                top: 50%; left: 50%;
-                transform: translate(-50%, -50%);
-                background: rgba(0, 0, 0, 0.4);
-                backdrop-filter: blur(12px);
-                border: 2px solid #1DB954;
-                border-radius: 15px;
-                padding: 25px;
-                width: 45%;
-                color: white;
-                text-align: center;
-                z-index: 9999;
-            }
-            .ws-popup h2 { margin-top: 0; }
-            .ws-instructions {
-                background: rgba(0,0,0,0.5);
-                padding: 15px;
-                border-radius: 10px;
-                margin: 20px 0;
-                text-align: left;
-            }
-            .ws-close {
-                position: absolute;
-                top: 8px; right: 12px;
-                font-size: 20px;
-                font-weight: bold;
-                color: white;
-                cursor: pointer;
-            }
-            .ws-close:hover { color: #1DB954; }
-            </style>
-        """, unsafe_allow_html=True)
-
-        # HTML do popup com botão de fechar funcional
-        st.markdown(f"""
-            <div class="ws-overlay"></div>
-            <div class="ws-popup">
-                <span class="ws-close" onclick="window.parent.document.querySelector('[data-testid=\\'stMarkdown\\'] iframe').contentWindow.closePopup()">×</span>
-                <h2>🌊 Bem-vindo ao Wave!</h2>
-                <p style="opacity:0.8; font-size:14px;">Site em desenvolvimento!</p>
-
-                <div class="ws-instructions">
-                    <h4>🎯 Instruções Importantes:</h4>
-                    <ol>
-                        <li>Clique nos <b>'3 pontinhos'</b> no canto superior direito</li>
-                        <li>Vá em <b>Settings</b></li>
-                        <li>Escolha <b>"Dark theme"</b> para melhor experiência</li>
-                    </ol>
-                </div>
-
-                <div style="font-size:12px; opacity:0.7; margin-top:20px;">
-                    Shutz agradece, bom proveito!!! 🎵
-                </div>
-
-                <p style="font-size:12px; opacity:0.6;">Este pop-up será fechado automaticamente em 5 segundos...</p>
-            </div>
-        """, unsafe_allow_html=True)
-
-        # JavaScript para fechar o popup
-        st.markdown("""
-            <script>
-            function closePopup() {
-                // Remove os elementos do popup do DOM
-                const overlays = window.parent.document.querySelectorAll('.ws-overlay, .ws-popup');
-                overlays.forEach(el => el.remove());
-            }
-            
-            // Fechar automaticamente após 5 segundos
-            setTimeout(closePopup, 5000);
-            </script>
-        """, unsafe_allow_html=True)
-        
-        # Marcar como mostrado e aguardar para limpar
-        st.session_state.popup_shown = True
-        
-        # Aguardar um pouco e então limpar o container
-        time.sleep(5.1)
-        
-    # Limpar completamente após o tempo
-    popup_container.empty()
-    st.session_state.popup_closed = True
-
-
-
+# Inicializar bot do Telegram
+try:
+    telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+    TELEGRAM_NOTIFICATIONS_ENABLED = True
+except Exception as e:
+    st.error(f"❌ Erro ao conectar com Telegram: {e}")
+    TELEGRAM_NOTIFICATIONS_ENABLED = False
         
 
 # ==============================
@@ -287,6 +195,8 @@ def add_song_request(request_data):
     except Exception as e:
         st.error(f"❌ Erro ao enviar pedido: {e}")
         return False
+    if success:
+        send_telegram_notification(f"🎵 Novo pedido de música:\n{title} - {artist}\nSolicitado por: {req_username or 'Anônimo'}")
 
 def search_songs(query, songs=None):
     if songs is None:
@@ -356,6 +266,85 @@ def get_daily_random_songs(all_songs, top6_songs):
         st.session_state.random_songs_timestamp = now
     
     return st.session_state.random_songs
+
+
+# ==============================
+# FUNÇÕES DE NOTIFICAÇÃO TELEGRAM
+# ==============================
+def send_telegram_notification(message):
+    """Envia notificação para o administrador via Telegram"""
+    if not TELEGRAM_NOTIFICATIONS_ENABLED:
+        return False
+    
+    try:
+        telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, message)
+        return True
+    except Exception as e:
+        st.error(f"❌ Erro ao enviar notificação: {e}")
+        return False
+
+def send_global_notification(message):
+    """Envia notificação para todos os usuários (via banco de dados)"""
+    if not st.session_state.firebase_connected:
+        return False
+    
+    try:
+        ref = db.reference("/global_notifications")
+        notification_data = {
+            "message": message,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "read_by": {}  # Dicionário para controlar quem leu
+        }
+        ref.push(notification_data)
+        
+        # Também enviar para o admin via Telegram
+        send_telegram_notification(f"📢 Nova notificação global:\n{message}")
+        return True
+    except Exception as e:
+        st.error(f"❌ Erro ao enviar notificação global: {e}")
+        return False
+
+def check_unread_notifications():
+    """Verifica se há notificações não lidas pelo usuário atual"""
+    if not st.session_state.firebase_connected:
+        return []
+    
+    try:
+        ref = db.reference("/global_notifications")
+        notifications = ref.get()
+        unread = []
+        
+        if notifications:
+            for note_id, note_data in notifications.items():
+                # Verificar se o usuário atual já leu esta notificação
+                read_by = note_data.get("read_by", {})
+                user_key = st.experimental_user.get("email", "anonymous") if hasattr(st.experimental_user, "get") else "anonymous"
+                
+                if user_key not in read_by or not read_by[user_key]:
+                    unread.append({
+                        "id": note_id,
+                        "message": note_data.get("message", ""),
+                        "timestamp": note_data.get("timestamp", "")
+                    })
+        
+        return unread
+    except Exception as e:
+        st.error(f"❌ Erro ao verificar notificações: {e}")
+        return []
+
+def mark_notification_as_read(notification_id):
+    """Marca uma notificação como lida pelo usuário atual"""
+    if not st.session_state.firebase_connected:
+        return False
+    
+    try:
+        user_key = st.experimental_user.get("email", "anonymous") if hasattr(st.experimental_user, "get") else "anonymous"
+        ref = db.reference(f"/global_notifications/{notification_id}/read_by/{user_key}")
+        ref.set(True)
+        return True
+    except Exception as e:
+        st.error(f"❌ Erro ao marcar notificação como lida: {e}")
+        return False
 
 # ==============================
 # FUNÇÃO DE CONVERSÃO DE URL CORRIGIDA
@@ -838,6 +827,19 @@ with st.sidebar:
             for url in problematic_urls:
                 st.code(url)
 
+st.markdown("---")
+
+# Ícone de notificações com badge
+unread_notifications = check_unread_notifications()
+notification_text = f"🔔 Notificações ({len(unread_notifications)})" if unread_notifications else "🔔 Notificações"
+
+if st.sidebar.button(notification_text, use_container_width=True, key="btn_notifications"):
+    st.session_state.current_page = "notifications"
+    st.session_state.show_request_form = False
+
+if st.sidebar.button("📢 Painel de Notificações (Admin)", use_container_width=True, key="btn_notification_panel"):
+    st.session_state.current_page = "notification_panel"
+    st.session_state.show_request_form = False
 
 # ==============================
 # POP-UP DE BOAS-VINDAS
@@ -951,6 +953,35 @@ elif st.session_state.current_page == "test_github_conversion":
 
     if st.button("Voltar para o Player"):
         st.session_state.current_page = "home"
+
+elif st.session_state.current_page == "notifications":
+    st.header("🔔 Suas Notificações")       
+
+    unread_notifications = check_unread_notifications()
+
+    if unread_notifications:
+        st.success(f"Você tem {len(unread_notifications)} notificação(ões) não lida(s)")
+
+        for notification in unread_notifications:
+            with st.container():
+                st.markdown(f"**{notification['timestamp']}**")
+                st.write(notification['message'])
+                if st.button("Marcar como lida", key=f"read_{notification['id']}"):
+                    if mark_notification_as_read(notification['id']):
+                        st.success("Notificação marcada como lida!")
+                        st.rerun()
+            st.markdown("---")
+    else:
+        st.info("Não há notificações não lidas.") 
+
+    if st.button("Voltar para o Início"):
+        st.session_state.current_page = "home"
+
+    if st.button("Voltar para o Início"):
+        st.session_state.current_page = "home"
+
+
+    
 
 # ==============================
 # FOOTER + CSS
