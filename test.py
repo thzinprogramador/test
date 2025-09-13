@@ -53,8 +53,8 @@ if "search_input" not in st.session_state:
     st.session_state.search_input = ""
 if "player_timestamp" not in st.session_state:
     st.session_state.player_timestamp = time.time()
-if "show_welcome_popup" not in st.session_state:
-    st.session_state.show_welcome_popup = True
+# if "show_welcome_popup" not in st.session_state:
+    # st.session_state.show_welcome_popup = True
 if "popup_closed" not in st.session_state:
     st.session_state.popup_closed = False
 
