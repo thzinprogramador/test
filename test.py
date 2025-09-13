@@ -67,6 +67,8 @@ ADMIN_PASSWORD = "wavesong9090"
 # ==============================
 # FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (VERSÃO CORRIGIDA)
 # ==============================
+import streamlit as st
+
 def show_welcome_popup():
     """Exibe um pop-up de boas-vindas com instruções usando componentes nativos do Streamlit"""
 
@@ -93,6 +95,8 @@ def show_welcome_popup():
             width: 60%;
             margin-left: 20%;
             box-sizing: border-box;
+            position: relative;
+            z-index: 1000;  /* Assegura que o pop-up fique acima do overlay */
         }
         .popup-container h2 {
             margin: 0;
@@ -137,7 +141,7 @@ def show_welcome_popup():
         </div>
     """, unsafe_allow_html=True)
 
-    # Botão para fechar
+    # Botão para fechar (fora da sobreposição para garantir que seja clicável)
     if st.button("Entendi, vamos lá! 🎧", use_container_width=True, key="close_popup"):
         st.session_state.popup_closed = True
         st.rerun()
