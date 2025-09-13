@@ -68,69 +68,74 @@ ADMIN_PASSWORD = "wavesong9090"
 # FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (VERSÃO CORRIGIDA)
 # ==============================
 def show_welcome_popup():
-    """Exibe um pop-up de boas-vindas com instruções"""
-    popup_html = """
-    <div style="
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: linear-gradient(135deg, #1DB954, #191414);
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        z-index: 1000;
-        width: 400px;
-        max-width: 90%;
-        color: white;
-        font-family: Arial, sans-serif;
-        border: 2px solid #1DB954;
-    ">
-        <div style="text-align: center; margin-bottom: 20px;">
-            <h2 style="margin: 0; color: white;">🌊 Bem-vindo ao Wave!</h2>
-            <div style="font-size: 14px; opacity: 0.8; margin-top: 5px;">Site em desenvolvimento!</div>
-        </div>
-        
-        <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-            <h4 style="margin: 0 0 15px 0; color: #1DB954;">🎯 Instruções Importantes:</h4>
-            <ol style="margin: 0; padding-left: 20px; font-size: 14px;">
-                <li>Clique nos <strong>'3 pontinhos'</strong> no canto superior direito</li>
-                <li>Vá em <strong>Settings</strong></li>
-                <li>Escolha <strong>"Dark theme"</strong> para melhor experiência</li>
-            </ol>
-        </div>
-        
-        <div style="text-align: center; font-size: 12px; opacity: 0.7; margin-bottom: 15px;">
-            Shutz agradece, bom proveito!!! 🎵
-        </div>
-        
-        <button onclick="window.parent.postMessage('closePopup', '*')" 
-                style="
-                    background: #1DB954;
+    """Exibe um pop-up de boas-vindas com instruções usando componentes nativos do Streamlit"""
+    
+    # Criar um overlay escuro
+    st.markdown("""
+        <style>
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 999;
+        }
+        </style>
+        <div class="overlay"></div>
+    """, unsafe_allow_html=True)
+    
+    # Criar o pop-up usando columns e container
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        # Container do pop-up
+        with st.container():
+            st.markdown("""
+                <style>
+                .popup-container {
+                    background: linear-gradient(135deg, #1DB954, #191414);
+                    padding: 25px;
+                    border-radius: 15px;
                     color: white;
-                    border: none;
-                    padding: 10px 20px;
-                    border-radius: 20px;
-                    cursor: pointer;
-                    width: 100%;
-                    font-weight: bold;
-                ">
-            Entendi, vamos lá! 🎧
-        </button>
-    </div>
-    
-    <div style="
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.7);
-        z-index: 999;
-    " onclick="window.parent.postMessage('closePopup', '*')"></div>
-    """
-    
-    st.markdown(popup_html, unsafe_allow_html=True)
+                    border: 2px solid #1DB954;
+                    margin-top: 100px;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+            
+            # Conteúdo do pop-up
+            st.markdown(
+                """
+                <div class="popup-container">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h2 style="margin: 0; color: white;">🌊 Bem-vindo ao Wave!</h2>
+                        <div style="font-size: 14px; opacity: 0.8; margin-top: 5px;">Site em desenvolvimento!</div>
+                    </div>
+                    
+                    <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 15px 0; color: #1DB954;">🎯 Instruções Importantes:</h4>
+                        <ol style="margin: 0; padding-left: 20px; font-size: 14px;">
+                            <li>Clique nos <strong>'3 pontinhos'</strong> no canto superior direito</li>
+                            <li>Vá em <strong>Settings</strong></li>
+                            <li>Escolha <strong>"Dark theme"</strong> para melhor experiência</li>
+                        </ol>
+                    </div>
+                    
+                    <div style="text-align: center; font-size: 12px; opacity: 0.7; margin-bottom: 15px;">
+                        Shutz agradece, bom proveito!!! 🎵
+                    </div>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
+            
+            # Botão para fechar
+            if st.button("Entendi, vamos lá! 🎧", use_container_width=True, 
+                        key="close_popup", type="primary"):
+                st.session_state.popup_closed = True
+                st.rerun()
 
 # ==============================
 # FIREBASE CONFIG (JSON DIRETO)
@@ -803,6 +808,7 @@ with st.sidebar:
 # ==============================
 if st.session_state.show_welcome_popup and not st.session_state.popup_closed:
     show_welcome_popup()
+    st.stop()
 
 # ==============================
 # PÁGINAS
@@ -953,32 +959,5 @@ h1, h2, h3, h4, h5, h6 {
     color: white;
 }
 </style>
-
-# ==============================
-# SCRIPT PARA FECHAR O POP-UP
-# ==============================
-close_script = """
-<script>
-window.addEventListener('message', function(event) {
-    if (event.data === 'closePopup') {
-        // Atualizar o estado da sessão para não mostrar o pop-up novamente
-        window.parent.postMessage({
-            isStreamlitMessage: true,
-            type: 'setSessionState',
-            key: 'popup_closed',
-            value: true
-        }, '*');
-    }
-});
-
-document.addEventListener('keydown', function(event) {
-    if (event.key === 'Escape') {
-        window.parent.postMessage('closePopup', '*');
-    }
-});
-</script>
-"""
-
-st.markdown(close_script, unsafe_allow_html=True)
 
 """, unsafe_allow_html=True)
