@@ -253,16 +253,20 @@ def convert_github_to_jsdelivr(url):
     1. https://github.com/usuario/repo/raw/ramo/caminho/arquivo
     2. https://raw.githubusercontent.com/usuario/repo/ramo/caminho/arquivo
     """
-    if not url or "github.com" not in url:
+    if not url:
         return url
     
     try:
         # Formato 1: https://github.com/usuario/repo/raw/ramo/caminho/arquivo
-        if "/raw/" in url:
+        if "github.com" in url and "/raw/" in url:
             parts = url.split("/")
+            # Encontra a posição do domínio github.com
+            github_index = parts.index("github.com")
+            usuario = parts[github_index + 1]
+            repo = parts[github_index + 2]
+            
+            # Encontra a posição do "raw"
             raw_index = parts.index("raw")
-            usuario = parts[3]
-            repo = parts[4]
             ramo = parts[raw_index + 1]
             caminho_arquivo = "/".join(parts[raw_index + 2:])
             
@@ -272,11 +276,12 @@ def convert_github_to_jsdelivr(url):
         # Formato 2: https://raw.githubusercontent.com/usuario/repo/ramo/caminho/arquivo
         elif "raw.githubusercontent.com" in url:
             parts = url.split("/")
-            # Encontra a posição após o domínio
-            usuario = parts[3]
-            repo = parts[4]
-            ramo = parts[5]
-            caminho_arquivo = "/".join(parts[6:])
+            # Encontra a posição do domínio raw.githubusercontent.com
+            raw_index = parts.index("raw.githubusercontent.com")
+            usuario = parts[raw_index + 1]
+            repo = parts[raw_index + 2]
+            ramo = parts[raw_index + 3]
+            caminho_arquivo = "/".join(parts[raw_index + 4:])
             
             nova_url = f"https://cdn.jsdelivr.net/gh/{usuario}/{repo}@{ramo}/{caminho_arquivo}"
             return nova_url
@@ -286,7 +291,41 @@ def convert_github_to_jsdelivr(url):
             return url
             
     except Exception as e:
+        print(f"Erro ao converter URL {url}: {e}")
         return url
+
+def debug_github_conversion():
+    """Função para debug das conversões de URL"""
+    st.header("🐛 Debug de Conversão de URLs")
+    
+    # URLs de exemplo para testar
+    test_urls = [
+        "https://github.com/thzinprogramador/songs/raw/refs/heads/main/albuns/matue/4TAL.mp3",
+        "https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/Matu%C3%AA%20-%20Maria%20-%20333.mp3",
+        "https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/album/outra_musica.mp3"
+    ]
+    
+    for i, url in enumerate(test_urls):
+        st.subheader(f"Teste {i+1}: {url}")
+        
+        # Mostrar análise da URL
+        st.write("**Análise da URL:**")
+        parts = url.split("/")
+        for j, part in enumerate(parts):
+            st.write(f"  {j}: `{part}`")
+        
+        # Testar conversão
+        converted = convert_github_to_jsdelivr(url)
+        st.write("**Resultado da conversão:**")
+        st.code(converted)
+        
+        if converted != url and "cdn.jsdelivr.net" in converted:
+            st.success("✅ Conversão bem-sucedida!")
+        else:
+            st.error("❌ Falha na conversão")
+        
+        st.markdown("---")
+
 
 def get_converted_audio_url(song):
     """Retorna a URL do áudio convertida se for do GitHub"""
@@ -683,9 +722,11 @@ with st.sidebar:
     if st.button("Página Inicial", key="btn_home", use_container_width=True):
         st.session_state.current_page = "home"
         st.session_state.show_request_form = False
+        
     if st.button("Buscar Músicas", key="btn_search", use_container_width=True):
         st.session_state.current_page = "search"
         st.session_state.show_request_form = False
+        
     if st.sidebar.button("🧪 Testar Conversão de URLs"):
         st.session_state.current_page = "test_github_conversion"
         
@@ -695,14 +736,17 @@ with st.sidebar:
         
         github_count = 0
         converted_count = 0
+        problematic_urls = []
         
         for song in st.session_state.all_songs:
             audio_url = song.get("audio_url", "")
-            if "github.com" in audio_url:
+            if "github.com" in audio_url or "raw.githubusercontent.com" in audio_url:
                 github_count += 1
                 converted_url = convert_github_to_jsdelivr(audio_url)
                 if "cdn.jsdelivr.net" in converted_url:
                     converted_count += 1
+                else:
+                    problematic_urls.append(audio_url)
         
         st.write(f"**Total de URLs do GitHub:** {github_count}")
         st.write(f"**URLs convertíveis:** {converted_count}")
@@ -711,6 +755,14 @@ with st.sidebar:
             st.success("✅ Todas as URLs do GitHub podem ser convertidas!")
         elif github_count > 0:
             st.warning(f"⚠️ Apenas {converted_count}/{github_count} URLs podem ser convertidas")
+            st.write("**URLs com problemas:**")
+            for url in problematic_urls:
+                st.code(url)
+
+            
+
+    if st.sidebar.button("🐛 Debug Conversão URLs"):
+        st.session_state.current_page = "debug_conversion"
 
 
 # ==============================
@@ -816,6 +868,9 @@ elif st.session_state.current_page == "test_github_conversion":
 
     with tab2:
         test_audio_playback()
+
+    elif st.session_state.current_page == "debug_conversion":
+        debug_github_conversion()
 
     if st.button("Voltar para o Player"):
         st.session_state.current_page = "home"
