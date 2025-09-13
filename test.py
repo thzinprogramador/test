@@ -72,8 +72,10 @@ def show_welcome_popup():
     if st.session_state.popup_closed or st.session_state.popup_shown:
         return
 
-    # Usar container vazio para evitar renderização duplicada
-    with st.empty():
+    # Usar um container vazio para controlar a exibição
+    popup_container = st.empty()
+    
+    with popup_container:
         # CSS do popup
         st.markdown("""
             <style>
@@ -118,7 +120,7 @@ def show_welcome_popup():
             </style>
         """, unsafe_allow_html=True)
 
-        # HTML do popup com botão de fechar
+        # HTML do popup com botão de fechar funcional
         st.markdown(f"""
             <div class="ws-overlay"></div>
             <div class="ws-popup">
@@ -147,7 +149,9 @@ def show_welcome_popup():
         st.markdown("""
             <script>
             function closePopup() {
-                window.parent.document.querySelectorAll('.ws-overlay, .ws-popup').forEach(el => el.remove());
+                // Remove os elementos do popup do DOM
+                const overlays = window.parent.document.querySelectorAll('.ws-overlay, .ws-popup');
+                overlays.forEach(el => el.remove());
             }
             
             // Fechar automaticamente após 5 segundos
@@ -155,14 +159,19 @@ def show_welcome_popup():
             </script>
         """, unsafe_allow_html=True)
         
-        # Marcar como mostrado
+        # Marcar como mostrado e aguardar para limpar
         st.session_state.popup_shown = True
         
-        # Aguardar um pouco e então limpar
+        # Aguardar um pouco e então limpar o container
         time.sleep(5.1)
         
     # Limpar completamente após o tempo
+    popup_container.empty()
     st.session_state.popup_closed = True
+
+
+
+        
 
 # ==============================
 # FIREBASE CONFIG (JSON DIRETO)
@@ -358,476 +367,632 @@ def convert_github_to_jsdelivr(url):
     1. https://github.com/usuario/repo/raw/ramo/caminho/arquivo
     2. https://raw.githubusercontent.com/usuario/repo/ramo/caminho/arquivo
     """
-    if "github.com" in url:
-        if "/raw/" in url:
-            # Formato 1: github.com/.../raw/...
+    if not url:
+        return url
+    
+    try:
+        # Formato 1: https://github.com/usuario/repo/raw/ramo/caminho/arquivo
+        if "github.com" in url and "/raw/" in url:
             parts = url.split("/")
-            user = parts[3]
-            repo = parts[4]
-            branch = parts[6]
-            file_path = "/".join(parts[7:])
-            return f"https://cdn.jsdelivr.net/gh/{user}/{repo}@{branch}/{file_path}"
+            # Encontra a posição do domínio github.com
+            github_index = parts.index("github.com")
+            usuario = parts[github_index + 1]
+            repo = parts[github_index + 2]
+            
+            # Encontra a posição do "raw"
+            raw_index = parts.index("raw")
+            ramo = parts[raw_index + 1]
+            caminho_arquivo = "/".join(parts[raw_index + 2:])
+            
+            nova_url = f"https://cdn.jsdelivr.net/gh/{usuario}/{repo}@{ramo}/{caminho_arquivo}"
+            return nova_url
+        
+        # Formato 2: https://raw.githubusercontent.com/usuario/repo/ramo/caminho/arquivo
         elif "raw.githubusercontent.com" in url:
-            # Formato 2: raw.githubusercontent.com/...
             parts = url.split("/")
-            user = parts[3]
-            repo = parts[4]
-            branch = parts[5]
-            file_path = "/".join(parts[6:])
-            return f"https://cdn.jsdelivr.net/gh/{user}/{repo}@{branch}/{file_path}"
-    return url
+            # Encontra a posição do domínio raw.githubusercontent.com
+            raw_index = parts.index("raw.githubusercontent.com")
+            usuario = parts[raw_index + 1]
+            repo = parts[raw_index + 2]
+            ramo = parts[raw_index + 3]
+            caminho_arquivo = "/".join(parts[raw_index + 4:])
+            
+            nova_url = f"https://cdn.jsdelivr.net/gh/{usuario}/{repo}@{ramo}/{caminho_arquivo}"
+            return nova_url
+        
+        # Se não for nenhum dos formatos suportados, retorna original
+        else:
+            return url
+            
+    except Exception as e:
+        print(f"Erro ao converter URL {url}: {e}")
+        return url
 
-# ==============================
-# FUNÇÕES DE PLAYER
-# ==============================
+def get_converted_audio_url(song):
+    """Retorna a URL do áudio convertida se for do GitHub"""
+    audio_url = song.get("audio_url", "")
+    if "github.com" in audio_url or "raw.githubusercontent.com" in audio_url:
+        return convert_github_to_jsdelivr(audio_url)
+    return audio_url
+
+
 def play_song(song):
+    # Verificar se é uma música diferente
+    current_id = st.session_state.current_track["id"] if st.session_state.current_track else None
+    new_id = song["id"]
+    
+    # Converter URL do GitHub para jsDelivr se necessário
+    if "audio_url" in song and ("github.com" in song["audio_url"] or "raw.githubusercontent.com" in song["audio_url"]):
+        song_copy = song.copy()  # Criar uma cópia para não modificar o original
+        song_copy["audio_url"] = convert_github_to_jsdelivr(song["audio_url"])
+        song = song_copy
+    
+    # Sempre forçar rerun quando uma nova música é selecionada
     st.session_state.current_track = song
     st.session_state.is_playing = True
-    st.session_state.player_timestamp = time.time()
-    # Adicionar ao histórico
-    if song not in st.session_state.music_history:
-        st.session_state.music_history.append(song)
-
-def pause_song():
-    st.session_state.is_playing = False
-
-def resume_song():
-    st.session_state.is_playing = True
-
-def format_time(seconds):
-    minutes = seconds // 60
-    seconds = seconds % 60
-    return f"{minutes:02d}:{seconds:02d}"
-
-# ==============================
-# LAYOUT PRINCIPAL
-# ==============================
-def main():
-    # Mostrar popup de boas-vindas
-    if not st.session_state.popup_closed and not st.session_state.popup_shown:
-        show_welcome_popup()
     
-    # ==============================
-    # SIDEBAR
-    # ==============================
-    with st.sidebar:
-        st.title("🌊 Wave")
-        st.markdown("---")
+    # Adicionar timestamp único para forçar reconstrução
+    st.session_state.player_timestamp = time.time()
+    
+    if st.session_state.firebase_connected:
+        try:
+            ref = db.reference(f"/songs/{song['id']}/play_count")
+            current_count = ref.get() or 0
+            ref.set(current_count + 1)
+        except Exception as e:
+            st.error(f"Erro ao atualizar play_count: {e}")
+    
+    # Forçar rerun apenas se for música diferente
+    if current_id != new_id:
+        st.rerun()
+    
+
+
+def show_add_music_page():
+    st.header("Adicionar Nova Música")
+    
+    # Verificar autenticação
+    if not st.session_state.admin_authenticated:
+        password = st.text_input("Senha de Administrador", type="password")
+        if st.button("Acessar"):
+            if password == ADMIN_PASSWORD: 
+                st.session_state.admin_authenticated = True
+                st.success("✅ Acesso concedido!")
+                #st.rerun()
+            else:
+                st.error("❌ Senha incorreta!")
+        return
+    
+    if st.session_state.show_add_form:
+        with st.form("add_music_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                title = st.text_input("Título*", placeholder="Ex: Boate Azul")
+                artist = st.text_input("Artista*", placeholder="Ex: Bruno & Marrone")
+                album = st.text_input("Álbum")
+                genre = st.text_input("Gênero")
+            with col2:
+                duration = st.text_input("Duração*", placeholder="Ex: 3:45")
+                audio_url = st.text_input("URL do áudio*", placeholder="https://exemplo.com/audio.mp3")
+                image_url = st.text_input("URL da Capa*", placeholder="https://drive.google.com/...")
+            submitted = st.form_submit_button("🌊 Adicionar Música")
+            if submitted:
+                if not all([title, artist, duration, audio_url, image_url]):
+                    st.error("⚠️ Preencha todos os campos obrigatórios (*)")
+                    return
+                new_song = {
+                    "title": title,
+                    "artist": artist,
+                    "duration": duration,
+                    "audio_url": audio_url,
+                    "image_url": image_url,
+                    "platform": "wave",
+                    "album": album,
+                    "genre": genre
+                }
+                if add_song_to_db(new_song):
+                    st.success("✅ Música adicionada com sucesso!")
+                    st.session_state.show_add_form = False
+                    st.session_state.all_songs = get_all_songs_cached()
+                else:
+                    st.error("❌ Erro ao adicionar música.")
+    else:
+        st.info("Clique abaixo para adicionar uma nova música")
+        if st.button("Mostrar Formulário"):
+            st.session_state.show_add_form = True
+            
+        if st.button("🔒 Sair do Modo Admin"):
+            st.session_state.admin_authenticated = False
+            st.session_state.show_add_form = False
+            st.rerun()
+
+def show_request_music_section():
+    st.markdown("---")
+    st.subheader("Não encontrou a música que procura?")
+    
+    if st.button("Pedir Música +", use_container_width=True):
+        st.session_state.show_request_form = True
         
-        # Navegação
-        nav_options = ["🏠 Home", "🎵 Player", "🔍 Buscar", "📊 Estatísticas", "⚙️ Admin"]
-        selected_nav = st.radio("Navegação", nav_options)
+    if st.session_state.show_request_form:
+        with st.form("request_music_form", clear_on_submit=True):
+            st.write("### Solicitar Nova Música")
+            col1, col2 = st.columns(2)
+            with col1:
+                req_title = st.text_input("Título da Música*", placeholder="Ex: Boate Azul")
+                req_artist = st.text_input("Artista*", placeholder="Ex: Bruno & Marrone")
+            with col2:
+                req_album = st.text_input("Álbum (se conhecido)")
+                req_username = st.text_input("Seu nome (opcional)")
+            
+            submitted = st.form_submit_button("Enviar Pedido")
+            if submitted:
+                if not all([req_title, req_artist]):
+                    st.error("⚠️ Preencha pelo menos o título e artista!")
+                    return
+                    
+                request_data = {
+                    "title": req_title,
+                    "artist": req_artist,
+                    "album": req_album,
+                    "requested_by": req_username or "Anônimo"
+                }
+                
+                if add_song_request(request_data):
+                    st.success("✅ Pedido enviado com sucesso! Adicionaremos em breve.")
+                    st.session_state.show_request_form = False
+                else:
+                    st.error("❌ Erro ao enviar pedido. Tente novamente.")
+
+
+# ==============================
+# FUNÇÕES DE TESTE
+# ==============================
+def test_github_conversion():
+    """Testa a conversão de URLs do GitHub para JS Delivr com seu formato específico"""
+    st.header("🔍 Teste de Conversão de URLs - Formato GitHub")
+    
+    # URLs nos formatos suportados
+    test_urls = [
+        # Formato antigo
+        "https://github.com/thzinprogramador/songs/raw/refs/heads/main/albuns/matue/4TAL.mp3",
+        "https://github.com/thzinprogramador/songs/raw/refs/heads/main/God's%20Plan%20-%20drake.mp3",
         
-        # Atualizar página atual
-        if "🏠 Home" in selected_nav:
-            st.session_state.current_page = "home"
-        elif "🎵 Player" in selected_nav:
-            st.session_state.current_page = "player"
-        elif "🔍 Buscar" in selected_nav:
-            st.session_state.current_page = "search"
-        elif "📊 Estatísticas" in selected_nav:
-            st.session_state.current_page = "stats"
-        elif "⚙️ Admin" in selected_nav:
-            st.session_state.current_page = "admin"
+        # Formato novo
+        "https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/Matu%C3%AA%20-%20Maria%20-%20333.mp3",
+        "https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/album/nova_musica.mp3",
         
-        st.markdown("---")
+        # URL não GitHub (não deve ser convertida)
+        "https://example.com/regular-audio.mp3",
+    ]
+    
+    for i, url in enumerate(test_urls):
+        original = url
+        converted = convert_github_to_jsdelivr(url)
         
-        # Botões de ação
+        st.subheader(f"Teste {i+1}")
+        
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🎤 Pedir Música", use_container_width=True):
-                st.session_state.show_request_form = True
+            st.write("**URL Original:**")
+            st.code(original, language="url")
         with col2:
-            if st.button("➕ Adicionar", use_container_width=True):
-                st.session_state.show_add_form = True
+            st.write("**URL Convertida:**")
+            st.code(converted, language="url")
         
-        # Formulário de pedido de música
-        if st.session_state.show_request_form:
-            with st.form("song_request_form"):
-                st.subheader("🎤 Pedir Música")
-                req_title = st.text_input("Título da Música*")
-                req_artist = st.text_input("Artista*")
-                req_notes = st.text_area("Observações")
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.form_submit_button("✅ Enviar Pedido"):
-                        if req_title and req_artist:
-                            if add_song_request({
-                                "title": req_title,
-                                "artist": req_artist,
-                                "notes": req_notes,
-                                "requested_by": "Anonymous"
-                            }):
-                                st.success("✅ Pedido enviado com sucesso!")
-                                st.session_state.show_request_form = False
-                                st.rerun()
-                        else:
-                            st.error("❌ Preencha título e artista!")
-                with col2:
-                    if st.form_submit_button("❌ Cancelar"):
-                        st.session_state.show_request_form = False
-                        st.rerun()
-        
-        # Formulário de adição de música
-        if st.session_state.show_add_form:
-            with st.form("add_song_form"):
-                st.subheader("➕ Adicionar Música")
-                add_title = st.text_input("Título*")
-                add_artist = st.text_input("Artista*")
-                add_album = st.text_input("Álbum")
-                add_genre = st.text_input("Gênero")
-                add_duration = st.text_input("Duração (ex: 3:45)")
-                add_audio_url = st.text_input("URL do Áudio*")
-                add_image_url = st.text_input("URL da Imagem")
-                add_platform = st.selectbox("Plataforma", ["spotify", "youtube", "soundcloud", "wave"])
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.form_submit_button("✅ Adicionar"):
-                        if add_title and add_artist and add_audio_url:
-                            if add_song_to_db({
-                                "title": add_title,
-                                "artist": add_artist,
-                                "album": add_album,
-                                "genre": add_genre,
-                                "duration": add_duration,
-                                "audio_url": add_audio_url,
-                                "image_url": add_image_url,
-                                "platform": add_platform,
-                                "play_count": 0
-                            }):
-                                st.success("✅ Música adicionada com sucesso!")
-                                st.session_state.show_add_form = False
-                                st.rerun()
-                        else:
-                            st.error("❌ Preencha os campos obrigatórios!")
-                with col2:
-                    if st.form_submit_button("❌ Cancelar"):
-                        st.session_state.show_add_form = False
-                        st.rerun()
-        
-        st.markdown("---")
-        st.markdown("### 🎵 Tocando Agora")
-        
-        if st.session_state.current_track:
-            current = st.session_state.current_track
-            img_url = current.get("image_url", "")
-            if img_url:
-                img = load_image_cached(img_url)
-                if img:
-                    st.image(img, use_column_width=True)
+        # Verificar se a conversão foi bem-sucedida
+        if "github.com" in original and "cdn.jsdelivr.net" in converted:
+            st.success("✅ Conversão bem-sucedida")
             
-            st.markdown(f"**{current.get('title', 'Unknown')}**")
-            st.markdown(f"*{current.get('artist', 'Unknown')}*")
-            
-            # Controles do player
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                if st.session_state.is_playing:
-                    if st.button("⏸️ Pausar", use_container_width=True):
-                        pause_song()
-                        st.rerun()
-                else:
-                    if st.button("▶️ Reproduzir", use_container_width=True):
-                        resume_song()
-                        st.rerun()
-            with col2:
-                if st.button("⏭️ Próxima", use_container_width=True):
-                    # Lógica para próxima música
-                    pass
-            
-            # Volume
-            new_volume = st.slider("🔊 Volume", 0, 100, st.session_state.volume)
-            if new_volume != st.session_state.volume:
-                st.session_state.volume = new_volume
-        
+            # Mostrar diferença
+            st.write("**Diferença:**")
+            st.info(f"Original: `{original}`")
+            st.info(f"Convertido: `{converted}`")
+        elif "github.com" not in original and original == converted:
+            st.info("ℹ️ URL não GitHub - mantida original")
         else:
-            st.info("🎵 Nenhuma música tocando")
+            st.error("❌ Erro na conversão")
         
         st.markdown("---")
-        st.markdown("### 📜 Histórico")
-        
-        if st.session_state.music_history:
-            for i, song in enumerate(reversed(st.session_state.music_history[-5:])):
-                st.markdown(f"{i+1}. **{song.get('title', 'Unknown')}** - *{song.get('artist', 'Unknown')}*")
-        else:
-            st.info("📝 Nenhuma música no histórico")
-    
-    # ==============================
-    # CONTEÚDO PRINCIPAL
-    # ==============================
-    
-    # Carregar músicas
-    if not st.session_state.all_songs:
-        st.session_state.all_songs = get_all_songs_cached()
-    
-    # Página Home
-    if st.session_state.current_page == "home":
-        st.title("🎵 Bem-vindo ao Wave!")
-        st.markdown("---")
-        
-        # Top 6 Músicas
-        st.subheader("🔥 Top 6 Músicas")
-        top6_songs = get_top6_songs()
-        
-        if top6_songs:
-            cols = st.columns(3)
-            for i, song in enumerate(top6_songs):
-                with cols[i % 3]:
-                    with st.container():
-                        img_url = song.get("image_url", "")
-                        if img_url:
-                            img = load_image_cached(img_url)
-                            if img:
-                                st.image(img, use_column_width=True)
-                        
-                        st.markdown(f"**{song.get('title', 'Unknown')}**")
-                        st.markdown(f"*{song.get('artist', 'Unknown')}*")
-                        st.markdown(f"🎵 {song.get('play_count', 0)} plays")
-                        
-                        if st.button("▶️ Tocar", key=f"play_top_{i}", use_container_width=True):
-                            play_song(song)
-                            st.rerun()
-            
-            st.markdown("---")
-        
-        # Músicas Aleatórias do Dia
-        st.subheader("🎲 Músicas Aleatórias do Dia")
-        random_songs = get_daily_random_songs(st.session_state.all_songs, top6_songs)
-        
-        if random_songs:
-            cols = st.columns(3)
-            for i, song in enumerate(random_songs):
-                with cols[i % 3]:
-                    with st.container():
-                        img_url = song.get("image_url", "")
-                        if img_url:
-                            img = load_image_cached(img_url)
-                            if img:
-                                st.image(img, use_column_width=True)
-                        
-                        st.markdown(f"**{song.get('title', 'Unknown')}**")
-                        st.markdown(f"*{song.get('artist', 'Unknown')}*")
-                        
-                        if st.button("▶️ Tocar", key=f"play_random_{i}", use_container_width=True):
-                            play_song(song)
-                            st.rerun()
-        
-        else:
-            st.info("🎵 Nenhuma música disponível")
-    
-    # Página Player
-    elif st.session_state.current_page == "player":
-        st.title("🎵 Player de Música")
-        st.markdown("---")
-        
-        if st.session_state.current_track:
-            current = st.session_state.current_track
-            
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                img_url = current.get("image_url", "")
-                if img_url:
-                    img = load_image_cached(img_url)
-                    if img:
-                        st.image(img, use_column_width=True)
-            
-            with col2:
-                st.markdown(f"## {current.get('title', 'Unknown')}")
-                st.markdown(f"### *{current.get('artist', 'Unknown')}*")
-                
-                if current.get("album"):
-                    st.markdown(f"**Álbum:** {current.get('album')}")
-                if current.get("genre"):
-                    st.markdown(f"**Gênero:** {current.get('genre')}")
-                if current.get("duration"):
-                    st.markdown(f"**Duração:** {current.get('duration')}")
-                
-                # Controles do player
-                col1, col2, col3 = st.columns([1, 1, 1])
-                with col1:
-                    if st.session_state.is_playing:
-                        if st.button("⏸️ Pausar", use_container_width=True):
-                            pause_song()
-                            st.rerun()
-                    else:
-                        if st.button("▶️ Reproduzir", use_container_width=True):
-                            resume_song()
-                            st.rerun()
-                with col2:
-                    if st.button("⏭️ Próxima", use_container_width=True):
-                        # Lógica para próxima música
-                        pass
-                with col3:
-                    if st.button("🔀 Aleatório", use_container_width=True):
-                        # Lógica para música aleatória
-                        pass
-                
-                # Barra de progresso simulada
-                st.progress(0.5)
-                st.markdown("2:30 / 4:15")
-        
-        else:
-            st.info("🎵 Selecione uma música para reproduzir")
-        
-        st.markdown("---")
-        st.subheader("📜 Sua Biblioteca")
-        
-        # Lista de músicas
-        for i, song in enumerate(st.session_state.all_songs):
-            col1, col2, col3 = st.columns([6, 2, 1])
-            with col1:
-                st.markdown(f"**{song.get('title', 'Unknown')}** - *{song.get('artist', 'Unknown')}*")
-            with col2:
-                st.markdown(song.get("duration", "0:00"))
-            with col3:
-                if st.button("▶️", key=f"play_lib_{i}"):
-                    play_song(song)
-                    st.rerun()
-    
-    # Página Buscar
-    elif st.session_state.current_page == "search":
-        st.title("🔍 Buscar Músicas")
-        st.markdown("---")
-        
-        # Barra de busca
-        search_query = st.text_input("🔍 Buscar por título, artista, álbum ou gênero...", 
-                                   value=st.session_state.search_input,
-                                   key="search_input_main")
-        
-        if search_query:
-            st.session_state.search_input = search_query
-            filtered_songs = search_songs(search_query)
-            
-            st.markdown(f"**{len(filtered_songs)}** músicas encontradas")
-            
-            for i, song in enumerate(filtered_songs):
-                col1, col2, col3, col4 = st.columns([5, 2, 2, 1])
-                with col1:
-                    st.markdown(f"**{song.get('title', 'Unknown')}** - *{song.get('artist', 'Unknown')}*")
-                with col2:
-                    if song.get("album"):
-                        st.markdown(f"*{song.get('album')}*")
-                with col3:
-                    if song.get("genre"):
-                        st.markdown(f"`{song.get('genre')}`")
-                with col4:
-                    if st.button("▶️", key=f"play_search_{i}"):
-                        play_song(song)
-                        st.rerun()
-        
-        else:
-            st.info("🔍 Digite algo para buscar...")
-    
-    # Página Estatísticas
-    elif st.session_state.current_page == "stats":
-        st.title("📊 Estatísticas")
-        st.markdown("---")
-        
-        total_songs = len(st.session_state.all_songs)
-        total_artists = len(set(song.get("artist", "") for song in st.session_state.all_songs))
-        total_plays = sum(song.get("play_count", 0) for song in st.session_state.all_songs)
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("🎵 Total de Músicas", total_songs)
-        with col2:
-            st.metric("👤 Artistas Únicos", total_artists)
-        with col3:
-            st.metric("▶️ Total de Plays", total_plays)
-        
-        st.markdown("---")
-        st.subheader("🔥 Top 10 Músicas")
-        
-        top_songs = sorted(st.session_state.all_songs, 
-                          key=lambda x: x.get("play_count", 0), 
-                          reverse=True)[:10]
-        
-        for i, song in enumerate(top_songs):
-            st.markdown(f"{i+1}. **{song.get('title', 'Unknown')}** - *{song.get('artist', 'Unknown')}* ({song.get('play_count', 0)} plays)")
-    
-    # Página Admin
-    elif st.session_state.current_page == "admin":
-        st.title("⚙️ Painel Admin")
-        st.markdown("---")
-        
-        if not st.session_state.admin_authenticated:
-            password = st.text_input("🔒 Senha de Administrador", type="password")
-            if st.button("🔓 Entrar"):
-                if password == ADMIN_PASSWORD:
-                    st.session_state.admin_authenticated = True
-                    st.rerun()
-                else:
-                    st.error("❌ Senha incorreta!")
-        else:
-            st.success("✅ Autenticado como Administrador")
-            
-            if st.button("🚪 Sair"):
-                st.session_state.admin_authenticated = False
-                st.rerun()
-            
-            st.markdown("---")
-            st.subheader("📊 Estatísticas do Sistema")
-            
-            # Aqui viriam mais funcionalidades admin...
-            st.info("🚧 Painel Admin em desenvolvimento...")
 
-    # ==============================
-    # PLAYER FIXO NA PARTE INFERIOR
-    # ==============================
-    if st.session_state.current_track:
-        st.markdown("---")
-        st.markdown("### 🎵 Tocando Agora")
+
+
+def test_audio_playback():
+    """Testa a reprodução de áudio com URLs convertidas"""
+    st.header("🎵 Teste de Reprodução de Áudio")
+    
+    # URLs de áudio de exemplo
+    test_audios = [
+        {
+            "title": "Música Formato Antigo",
+            "original_url": "https://github.com/thzinprogramador/songs/raw/refs/heads/main/Congratulations%20-%20post%20malone.mp3",
+            "converted_url": convert_github_to_jsdelivr("https://github.com/thzinprogramador/songs/raw/refs/heads/main/Congratulations%20-%20post%20malone.mp3")
+        },
+        {
+            "title": "Música Formato Novo", 
+            "original_url": "https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/Matu%C3%AA%20-%20Maria%20-%20333.mp3",
+            "converted_url": convert_github_to_jsdelivr("https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/Matu%C3%AA%20-%20Maria%20-%20333.mp3")
+        }
+    ]
+    
+    for audio in test_audios:
+        st.subheader(audio["title"])
         
-        current = st.session_state.current_track
-        col1, col2, col3 = st.columns([1, 3, 1])
-        
+        col1, col2 = st.columns(2)
         with col1:
-            img_url = current.get("image_url", "")
-            if img_url:
-                img = load_image_cached(img_url)
-                if img:
-                    st.image(img, width=60)
-        
+            st.write("**URL Original:**")
+            st.code(audio["original_url"], language="url")
         with col2:
-            st.markdown(f"**{current.get('title', 'Unknown')}**")
-            st.markdown(f"*{current.get('artist', 'Unknown')}*")
-            
-            # Simular barra de progresso
-            progress = st.progress(0.5)
-            st.markdown("2:30 / 4:15")
+            st.write("**URL Convertida:**")
+            st.code(audio["converted_url"], language="url")
         
-        with col3:
-            # Controles do player
-            if st.session_state.is_playing:
-                if st.button("⏸️", key="bottom_pause"):
-                    pause_song()
-                    st.rerun()
-            else:
-                if st.button("▶️", key="bottom_play"):
-                    resume_song()
-                    st.rerun()
+        # Tentar reproduzir o áudio com a URL convertida
+        st.write("**Teste de reprodução:**")
+        
+        # Verificar se a URL foi convertida corretamente
+        if "cdn.jsdelivr.net" in audio["converted_url"]:
+            st.success("✅ URL convertida com sucesso")
             
-            if st.button("⏭️", key="bottom_next"):
-                # Lógica para próxima música
-                pass
+            # Tentar reproduzir o áudio
+            try:
+                st.audio(audio["converted_url"], format="audio/mp3")
+                st.success("🎵 Áudio carregado com sucesso!")
+            except Exception as e:
+                st.warning(f"⚠️ Não foi possível carregar o áudio: {str(e)}")
+                st.info("Isso pode ser normal se a URL for apenas um exemplo")
+        else:
+            st.error("❌ Falha na conversão da URL")
+        
+        st.markdown("---")
+
+
 
 # ==============================
-# INICIALIZAÇÃO DO FIREBASE
+# RENDER PLAYER COM AUTOPLAY
+# ==============================
+def image_to_base64(img):
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    return f"data:image/png;base64,{img_str}"
+
+def render_player():
+    track = st.session_state.current_track
+    if not track:
+        st.info("🔍 Escolha uma música para tocar.")
+        return
+
+    # Converter URL do áudio se for do GitHub
+    audio_src = get_converted_audio_url(track)
+    
+    cover = load_image_cached(track.get("image_url"))
+    if cover is not None:
+        cover_url = image_to_base64(cover)
+    else:
+        cover_url = "https://via.placeholder.com/80x80?text=Sem+Imagem"
+
+    title = track.get("title", "Sem título")
+    artist = track.get("artist", "Sem artista")
+    
+    # Criar HTML para o iframe com melhor estilização
+    audio_html = f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                background: transparent;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 40px;
+            }}
+            audio {{
+                width: 300px;
+                height: 40px;
+                outline: none;
+            }}
+            audio::-webkit-media-controls-panel {{
+                background-color: #1DB954;
+            }}
+            audio::-webkit-media-controls-play-button {{
+                background-color: #1DB954 !important;
+                border-radius: 50%;
+                box-shadow: 0 0 8px rgba(0,0,0,0.4);
+                border: 1px solid #1ed760;
+            }}
+
+        </style>
+    </head>
+    <body>
+        <audio controls {'autoplay' if st.session_state.is_playing else ''}>
+            <source src="{audio_src}" type="audio/mpeg">
+        </audio>
+        <script>
+            // Tentar forçar autoplay com interação simulada
+            document.addEventListener('DOMContentLoaded', function() {{
+                const audio = document.querySelector('audio');
+                if (audio && {str(st.session_state.is_playing).lower()}) {{
+                    // Tentar play com tratamento de erro
+                    const playPromise = audio.play();
+                    if (playPromise !== undefined) {{
+                        playPromise.catch(error => {{
+                            console.log('Autoplay prevented:', error);
+                            // Mostrar botão de play se autoplay falhar
+                            audio.controls = true;
+                        }});
+                    }}
+                }}
+            }});
+        </script>
+    </body>
+    </html>
+    '''
+    
+    # Codificar para data URL
+    audio_html_encoded = base64.b64encode(audio_html.encode()).decode()
+    
+    player_html = f"""
+    <div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
+                background:rgba(0,0,0,0.8);padding:15px;border-radius:15px;
+                display:flex;align-items:center;gap:15px;z-index:999;
+                box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);
+                width:600px; max-width:90%;">
+        <img src="{cover_url}" width="60" height="60" style="border-radius:10px;object-fit:cover"/>
+        <div style="flex:1;">
+            <div style="font-weight:bold;color:white;font-size:16px;margin-bottom:5px">{title}</div>
+            <div style="color:#ccc;font-size:14px">{artist}</div>
+        </div>
+        <iframe src="data:text/html;base64,{audio_html_encoded}" 
+                style="width:320px;height:50px;border:none;margin-left:auto;border-radius:8px;
+                       overflow:hidden;"></iframe>
+    </div>
+    """
+    
+    st.markdown(player_html, unsafe_allow_html=True)
+    
+# ==============================
+# CONEXÃO FIREBASE
 # ==============================
 try:
     if not firebase_admin._apps:
         cred = credentials.Certificate(firebase_config)
         firebase_admin.initialize_app(cred, {
-            'databaseURL': 'https://wavesong-default-rtdb.firebaseio.com/'
+            "databaseURL": "https://wavesong-default-rtdb.firebaseio.com/"
         })
-    st.session_state.firebase_connected = initialize_database()
+    st.session_state.firebase_connected = True
+    if initialize_database():
+        st.session_state.all_songs = get_all_songs_cached()
 except Exception as e:
     st.session_state.firebase_connected = False
+    st.session_state.all_songs = get_all_songs_cached()
+
 
 # ==============================
-# EXECUÇÃO PRINCIPAL
+# SIDEBAR
 # ==============================
-if __name__ == "__main__":
-    main()
+with st.sidebar:
+    st.title("🌊 Wave Song")
+    st.success("✅ Online" if st.session_state.firebase_connected else "⚠️ Offline")
+
+    if st.session_state.current_track:
+        song = st.session_state.current_track
+        st.subheader("🎧 Tocando agora")
+        if song.get("image_url"):
+            img = load_image_cached(song["image_url"])
+            if img:
+                st.image(img)
+            else:
+                st.image("https://via.placeholder.com/200x200/1DB954/FFFFFF?text=Imagem+Não+Carregada", caption="Imagem não carregada")
+        else:
+            st.image("https://via.placeholder.com/200x200/1DB954/FFFFFF?text=Sem+Imagem", caption="Imagem não disponível")
+        st.write(f"**{song['title']}**")
+        st.write(f"*{song['artist']}*")
+        st.caption(f"Duração: {song.get('duration', 'N/A')}")
+
+
+        if song.get("audio_url"):
+            render_player()
+
+    else:
+        st.info("🔍 Escolha uma música")
+
+    st.markdown("---")
+
+    if st.button("Página Inicial", key="btn_home", use_container_width=True):
+        st.session_state.current_page = "home"
+        st.session_state.show_request_form = False
+    if st.button("Buscar Músicas", key="btn_search", use_container_width=True):
+        st.session_state.current_page = "search"
+        st.session_state.show_request_form = False
+    if st.sidebar.button("🧪 Testar Conversão de URLs"):
+        st.session_state.current_page = "test_github_conversion"
+        
+    # Verificação de conversão em tempo real
+    if st.checkbox("🔍 Verificar conversões em tempo real"):
+        st.header("Status de Conversão das URLs")
+        
+        github_count = 0
+        converted_count = 0
+        problematic_urls = []
+        
+        for song in st.session_state.all_songs:
+            audio_url = song.get("audio_url", "")
+            if "github.com" in audio_url or "raw.githubusercontent.com" in audio_url:
+                github_count += 1
+                converted_url = convert_github_to_jsdelivr(audio_url)
+                if "cdn.jsdelivr.net" in converted_url:
+                    converted_count += 1
+                else:
+                    problematic_urls.append(audio_url)
+        
+        st.write(f"**Total de URLs do GitHub:** {github_count}")
+        st.write(f"**URLs convertíveis:** {converted_count}")
+        
+        if github_count > 0 and converted_count == github_count:
+            st.success("✅ Todas as URLs do GitHub podem be converted!")
+        elif github_count > 0:
+            st.warning(f"⚠️ Apenas {converted_count}/{github_count} URLs podem ser convertidas")
+            st.write("**URLs com problemas:**")
+            for url in problematic_urls:
+                st.code(url)
+
+
+# ==============================
+# POP-UP DE BOAS-VINDAS
+# ==============================
+if not st.session_state.popup_closed:
+    show_welcome_popup()
+
+# ==============================
+# PÁGINAS
+# ==============================
+if st.session_state.current_page == "home":
+    st.header("🌊 Bem-vindo ao Wave")
+    
+    if not st.session_state.all_songs:
+        st.session_state.all_songs = get_all_songs_cached()
+
+    # Caixa de busca
+    new_query = st.text_input("Buscar música:", placeholder="Digite o nome da música ou artista...")
+    if new_query.strip():
+        st.session_state.search_input = new_query.strip()
+        st.session_state.current_page = "search"
+        st.rerun()
+
+    total_musicas = len(st.session_state.all_songs)
+    st.markdown(f"### Temos {total_musicas} Músicas Disponíveis")
+    st.markdown("### Músicas em destaque:")
+    
+    if st.session_state.all_songs:
+        # 6 músicas mais ouvidas
+        top6_songs = get_top6_songs()
+
+        # 6 aleatórias fixas por 24h
+        random6 = get_daily_random_songs(st.session_state.all_songs, top6_songs)
+
+        songs_to_show = top6_songs + random6
+
+        for row in range(2):
+            cols = st.columns(6)
+            for i in range(6):
+                idx = row*6 + i
+                if idx >= len(songs_to_show):
+                    break
+                song = songs_to_show[idx]
+                with cols[i]:
+                    if song.get("image_url"):
+                        img = load_image_cached(song["image_url"])
+                        if img:
+                            st.image(img, width=150)
+                        else:
+                            st.image("https://via.placeholder.com/150x150/1DB954/FFFFFF?text=Imagem+Não+Carregada")
+                    else:
+                        st.image("https://via.placeholder.com/150x150/1DB954/FFFFFF?text=Sem+Imagem")
+
+                    st.write(f"**{song['title']}**")
+                    st.write(f"*{song['artist']}*")
+
+                    song_key = song.get("id", f"home_{idx}")
+                    if st.button("Tocar", key=f"play_{song_key}", use_container_width=True):
+                        play_song(song)
+                        
+        # Mostrar seção de pedidos de música
+        show_request_music_section()
+    else:
+        st.info("Nenhuma música encontrada.")
+        show_request_music_section()
+
+elif st.session_state.current_page == "search":
+    st.header("Buscar Músicas")
+
+    search_input = st.text_input("Digite o nome da música ou artista...", key="search_input")
+
+    if st.session_state.all_songs:
+        results = search_songs(st.session_state.search_input)
+        if results:
+            cols = st.columns(4)
+            for i, song in enumerate(results):
+                with cols[i % 4]:
+                    if song.get("image_url"):
+                        img = load_image_cached(song["image_url"])
+                        if img:
+                            st.image(img)
+                        else:
+                            st.image("https://via.placeholder.com/150x150/1DB954/FFFFFF?text=Imagem+Não+Carregada", caption="Imagem não carregada")
+                    else:
+                        st.image("https://via.placeholder.com/150x150/1DB954/FFFFFF?text=Sem+Imagem", caption="Imagem não disponível")
+                    st.write(f"**{song['title']}**")
+                    st.write(f"*{song['artist']}*")
+                    if st.button("Tocar", key=f"search_{i}", use_container_width=True):
+                        play_song(song)
+                        #st.rerun()
+                        
+            # Mostrar seção de pedidos de música
+            show_request_music_section()
+            
+        else:
+            st.warning("Nenhuma música encontrada.")
+            show_request_music_section()
+    else:
+        st.info("Nenhuma música cadastrada.")
+        show_request_music_section()
+
+elif st.session_state.current_page == "test_github_conversion":
+    st.header("🧪 Testes de Conversão URL")
+    tab1, tab2 = st.tabs(["Teste de Conversão", "Teste de Reprodução"])
+
+    with tab1:
+        test_github_conversion()
+
+    with tab2:
+        test_audio_playback()
+
+    if st.button("Voltar para o Player"):
+        st.session_state.current_page = "home"
+
+# ==============================
+# FOOTER + CSS
+# ==============================
+st.markdown("---")
+st.caption("🌊 Wave - Sua música, seu mundo • Site em Desenvolvimento ")
+st.markdown("""
+<style>
+.stButton > button { 
+    border-radius: 20px; 
+    height: 40px; 
+    margin: 2px; 
+    background-color: #1DB954;
+    color: white;
+    border: none;
+    font-weight: bold;
+}
+.stButton > button:hover {
+    background-color: #1ed760;
+    color: white;
+}
+[data-testid="stSidebar"] { 
+    background: linear-gradient(180deg, #000000 0%, #121212 100%); 
+    color: white;
+}
+.css-1d391kg { 
+    background-color: #000000;
+}
+.css-1v3fvcr {
+    background-color: #121212;
+}
+h1, h2, h3, h4, h5, h6 {
+    color: white;
+}
+.stTextInput > div > div > input {
+    background-color: #282828;
+    color: white;
+    border-radius: 20px;
+}
+.stMarkdown {
+    color: white;
+}
+</style>
+
+""", unsafe_allow_html=True)
