@@ -106,25 +106,18 @@ def show_welcome_popup():
             margin: 20px 0;
             text-align: left;
         }
-        .ws-close {
-            position: absolute;
-            top: 8px; right: 12px;
-            font-size: 20px;
-            font-weight: bold;
-            color: white;
-            cursor: pointer;
-        }
-        .ws-close:hover {
-            color: #1DB954;
-        }
         </style>
     """, unsafe_allow_html=True)
+
+    # Botão de fechar usando Streamlit
+    if st.button("✖ Fechar", key="close_popup_button"):
+        st.session_state.popup_closed = True
+        st.experimental_rerun()
 
     # HTML do popup
     st.markdown("""
         <div class="ws-overlay"></div>
         <div class="ws-popup">
-            <div class="ws-close" onclick="fetch('/?close_popup=1').then(()=>window.location.reload())">×</div>
             <h2>🌊 Bem-vindo ao Wave!</h2>
             <p style="opacity:0.8; font-size:14px;">Site em desenvolvimento!</p>
             
@@ -143,13 +136,10 @@ def show_welcome_popup():
         </div>
     """, unsafe_allow_html=True)
 
-# =====================================
-# Controle de fechamento via query
-# =====================================
-params = st.query_params
-if "close_popup" in params:
-    st.session_state.popup_closed = True
-    st.query_params.clear()
+# =========================
+# Chamando o popup
+# =========================
+show_welcome_popup()
         
 
 # ==============================
