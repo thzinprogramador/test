@@ -69,7 +69,7 @@ ADMIN_PASSWORD = "wavesong9090"
 # CONFIGURAÇÕES DO TELEGRAM
 # ==============================
 TELEGRAM_BOT_TOKEN = "7680456440:AAFRmCOdehS13VjYY5qKttBbm-hDZRDFjP4"  # Obtenha com @BotFather
-TELEGRAM_ADMIN_CHAT_ID = "5919571280 "  # Obtenha com @userinfobot
+TELEGRAM_ADMIN_CHAT_ID = "5919571280"  # Obtenha com @userinfobot
 TELEGRAM_NOTIFICATIONS_ENABLED = False  # Inicialmente desativado
 
 # Inicializar bot do Telegram
@@ -177,6 +177,12 @@ def add_song_to_db(song_data):
                 return False
             song_data["created_at"] = datetime.datetime.now().isoformat()
             ref.push(song_data)
+            
+            # ENVIAR NOTIFICAÇÃO TELEGRAM - ADICIONE ESTA PARTE
+            title = song_data.get("title", "Sem título")
+            artist = song_data.get("artist", "Artista desconhecido")
+            send_telegram_notification(f"🎵 Nova música adicionada:\n{title} - {artist}")
+            
             return True
         return False
     except Exception as e:
@@ -345,6 +351,62 @@ def mark_notification_as_read(notification_id):
     except Exception as e:
         st.error(f"❌ Erro ao marcar notificação como lida: {e}")
         return False
+
+def setup_telegram_commands():
+    """Configura os comandos do Telegram para enviar notificações"""
+    if not TELEGRAM_NOTIFICATIONS_ENABLED:
+        return
+    
+    @telegram_bot.message_handler(commands=['start', 'help'])
+    def send_welcome(message):
+        telegram_bot.reply_to(message, "🌊 Olá! Eu sou o bot do Wave Song.\n\n"
+                              "Comandos disponíveis:\n"
+                              "/status - Ver status do sistema\n"
+                              "/notify [mensagem] - Enviar notificação global\n"
+                              "/users - Ver estatísticas de usuários")
+    
+    @telegram_bot.message_handler(commands=['status'])
+    def send_status(message):
+        status = "✅ Online" if st.session_state.firebase_connected else "⚠️ Offline"
+        total_songs = len(st.session_state.all_songs)
+        telegram_bot.reply_to(message, f"🌊 Status do Wave Song:\n"
+                              f"{status}\n"
+                              f"Músicas no banco: {total_songs}\n"
+                              f"Notificações ativas: {TELEGRAM_NOTIFICATIONS_ENABLED}")
+    
+    @telegram_bot.message_handler(commands=['notify'])
+    def send_notification(message):
+        # Verificar se é o administrador
+        if str(message.chat.id) != TELEGRAM_ADMIN_CHAT_ID:
+            telegram_bot.reply_to(message, "❌ Apenas administradores podem enviar notificações.")
+            return
+        
+        # Extrair a mensagem do comando
+        command_parts = message.text.split(' ', 1)
+        if len(command_parts) < 2:
+            telegram_bot.reply_to(message, "❌ Uso: /notify [mensagem]")
+            return
+        
+        notification_text = command_parts[1]
+        if send_global_notification(notification_text):
+            telegram_bot.reply_to(message, "✅ Notificação enviada para todos os usuários!")
+        else:
+            telegram_bot.reply_to(message, "❌ Falha ao enviar notificação.")
+    
+    # Iniciar polling em thread separada para não bloquear o Streamlit
+    import threading
+    def start_bot():
+        try:
+            telegram_bot.infinity_polling()
+        except Exception as e:
+            st.error(f"Erro no bot do Telegram: {e}")
+    
+    bot_thread = threading.Thread(target=start_bot, daemon=True)
+    bot_thread.start()
+
+# Chame esta função após inicializar o bot
+if TELEGRAM_NOTIFICATIONS_ENABLED:
+    setup_telegram_commands()
 
 # ==============================
 # FUNÇÃO DE CONVERSÃO DE URL CORRIGIDA
@@ -852,6 +914,18 @@ with st.sidebar:
 
     st.markdown("---")
 
+    # Ícone de notificações com badge - MOVER PARA DENTRO DA SIDEBAR
+    unread_notifications = check_unread_notifications()
+    notification_text = f"🔔 Notificações ({len(unread_notifications)})" if unread_notifications else "🔔 Notificações"
+
+    if st.button(notification_text, use_container_width=True, key="btn_notifications"):
+        st.session_state.current_page = "notifications"
+        st.session_state.show_request_form = False
+
+    if st.button("📢 Painel de Notificações (Admin)", use_container_width=True, key="btn_notification_panel"):
+        st.session_state.current_page = "notification_panel"
+        st.session_state.show_request_form = False
+    
     if st.button("Página Inicial", key="btn_home", use_container_width=True):
         st.session_state.current_page = "home"
         st.session_state.show_request_form = False
@@ -889,20 +963,6 @@ with st.sidebar:
             st.write("**URLs com problemas:**")
             for url in problematic_urls:
                 st.code(url)
-
-st.markdown("---")
-
-# Ícone de notificações com badge
-unread_notifications = check_unread_notifications()
-notification_text = f"🔔 Notificações ({len(unread_notifications)})" if unread_notifications else "🔔 Notificações"
-
-if st.sidebar.button(notification_text, use_container_width=True, key="btn_notifications"):
-    st.session_state.current_page = "notifications"
-    st.session_state.show_request_form = False
-
-if st.sidebar.button("📢 Painel de Notificações (Admin)", use_container_width=True, key="btn_notification_panel"):
-    st.session_state.current_page = "notification_panel"
-    st.session_state.show_request_form = False
 
 # ==============================
 # PÁGINAS
@@ -1031,14 +1091,14 @@ elif st.session_state.current_page == "notifications":
     else:
         st.info("Não há notificações não lidas.") 
 
-    if st.button("Voltar para o Início"):
+    if st.button("Voltar para o Início", key="back_from_notifications"): # key unica
         st.session_state.current_page = "home"
 
-    if st.button("Voltar para o Início"):
+elif st.session_state.current_page == "notification_panel":
+    show_notification_panel()
+
+    if st.button("Voltar para o Início", key="back_from_notif_panel"):
         st.session_state.current_page = "home"
-
-
-    
 
 # ==============================
 # FOOTER + CSS
