@@ -495,6 +495,69 @@ def show_add_music_page():
             st.session_state.show_add_form = False
             st.rerun()
 
+def show_notification_panel():
+    """Painel para enviar notificações globais"""
+    st.header("🔔 Painel de Notificações")
+    
+    # Verificar autenticação
+    if not st.session_state.admin_authenticated:
+        password = st.text_input("Senha de Administrador", type="password", key="notif_auth")
+        if st.button("Acessar", key="notif_btn"):
+            if password == ADMIN_PASSWORD: 
+                st.session_state.admin_authenticated = True
+                st.success("✅ Acesso concedido!")
+                st.rerun()
+            else:
+                st.error("❌ Senha incorreta!")
+        return
+    
+    # Formulário para enviar notificação
+    with st.form("notification_form"):
+        notification_message = st.text_area("Mensagem da notificação:", 
+                                          placeholder="Digite a mensagem que será enviada para todos os usuários...",
+                                          height=100)
+        send_test = st.checkbox("Enviar teste para o administrador primeiro")
+        
+        submitted = st.form_submit_button("📢 Enviar Notificação Global")
+        if submitted:
+            if not notification_message.strip():
+                st.error("⚠️ A mensagem não pode estar vazia!")
+                return
+                
+            if send_test:
+                if send_telegram_notification(f"🧪 Notificação de teste:\n{notification_message}"):
+                    st.success("✅ Teste enviado para o administrador!")
+                else:
+                    st.error("❌ Falha ao enviar teste!")
+                    return
+            
+            if send_global_notification(notification_message):
+                st.success("✅ Notificação enviada para todos os usuários!")
+            else:
+                st.error("❌ Falha ao enviar notificação global!")
+    
+    # Histórico de notificações
+    st.subheader("Histórico de Notificações")
+    try:
+        ref = db.reference("/global_notifications")
+        notifications = ref.order_by_child("timestamp").limit_to_last(10).get()
+        
+        if notifications:
+            for note_id, note_data in notifications.items():
+                with st.expander(f"Notificação de {note_data.get('timestamp', '')}"):
+                    st.write(note_data.get("message", ""))
+                    st.caption(f"Lida por {len(note_data.get('read_by', {}))} usuários")
+        else:
+            st.info("Nenhuma notificação enviada ainda.")
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar histórico: {e}")
+    
+    if st.button("🔒 Sair do Painel de Notificações"):
+        st.session_state.admin_authenticated = False
+        st.rerun()
+
+
+
 def show_request_music_section():
     st.markdown("---")
     st.subheader("Não encontrou a música que procura?")
