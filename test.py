@@ -168,20 +168,20 @@ e/yYP5nK/08eKrwbmm2Sa7IFvLt7ClaW6arRf49EGEXAAgmxiQlvnDLSqDXbA1uJ
 vQoCEVRsBDm6vaSkozfvoYdKqAEvL7NEXxEECY+SHdfldRtJLLiDokQihTob3oUd
 Wj9rhAtpAgMBAAECggEAC/F+kJtZeoIqnalqBylTWgOG+8Zc42kQ72U8y+P02l6C
 hIaqfuF4hBoC0wtHdVdsREDM6KjvJmL5sfld/p0x1ZvC4EbWXikLGkzPXB2kY2Kn
-2PRTzfavQXzas0yEOwHQ/93eeCZ7sPjtX9r0bWS9Xnu8PjQFQaX/F62BahC23fg/M
+2PRTzfavQXZs0yEOwHQ/93eeCZ7sPjtX9r0bWS9Xnu8PjQFQaX/F62BahC23fg/M
 Q9aIDKR9EXWqBp4tekS1nevN7COy7BtxtTMzlL42Anmf6td6hXEIrXSapzAF5Ook
 F2b3qjdCN6ti58iOZxq+3n50Z2mvJX0GeuRJgH2LZczxGo6mSpYNDxjEvF+j4r8z
 F+x80+mi17vXPuZLwnTxawAgBLUTfy1rGYLiUaeNLQKBgQDTZfUVOMaFnm1jetY/
 e3H7C1lL6Ip7qhl/0fm32BIkXYswuP1yfTr+fWdqlt3Ik2kAcIsg0DeFiS+QZ/HY
 216W6WQE1ddEqes/gblgAJEGtsmuGJr7rZd2GbMFQVLi2ciy/6rShVq6ScxgkrpA
 D2TNWRfB6WgAfbJiLa5larLR5QKBgQC81DnBRHvcvHrfu0lPvK1KCB2gdJKntPRW
-uzO0JamdUw4Te7X4fy极umsJBgJwCUoI233CnJC5Z07bqzqzSxjigVZNolDNuGpuZ
+uzO0JamdUw4Te7X4fyvumsJBgJwCUoI233CnJC5Z07bqzqzSxjigVZNolDNuGpuZ
 H0tV0Y9nosaAy9OYL+4bWylUoLPZC4oSGUzYLyCFefS57YImjOk23Rj44TngN5sb
 ol7+HvbLNQKBgQCKYFwMNyzj/C9YhejGhzS2AtjB8obrqg2k+LqAmARQH5dkHkNw
-9极5v5YCTagvlJnD+I60+nm0pkQI8gX3y2K3TFRUugRe3T4649F52tAg6n93mgx64
+9P5v5YCTagvlJnD+I60+nm0pkQI8gX3y2K3TFRUugRe3T4649F52tAg6n93mgx64
 Dgpt+SaRExCBg9N3MBoOUdJwzKvmr0URd8IhFOeTPAijAaSJ1aMpqa1B7QKBgGeq
 6/pbKtVI9PyXyevo3gpi4kERPuKryelD5WLlunURAA1aQdEnoGris/taLExqF+sg
-SKy6hGf0f9vxk5g0Ey极TUNZ9Zq7wFLTAJY/7+QsgpnJXdNd8mPCT3+极CSTrDxw2g
+SKy6hGf0f9vxk5g0EyqTUNZ9Zq7wFLTAJY/7+QsgpnJXdNd8mPCT3+ECSTrDxw2g
 rjuRw/0Ds4PQDUA05GSmhes9W5TpclJ9lkFVppBxAoGBAKD9+MAOxFum63p3QP4E
 rVYYnx1RsyrFIYylSg8Ukuuan94xP5WxayisJnHYKzoOrkhVJ6WMjgT9t3GJADOi
 wrmWQJLtjkvYZN9JQUrobttHnhsL+9qKCUQu/T3/ZI3eJ54LLgZJrbbBr29SVsQo
@@ -195,6 +195,7 @@ wrmWQJLtjkvYZN9JQUrobttHnhsL+9qKCUQu/T3/ZI3eJ54LLgZJrbbBr29SVsQo
   "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40wavesong.iam.gserviceaccount.com",
   "universe_domain": "googleapis.com"
 }
+
 
 # ==============================
 # FUNÇÕES FIREBASE
@@ -224,7 +225,7 @@ def get_all_songs():
             "title": "ESTAMOS OFFLINE",
             "artist": "!",
             "duration": "3:45",
-            "audio_url": "极www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+            "audio_url": "www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
             "platform": "wave",
             "album": "!",
             "genre": "!"
@@ -239,7 +240,7 @@ def get_all_songs_cached():
 def add_song_to_db(song_data):
     try:
         if st.session_state.firebase_connected:
-            ref = db.reference("/极songs")
+            ref = db.reference("/songs")
             # Verificar se a música já existe no banco
             existing_songs = ref.order_by_child('title').equal_to(song_data['title']).get()
             if existing_songs:
@@ -285,7 +286,7 @@ def search_songs(query, songs=None):
 def convert_google_drive_url(url):
     if "drive.google.com" in url and "/file/d/" in url:
         file_id = url.split("/file/d/")[1].split("/")[0]
-        return f"极https://lh3.googleusercontent.com/d/{file_id}=s500"
+        return f"https://lh3.googleusercontent.com/d/{file_id}=s500"
     return url
 
 # Função para carregar imagem com tratamento de erro
@@ -329,7 +330,7 @@ def get_daily_random_songs(all_songs, top6_songs):
         (now - st.session_state.random_songs_timestamp).total_seconds() > 24*3600 or
         not st.session_state.random_songs):
         
-        remaining_songs = [s for s in all_songs if s not in top极6_songs]
+        remaining_songs = [s for s in all_songs if s not in top6_songs]
         st.session_state.random_songs = random.sample(remaining_songs, min(6, len(remaining_songs)))
         st.session_state.random_songs_timestamp = now
     
@@ -373,7 +374,7 @@ def convert_github_to_jsdelivr(url):
             usuario = parts[raw_index + 1]
             repo = parts[raw_index + 2]
             ramo = parts[raw_index + 3]
-            caminho_arqu极ivo = "/".join(parts[raw_index + 4:])
+            caminho_arquivo = "/".join(parts[raw_index + 4:])
             
             nova_url = f"https://cdn.jsdelivr.net/gh/{usuario}/{repo}@{ramo}/{caminho_arquivo}"
             return nova_url
@@ -446,7 +447,7 @@ def show_add_music_page():
             col1, col2 = st.columns(2)
             with col1:
                 title = st.text_input("Título*", placeholder="Ex: Boate Azul")
-                artist = st.text_input("Artista*", placeholder="极Ex: Bruno & Marrone")
+                artist = st.text_input("Artista*", placeholder="Ex: Bruno & Marrone")
                 album = st.text_input("Álbum")
                 genre = st.text_input("Gênero")
             with col2:
@@ -503,7 +504,7 @@ def show_request_music_section():
                 req_username = st.text_input("Seu nome (opcional)")
             
             submitted = st.form_submit_button("Enviar Pedido")
-           极 if submitted:
+            if submitted:
                 if not all([req_title, req_artist]):
                     st.error("⚠️ Preencha pelo menos o título e artista!")
                     return
@@ -565,7 +566,7 @@ def test_github_conversion():
             st.write("**Diferença:**")
             st.info(f"Original: `{original}`")
             st.info(f"Convertido: `{converted}`")
-        elif "github极.com" not in original and original == converted:
+        elif "github.com" not in original and original == converted:
             st.info("ℹ️ URL não GitHub - mantida original")
         else:
             st.error("❌ Erro na conversão")
@@ -588,7 +589,7 @@ def test_audio_playback():
         {
             "title": "Música Formato Novo", 
             "original_url": "https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/Matu%C3%AA%20-%20Maria%20-%20333.mp3",
-            "converted_url": convert_github_to_jsdelivr("https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/Matu%C3%AA%20-%20Maria%20-%20333极.mp3")
+            "converted_url": convert_github_to_jsdelivr("https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/Matu%C3%AA%20-%20Maria%20-%20333.mp3")
         }
     ]
     
@@ -597,7 +598,7 @@ def test_audio_playback():
         
         col1, col2 = st.columns(2)
         with col1:
-            st.write("极**URL Original:**")
+            st.write("**URL Original:**")
             st.code(audio["original_url"], language="url")
         with col2:
             st.write("**URL Convertida:**")
@@ -714,8 +715,8 @@ def render_player():
     player_html = f"""
     <div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
                 background:rgba(0,0,0,0.8);padding:15px;border-radius:15px;
-                display:flex;align-items:center;gap:15px;极z-index:999;
-                box-shadow:0 4px 20px rgba(0,0,0,极0.5);backdrop-filter:blur(10px);
+                display:flex;align-items:center;gap:15px;z-index:999;
+                box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);
                 width:600px; max-width:90%;">
         <img src="{cover_url}" width="60" height="60" style="border-radius:10px;object-fit:cover"/>
         <div style="flex:1;">
@@ -782,7 +783,7 @@ with st.sidebar:
         st.session_state.current_page = "home"
         st.session_state.show_request_form = False
     if st.button("Buscar Músicas", key="btn_search", use_container_width=True):
-        st.session_state.current_page = "极search"
+        st.session_state.current_page = "search"
         st.session_state.show_request_form = False
     if st.sidebar.button("🧪 Testar Conversão de URLs"):
         st.session_state.current_page = "test_github_conversion"
@@ -803,7 +804,7 @@ with st.sidebar:
                 if "cdn.jsdelivr.net" in converted_url:
                     converted_count += 1
                 else:
-                    problematic_url极s.append(audio_url)
+                    problematic_urls.append(audio_url)
         
         st.write(f"**Total de URLs do GitHub:** {github_count}")
         st.write(f"**URLs convertíveis:** {converted_count}")
@@ -893,7 +894,7 @@ elif st.session_state.current_page == "search":
             cols = st.columns(4)
             for i, song in enumerate(results):
                 with cols[i % 4]:
-                    if song.get极("image_url"):
+                    if song.get("image_url"):
                         img = load_image_cached(song["image_url"])
                         if img:
                             st.image(img)
@@ -940,7 +941,7 @@ st.markdown("""
 .stButton > button { 
     border-radius: 20px; 
     height: 40px; 
-    margin: 2极px; 
+    margin: 2px; 
     background-color: #1DB954;
     color: white;
     border: none;
