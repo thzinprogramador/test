@@ -1,3 +1,4 @@
+import streamlit.components.v1 as components
 import streamlit as st
 import firebase_admin
 import requests 
@@ -68,24 +69,21 @@ ADMIN_PASSWORD = "wavesong9090"
 # FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (VERSÃO CORRIGIDA)
 # ==============================
 def show_welcome_popup():
-    """Exibe um pop-up de boas-vindas com efeito de vidro fosco, instruções e um botão para fechar, exibido uma única vez."""
-
     if 'popup_closed' in st.session_state and st.session_state.popup_closed:
         return
 
-    st.markdown("""
+    # HTML do pop-up com comunicação JS -> Streamlit
+    components.html("""
         <style>
         .overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
             z-index: 9999;
         }
         .popup-container {
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0,0,0,0.5);
             backdrop-filter: blur(10px);
             padding: 25px;
             border-radius: 15px;
@@ -93,24 +91,20 @@ def show_welcome_popup():
             border: 2px solid #1DB954;
             width: 50%;
             position: fixed;
-            top: 50%;
-            left: 50%;
+            top: 50%; left: 50%;
             transform: translate(-50%, -50%);
             z-index: 10000;
             text-align: center;
         }
         .popup-container h2 { margin: 0; color: white; }
-        .popup-container .instructions {
+        .instructions {
             background: rgba(0,0,0,0.7);
             padding: 15px;
             border-radius: 10px;
             margin-bottom: 20px;
         }
-        .popup-container .instructions h4 {
-            margin: 0 0 15px 0;
-            color: #1DB954;
-        }
-        .popup-container .footer {
+        .instructions h4 { margin: 0 0 15px 0; color: #1DB954; }
+        .footer {
             text-align: center;
             font-size: 12px;
             opacity: 0.7;
@@ -127,7 +121,8 @@ def show_welcome_popup():
             margin-top: 20px;
         }
         </style>
-        <div class="overlay" id="popup-overlay">
+
+        <div class="overlay" id="popup">
             <div class="popup-container">
                 <h2>🌊 Bem-vindo ao Wave!</h2>
                 <div style="font-size: 14px; opacity: 0.8; margin-top: 5px;">Site em desenvolvimento!</div>
@@ -140,36 +135,22 @@ def show_welcome_popup():
                     </ol>
                 </div>
                 <div class="footer">Shutz agradece, bom proveito!!! 🎵</div>
-                <button class="close-btn" onclick="document.getElementById('popup-overlay').style.display='none'; 
-                                                   fetch('/_stcore/close_popup', {method:'POST'})">
-                    Entendi, vamos lá! 🎧
-                </button>
+                <button class="close-btn" onclick="sendMessage()">Entendi, vamos lá! 🎧</button>
             </div>
         </div>
-    """, unsafe_allow_html=True)
 
-    # "Gambiarra" → endpoint fake p/ salvar estado via Streamlit
-    from streamlit.runtime.scriptrunner import add_script_run_ctx
-    from threading import Thread
-    import http.server, socketserver
+        <script>
+        function sendMessage(){
+            const streamlitMsg = {"isStreamlitMessage":true,"type":"streamlit:setComponentValue","value":"close"};
+            window.parent.postMessage(streamlitMsg, "*");
+        }
+        </script>
+    """, height=600, key="welcome_popup")
 
-    class Handler(http.server.SimpleHTTPRequestHandler):
-        def do_POST(self):
-            if self.path == "/_stcore/close_popup":
-                st.session_state.popup_closed = True
-                st.experimental_rerun()
-            self.send_response(200)
-            self.end_headers()
-
-    def serve():
-        with socketserver.TCPServer(("localhost", 8501), Handler) as httpd:
-            httpd.serve_forever()
-
-    if 'server_started' not in st.session_state:
-        st.session_state.server_started = True
-        t = Thread(target=serve, daemon=True)
-        add_script_run_ctx(t)
-        t.start()
+    # Captura o valor vindo do componente
+    if "welcome_popup" in st.session_state and st.session_state["welcome_popup"] == "close":
+        st.session_state.popup_closed = True
+        st.experimental_rerun()
 
 
         
