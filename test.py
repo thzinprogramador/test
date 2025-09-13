@@ -68,13 +68,13 @@ ADMIN_PASSWORD = "wavesong9090"
 # FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (VERSÃO CORRIGIDA)
 # ==============================
 def show_welcome_popup():
-    """Exibe um pop-up de boas-vindas com efeito de vidro fosco e um X para fechar."""
+    """Exibe pop-up de boas-vindas com efeito vidro fosco e X para fechar."""
 
-    # Se já foi fechado, não mostra mais
+    # Se já foi fechado, não mostra
     if st.session_state.get("popup_closed", False):
         return
 
-    # CSS e HTML do popup
+    # CSS do popup
     st.markdown("""
         <style>
         .ws-overlay {
@@ -108,18 +108,23 @@ def show_welcome_popup():
         }
         .ws-close {
             position: absolute;
-            top: 10px; right: 15px;
+            top: 8px; right: 12px;
             font-size: 20px;
             font-weight: bold;
             color: white;
             cursor: pointer;
         }
+        .ws-close:hover {
+            color: #1DB954;
+        }
         </style>
+    """, unsafe_allow_html=True)
 
+    # HTML do popup
+    st.markdown("""
         <div class="ws-overlay"></div>
-
         <div class="ws-popup">
-            <span class="ws-close" onclick="window.parent.postMessage({type: 'popup_close'}, '*')">×</span>
+            <div class="ws-close" onclick="fetch('/?close_popup=1').then(()=>window.location.reload())">×</div>
             <h2>🌊 Bem-vindo ao Wave!</h2>
             <p style="opacity:0.8; font-size:14px;">Site em desenvolvimento!</p>
             
@@ -136,22 +141,15 @@ def show_welcome_popup():
                 Shutz agradece, bom proveito!!! 🎵
             </div>
         </div>
-
-        <script>
-        window.addEventListener("message", (event) => {
-            if (event.data.type === "popup_close") {
-                const streamlitEvents = window.parent.streamlitEvents || [];
-                streamlitEvents.push("close_popup");
-                window.parent.streamlitEvents = streamlitEvents;
-            }
-        });
-        </script>
     """, unsafe_allow_html=True)
 
-    # Captura o evento do X (gambiarra leve, mas funciona no Streamlit)
-    if "streamlitEvents" in st.session_state and "close_popup" in st.session_state.streamlitEvents:
-        st.session_state.popup_closed = True
-        st.session_state.streamlitEvents.remove("close_popup")
+# =====================================
+# Controle de fechamento via query
+# =====================================
+params = st.query_params
+if "close_popup" in params:
+    st.session_state.popup_closed = True
+    st.query_params.clear()
         
 
 # ==============================
