@@ -54,7 +54,9 @@ if "search_input" not in st.session_state:
 if "player_timestamp" not in st.session_state:
     st.session_state.player_timestamp = time.time()
 if "show_welcome_popup" not in st.session_state:
-    st.session_state.show_welcome_popup = True  # Novo estado para controlar o pop-up
+    st.session_state.show_welcome_popup = True
+if "popup_closed" not in st.session_state:
+    st.session_state.popup_closed = False
 
 
 # ==============================
@@ -102,7 +104,7 @@ def show_welcome_popup():
             Shutz agradece, bom proveito!!! 🎵
         </div>
         
-        <button onclick="document.getElementById('welcomePopup').style.display='none'" 
+        <button onclick="window.parent.postMessage('closePopup', '*')" 
                 style="
                     background: #1DB954;
                     color: white;
@@ -128,18 +130,19 @@ def show_welcome_popup():
         height: 100%;
         background: rgba(0,0,0,0.7);
         z-index: 999;
-    "></div>
+    " onclick="window.parent.postMessage('closePopup', '*')"></div>
     
     <script>
-        // Fechar pop-up ao clicar no overlay
-        document.getElementById('overlay').addEventListener('click', function() {
-            document.getElementById('welcomePopup').style.display = 'none';
-            document.getElementById('overlay').style.display = 'none';
-        });
-        
         // Fechar pop-up com ESC
         document.addEventListener('keydown', function(event) {
             if (event.key === 'Escape') {
+                window.parent.postMessage('closePopup', '*');
+            }
+        });
+        
+        // Ouvir mensagens do Streamlit
+        window.addEventListener('message', function(event) {
+            if (event.data === 'closePopup') {
                 document.getElementById('welcomePopup').style.display = 'none';
                 document.getElementById('overlay').style.display = 'none';
             }
@@ -147,7 +150,13 @@ def show_welcome_popup():
     </script>
     """
     
-    st.markdown(popup_html, unsafe_allow_html=True)
+    # Usar components.html para renderizar o pop-up corretamente
+    try:
+        import streamlit.components.v1 as components
+        components.html(popup_html, height=500, width=450)
+    except:
+        # Fallback se components não estiver disponível
+        st.markdown(popup_html, unsafe_allow_html=True)
 
 # ==============================
 # FIREBASE CONFIG (JSON DIRETO)
@@ -817,8 +826,26 @@ with st.sidebar:
 # ==============================
 # POP-UP DE BOAS-VINDAS
 # ==============================
-if st.session_state.show_welcome_popup:
+if st.session_state.show_welcome_popup and not st.session_state.popup_closed:
     show_welcome_popup()
+    
+    # Adicionar script para fechar o pop-up
+    close_script = """
+    <script>
+    window.addEventListener('message', function(event) {
+        if (event.data === 'closePopup') {
+            // Fechar o pop-up atualizando o estado da sessão
+            window.parent.postMessage({
+                isStreamlitMessage: true,
+                type: 'setSessionState',
+                key: 'popup_closed',
+                value: true
+            }, '*');
+        }
+    });
+    </script>
+    """
+    st.markdown(close_script, unsafe_allow_html=True)
 
 # ==============================
 # PÁGINAS
