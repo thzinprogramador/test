@@ -55,6 +55,8 @@ if "player_timestamp" not in st.session_state:
     st.session_state.player_timestamp = time.time()
 if "popup_closed" not in st.session_state:
     st.session_state.popup_closed = False
+if "popup_shown" not in st.session_state:
+    st.session_state.popup_shown = False
 
 
 # ==============================
@@ -63,96 +65,105 @@ if "popup_closed" not in st.session_state:
 ADMIN_PASSWORD = "wavesong9090" 
 
 # ==============================
-# FUNÇÃO PARA O POP-UP DE BOAS-VINDAS
-# ==============================
-import streamlit as st
-import time
-
-# ==============================
-# ESTADO DA SESSÃO
-# ==============================
-if "popup_closed" not in st.session_state:
-    st.session_state.popup_closed = False
-
-# ==============================
-# FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (FECHAMENTO AUTOMÁTICO)
+# FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (CORRIGIDA)
 # ==============================
 def show_welcome_popup():
-    # Verifica se o popup já foi fechado
-    if st.session_state.popup_closed:
+    # Verifica se o popup já foi fechado ou já foi mostrado
+    if st.session_state.popup_closed or st.session_state.popup_shown:
         return
 
-    # CSS do popup
-    st.markdown("""
-        <style>
-        .ws-overlay {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            z-index: 9998;
-        }
-        .ws-popup {
-            position: fixed;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(12px);
-            border: 2px solid #1DB954;
-            border-radius: 15px;
-            padding: 25px;
-            width: 45%;
-            color: white;
-            text-align: center;
-            z-index: 9999;
-        }
-        .ws-popup h2 { margin-top: 0; }
-        .ws-instructions {
-            background: rgba(0,0,0,0.5);
-            padding: 15px;
-            border-radius: 10px;
-            margin: 20px 0;
-            text-align: left;
-        }
-        .ws-close {
-            position: absolute;
-            top: 8px; right: 12px;
-            font-size: 20px;
-            font-weight: bold;
-            color: white;
-            cursor: pointer;
-        }
-        .ws-close:hover { color: #1DB954; }
-        </style>
-    """, unsafe_allow_html=True)
+    # Usar container vazio para evitar renderização duplicada
+    with st.empty():
+        # CSS do popup
+        st.markdown("""
+            <style>
+            .ws-overlay {
+                position: fixed;
+                top: 0; left: 0;
+                width: 100%; height: 100%;
+                background: rgba(0, 0, 0, 0.7);
+                z-index: 9998;
+            }
+            .ws-popup {
+                position: fixed;
+                top: 50%; left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0, 0, 0, 0.4);
+                backdrop-filter: blur(12px);
+                border: 2px solid #1DB954;
+                border-radius: 15px;
+                padding: 25px;
+                width: 45%;
+                color: white;
+                text-align: center;
+                z-index: 9999;
+            }
+            .ws-popup h2 { margin-top: 0; }
+            .ws-instructions {
+                background: rgba(0,0,0,0.5);
+                padding: 15px;
+                border-radius: 10px;
+                margin: 20px 0;
+                text-align: left;
+            }
+            .ws-close {
+                position: absolute;
+                top: 8px; right: 12px;
+                font-size: 20px;
+                font-weight: bold;
+                color: white;
+                cursor: pointer;
+            }
+            .ws-close:hover { color: #1DB954; }
+            </style>
+        """, unsafe_allow_html=True)
 
-    # HTML do popup com mensagem de fechamento automático
-    st.markdown(f"""
-        <div class="ws-overlay"></div>
-        <div class="ws-popup">
-            <h2>🌊 Bem-vindo ao Wave!</h2>
-            <p style="opacity:0.8; font-size:14px;">Site em desenvolvimento!</p>
+        # HTML do popup com botão de fechar
+        st.markdown(f"""
+            <div class="ws-overlay"></div>
+            <div class="ws-popup">
+                <span class="ws-close" onclick="window.parent.document.querySelector('[data-testid=\\'stMarkdown\\'] iframe').contentWindow.closePopup()">×</span>
+                <h2>🌊 Bem-vindo ao Wave!</h2>
+                <p style="opacity:0.8; font-size:14px;">Site em desenvolvimento!</p>
 
-            <div class="ws-instructions">
-                <h4>🎯 Instruções Importantes:</h4>
-                <ol>
-                    <li>Clique nos <b>'3 pontinhos'</b> no canto superior direito</li>
-                    <li>Vá em <b>Settings</b></li>
-                    <li>Escolha <b>"Dark theme"</b> para melhor experiência</li>
-                </ol>
+                <div class="ws-instructions">
+                    <h4>🎯 Instruções Importantes:</h4>
+                    <ol>
+                        <li>Clique nos <b>'3 pontinhos'</b> no canto superior direito</li>
+                        <li>Vá em <b>Settings</b></li>
+                        <li>Escolha <b>"Dark theme"</b> para melhor experiência</li>
+                    </ol>
+                </div>
+
+                <div style="font-size:12px; opacity:0.7; margin-top:20px;">
+                    Shutz agradece, bom proveito!!! 🎵
+                </div>
+
+                <p style="font-size:12px; opacity:0.6;">Este pop-up será fechado automaticamente em 5 segundos...</p>
             </div>
+        """, unsafe_allow_html=True)
 
-            <div style="font-size:12px; opacity:0.7; margin-top:20px;">
-                Shutz agradece, bom proveito!!! 🎵
-            </div>
+        # JavaScript para fechar o popup
+        st.markdown("""
+            <script>
+            function closePopup() {
+                window.parent.document.querySelectorAll('.ws-overlay, .ws-popup').forEach(el => el.remove());
+            }
+            
+            // Fechar automaticamente após 5 segundos
+            setTimeout(closePopup, 5000);
+            </script>
+        """, unsafe_allow_html=True)
+        
+        # Marcar como mostrado
+        st.session_state.popup_shown = True
+        
+        # Aguardar um pouco e então limpar
+        time.sleep(5.1)
+        
+    # Limpar completamente após o tempo
+    st.session_state.popup_closed = True
 
-            <p style="font-size:12px; opacity:0.6;">Este pop-up será fechado automaticamente em breve...</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-    # Fechar automaticamente após 5 segundos
-    time.sleep(5)
-    st.session_state.popup_closed = True  # Fecha o popup após 5 segundos
 
 
         
