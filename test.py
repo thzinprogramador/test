@@ -65,12 +65,12 @@ if "popup_closed" not in st.session_state:
 ADMIN_PASSWORD = "wavesong9090" 
 
 # ==============================
-# FUNÇÃO PARA O POP-UP DE BOAS-VINDAS
+# FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (VERSÃO CORRIGIDA)
 # ==============================
 def show_welcome_popup():
     """Exibe um pop-up de boas-vindas com instruções"""
-    popup_html = f"""
-    <div id="welcomePopup" style="
+    popup_html = """
+    <div style="
         position: fixed;
         top: 50%;
         left: 50%;
@@ -104,7 +104,7 @@ def show_welcome_popup():
             Shutz agradece, bom proveito!!! 🎵
         </div>
         
-        <button onclick="closePopup()" 
+        <button onclick="window.parent.postMessage('closePopup', '*')" 
                 style="
                     background: #1DB954;
                     color: white;
@@ -114,15 +114,12 @@ def show_welcome_popup():
                     cursor: pointer;
                     width: 100%;
                     font-weight: bold;
-                    transition: background 0.3s;
-                "
-                onmouseover="this.style.background='#1ED760'"
-                onmouseout="this.style.background='#1DB954'">
+                ">
             Entendi, vamos lá! 🎧
         </button>
     </div>
     
-    <div id="overlay" style="
+    <div style="
         position: fixed;
         top: 0;
         left: 0;
@@ -130,24 +127,7 @@ def show_welcome_popup():
         height: 100%;
         background: rgba(0,0,0,0.7);
         z-index: 999;
-    " onclick="closePopup()"></div>
-    
-    <script>
-        function closePopup() {{
-            document.getElementById('welcomePopup').style.display = 'none';
-            document.getElementById('overlay').style.display = 'none';
-            
-            // Enviar mensagem para o Streamlit fechar o pop-up permanentemente
-            window.parent.postMessage({{isStreamlitMessage: true, type: 'setSessionState', key: 'popup_closed', value: true}}, '*');
-        }}
-        
-        // Fechar pop-up com ESC
-        document.addEventListener('keydown', function(event) {{
-            if (event.key === 'Escape') {{
-                closePopup();
-            }}
-        }});
-    </script>
+    " onclick="window.parent.postMessage('closePopup', '*')"></div>
     """
     
     st.markdown(popup_html, unsafe_allow_html=True)
@@ -973,4 +953,34 @@ h1, h2, h3, h4, h5, h6 {
     color: white;
 }
 </style>
+
+# ==============================
+# SCRIPT PARA FECHAR O POP-UP
+# ==============================
+close_script = """
+<script>
+// Ouvir mensagens para fechar o pop-up
+window.addEventListener('message', function(event) {
+    if (event.data === 'closePopup') {
+        // Atualizar o estado da sessão para não mostrar o pop-up novamente
+        window.parent.postMessage({
+            isStreamlitMessage: true,
+            type: 'setSessionState',
+            key: 'popup_closed',
+            value: true
+        }, '*');
+    }
+});
+
+// Fechar com a tecla ESC
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        window.parent.postMessage('closePopup', '*');
+    }
+});
+</script>
+"""
+
+st.markdown(close_script, unsafe_allow_html=True)
+
 """, unsafe_allow_html=True)
