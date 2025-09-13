@@ -959,7 +959,6 @@ h1, h2, h3, h4, h5, h6 {
 # ==============================
 close_script = """
 <script>
-// Ouvir mensagens para fechar o pop-up
 window.addEventListener('message', function(event) {
     if (event.data === 'closePopup') {
         // Atualizar o estado da sessão para não mostrar o pop-up novamente
@@ -972,7 +971,6 @@ window.addEventListener('message', function(event) {
     }
 });
 
-// Fechar com a tecla ESC
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         window.parent.postMessage('closePopup', '*');
