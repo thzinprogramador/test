@@ -1073,7 +1073,7 @@ elif st.session_state.current_page == "test_github_conversion":
     if st.button("Voltar para o Player"):
         st.session_state.current_page = "home"
 
-if st.session_state.current_page == "notifications":
+elif st.session_state.current_page == "notifications":
     st.markdown(f"<h1 style='text-align:center;'>🔔 Notificações de {admin_name}</h1>", unsafe_allow_html=True)
     st.markdown("---")
 
@@ -1113,7 +1113,10 @@ if st.session_state.current_page == "notifications":
     if st.button("Voltar para o Início", key="back_from_notifications"):
         st.session_state.current_page = "home"
 
+# PAINEL DE NOTIFICAÇÕES ADMIN
+elif st.session_state.current_page == "notification_panel":
     show_notification_panel()
+
 
 # ==============================
 # FOOTER + CSS
