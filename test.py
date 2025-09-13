@@ -1170,9 +1170,6 @@ elif st.session_state.current_page == "notifications":
     if st.button("Voltar para o Início", key="back_from_notifications"):
         st.session_state.current_page = "home"
         
-    if st.button("🔄 Recarregar Notificações"):
-        st.session_state.unread_notifications_cache = None
-        st.rerun()
 
 # PAINEL DE NOTIFICAÇÕES ADMIN
 elif st.session_state.current_page == "notification_panel":
