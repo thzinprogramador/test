@@ -300,7 +300,7 @@ def send_global_notification(message):
         ref = db.reference("/global_notifications")
         notification_data = {
             "message": message,
-            "timestamp": datetime.datetime.now().isoformat(),
+            "admin": "Schutz",
             "read_by": {}  # Dicionário para controlar quem leu
         }
         ref.push(notification_data)
