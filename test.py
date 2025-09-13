@@ -859,8 +859,8 @@ elif st.session_state.current_page == "search":
         st.info("Nenhuma música cadastrada.")
         show_request_music_section()
 
-elif st.session_state.current_page == "test_github_conversion":
-    st.header("🧪 Testes de Conversão URL")
+# elif st.session_state.current_page == "test_github_conversion":
+    # st.header("🧪 Testes de Conversão URL")
     tab1, tab2 = st.tabs(["Teste de Conversão", "Teste de Reprodução"])
 
     with tab1:
@@ -869,8 +869,8 @@ elif st.session_state.current_page == "test_github_conversion":
     with tab2:
         test_audio_playback()
 
-elif st.session_state.current_page == "debug_conversion":
-    debug_github_conversion()
+# elif st.session_state.current_page == "debug_conversion":
+    # debug_github_conversion()
 
     if st.button("Voltar para o Player"):
         st.session_state.current_page = "home"
