@@ -64,6 +64,7 @@ if "popup_shown" not in st.session_state:
 # ==============================
 # CONFIGURAÇÕES DE SEGURANÇA
 # ==============================
+admin_name = "Schutz"
 ADMIN_PASSWORD = "wavesong9090" 
 
 # ==============================
@@ -1081,24 +1082,34 @@ elif st.session_state.current_page == "notifications":
         st.success(f"Você tem {len(unread_notifications)} notificação(ões) não lida(s)")
 
         for notification in unread_notifications:
-            with st.container():
-                st.markdown(f"**{notification['timestamp']}**")
-                st.write(notification['message'])
-                if st.button("Marcar como lida", key=f"read_{notification['id']}"):
+             with st.container():
+                st.markdown(
+                    f"""
+                    <div style='
+                        background-color:#1f2937;
+                        padding:15px;
+                        border-radius:10px;
+                        margin-bottom:10px;
+                        color:#f9fafb;
+                        box-shadow: 2px 2px 10px rgba(0,0,0,0.3);
+                    '>
+                        <p style='font-size:12px;color:#9ca3af;'>{notification['timestamp']}</p>
+                        <p style='font-size:16px;margin-top:5px;'>{notification['message']}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                if st.button("✅ Marcar como lida", key=f"read_{notification['id']}"):
                     if mark_notification_as_read(notification['id']):
                         st.success("Notificação marcada como lida!")
                         st.rerun()
             st.markdown("---")
     else:
-        st.info("Não há notificações não lidas.") 
-
-    if st.button("Voltar para o Início", key="back_from_notifications"): # key unica
-        st.session_state.current_page = "home"
-
-elif st.session_state.current_page == "notification_panel":
-    show_notification_panel()
-
-    if st.button("Voltar para o Início", key="back_from_notif_panel"):
+        st.info("Não há notificações não lidas.")
+        
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("⬅️ Voltar para o Início", key="back_from_notifications"):
         st.session_state.current_page = "home"
 
 # ==============================
