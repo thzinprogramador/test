@@ -1,4 +1,3 @@
-import streamlit.components.v1 as components
 import streamlit as st
 import firebase_admin
 import requests 
@@ -69,87 +68,108 @@ ADMIN_PASSWORD = "wavesong9090"
 # FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (VERSÃO CORRIGIDA)
 # ==============================
 def show_welcome_popup():
-    if 'popup_closed' in st.session_state and st.session_state.popup_closed:
+    """Mostra pop-up com aparência glass + usa um st.button posicionado por CSS para 'parecer' dentro do popup."""
+    if st.session_state.get("popup_closed", False):
         return
 
-    # HTML do pop-up com comunicação JS -> Streamlit
-    components.html("""
-        <style>
-        .overlay {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(0,0,0,0.7);
-            z-index: 9999;
-        }
-        .popup-container {
-            background: rgba(0,0,0,0.5);
-            backdrop-filter: blur(10px);
-            padding: 25px;
-            border-radius: 15px;
-            color: white;
-            border: 2px solid #1DB954;
-            width: 50%;
-            position: fixed;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 10000;
-            text-align: center;
-        }
-        .popup-container h2 { margin: 0; color: white; }
-        .instructions {
-            background: rgba(0,0,0,0.7);
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-        .instructions h4 { margin: 0 0 15px 0; color: #1DB954; }
-        .footer {
-            text-align: center;
-            font-size: 12px;
-            opacity: 0.7;
-            margin-bottom: 15px;
-        }
-        .close-btn {
-            background-color: #1DB954;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 10px;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            margin-top: 20px;
-        }
-        </style>
+    # HTML + CSS do pop-up (overlay)
+    st.markdown(
+    """
+    <style>
+    /* Overlay (fundo escuro) */
+    .ws-overlay {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(0,0,0,0.7);
+        z-index: 9998;
+    }
 
-        <div class="overlay" id="popup">
-            <div class="popup-container">
-                <h2>🌊 Bem-vindo ao Wave!</h2>
-                <div style="font-size: 14px; opacity: 0.8; margin-top: 5px;">Site em desenvolvimento!</div>
-                <div class="instructions">
-                    <h4>🎯 Instruções Importantes:</h4>
-                    <ol style="margin: 0; padding-left: 20px; font-size: 14px;">
-                        <li>Clique nos <strong>'3 pontinhos'</strong> no canto superior direito</li>
-                        <li>Vá em <strong>Settings</strong></li>
-                        <li>Escolha <strong>"Dark theme"</strong> para melhor experiência</li>
-                    </ol>
-                </div>
-                <div class="footer">Shutz agradece, bom proveito!!! 🎵</div>
-                <button class="close-btn" onclick="sendMessage()">Entendi, vamos lá! 🎧</button>
-            </div>
+    /* Caixa do popup (glass) */
+    .ws-popup {
+        background: rgba(0,0,0,0.45);
+        backdrop-filter: blur(10px);
+        padding: 28px;
+        border-radius: 14px;
+        color: white;
+        border: 2px solid #1DB954;
+        width: 60%;
+        max-width: 980px;
+        min-width: 420px;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 9999;  /* abaixo do botão customizado, acima do overlay */
+        text-align: center;
+        box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+    }
+
+    .ws-popup h2 { margin: 0 0 10px 0; font-size: 30px; }
+    .ws-popup .sub { font-size: 14px; opacity: 0.8; margin-bottom: 14px; }
+    .ws-instructions {
+        background: rgba(0,0,0,0.55);
+        padding: 14px;
+        border-radius: 10px;
+        margin-bottom: 18px;
+    }
+    .ws-instructions h4 { margin: 0 0 8px 0; color: #1DB954; }
+
+    /* ====== HACK: posiciona o st.button (último .stButton) exatamente sobre o botão visual do popup ====== */
+    /* Selecionamos o último botão da página e o transformamos em fixed para posicionar dentro do popup */
+    .stApp .stButton:last-of-type {
+        position: fixed;
+        left: 50%;
+        top: 63%; /* ajusta verticalmente — aumentar ou diminuir se necessário */
+        transform: translate(-50%, -50%);
+        z-index: 10000; /* acima do popup */
+        width: auto;    /* permitir ajustar largura */
+        pointer-events: auto;
+    }
+
+    /* Estilo do botão para combinar com o design do popup */
+    .stApp .stButton:last-of-type > button {
+        background-color: #1DB954 !important;
+        color: #fff !important;
+        padding: 10px 22px !important;
+        border-radius: 10px !important;
+        font-size: 16px !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    </style>
+
+    <div class="ws-overlay" id="ws-overlay"></div>
+
+    <div class="ws-popup" role="dialog" aria-label="Bem-vindo ao Wave">
+        <h2>🌊 Bem-vindo ao Wave!</h2>
+        <div class="sub">Site em desenvolvimento!</div>
+
+        <div class="ws-instructions">
+            <h4>🎯 Instruções Importantes:</h4>
+            <ol style="margin:0; padding-left:20px; text-align:left;">
+                <li>Clique nos <strong>'3 pontinhos'</strong> no canto superior direito</li>
+                <li>Vá em <strong>Settings</strong></li>
+                <li>Escolha <strong>"Dark theme"</strong> para melhor experiência</li>
+            </ol>
         </div>
 
-        <script>
-        function sendMessage(){
-            const streamlitMsg = {"isStreamlitMessage":true,"type":"streamlit:setComponentValue","value":"close"};
-            window.parent.postMessage(streamlitMsg, "*");
-        }
-        </script>
-    """, height=600, key="welcome_popup")
+        <div style="font-size:12px; opacity:0.8; margin-bottom: 40px;">
+            Shutz agradece, bom proveito!!! 🎵
+        </div>
 
-    # Captura o valor vindo do componente
-    if "welcome_popup" in st.session_state and st.session_state["welcome_popup"] == "close":
+        <!-- Note: o botão real do Streamlit será posicionado por CSS sobre este local -->
+        <div style="height: 1px;"></div>
+    </div>
+    """,
+    unsafe_allow_html=True
+    )
+
+    # Criamos o botão logo após o HTML para garantir que seja o último .stButton
+    btn_placeholder = st.empty()
+    if btn_placeholder.button("Entendi, vamos lá! 🎧", key="close_popup"):
         st.session_state.popup_closed = True
+        # opcional: pode usar st.experimental_rerun() para redraw imediato
         st.experimental_rerun()
 
 
