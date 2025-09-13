@@ -756,7 +756,7 @@ with st.sidebar:
         elif github_count > 0:
           # st.warning(f"⚠️ Apenas {converted_count}/{github_count} URLs podem ser convertidas")
             st.write("**⚠️ nem todas as musicas estão disponível para ouvir**")
-          # for url in problematic_urls:
+            for url in problematic_urls:
                 st.code(url)
 
             
