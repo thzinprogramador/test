@@ -842,12 +842,6 @@ if st.sidebar.button("📢 Painel de Notificações (Admin)", use_container_widt
     st.session_state.show_request_form = False
 
 # ==============================
-# POP-UP DE BOAS-VINDAS
-# ==============================
-if not st.session_state.popup_closed:
-    show_welcome_popup()
-
-# ==============================
 # PÁGINAS
 # ==============================
 if st.session_state.current_page == "home":
