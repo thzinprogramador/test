@@ -68,7 +68,11 @@ ADMIN_PASSWORD = "wavesong9090"
 # FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (VERSÃO CORRIGIDA)
 # ==============================
 def show_welcome_popup():
-    """Exibe um pop-up de boas-vindas com efeito de vidro fosco e instruções usando Streamlit."""
+    """Exibe um pop-up de boas-vindas com efeito de vidro fosco, instruções e um botão para fechar, exibido uma única vez."""
+
+    # Verifica se o pop-up já foi fechado
+    if 'popup_closed' in st.session_state and st.session_state.popup_closed:
+        return  # Não exibe o pop-up se já foi fechado
 
     # Criar um overlay escuro
     st.markdown("""
@@ -92,12 +96,12 @@ def show_welcome_popup():
             border-radius: 15px;
             color: white;
             border: 2px solid #1DB954;
-            width: 60%;
-            margin-left: 20%;
+            width: 50%;
+            margin-left: 25%;
             box-sizing: border-box;
             position: fixed;
             top: 20%;
-            left: 20%;
+            left: 25%;
             z-index: 1000;  /* Garante que o pop-up esteja acima do overlay */
             text-align: center;
         }
@@ -125,6 +129,18 @@ def show_welcome_popup():
             opacity: 0.7;
             margin-bottom: 15px;
         }
+
+        /* Botão de fechar */
+        .close-btn {
+            background-color: #1DB954;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+        }
         </style>
         <div class="overlay"></div>
     """, unsafe_allow_html=True)
@@ -145,13 +161,15 @@ def show_welcome_popup():
             <div class="footer">
                 Shutz agradece, bom proveito!!! 🎵
             </div>
+            <button class="close-btn" onclick="window.location.reload();">Entendi, vamos lá! 🎧</button>
         </div>
     """, unsafe_allow_html=True)
 
-    # Botão para fechar, fora da sobreposição para garantir que o botão seja clicável
+    # Botão para fechar o pop-up
     if st.button("Entendi, vamos lá! 🎧", use_container_width=True, key="close_popup"):
-        st.session_state.popup_closed = True
-        st.experimental_rerun()
+        st.session_state.popup_closed = True  # Marca o pop-up como fechado
+        st.experimental_rerun()  # Recarrega a página, mas sem o pop-up
+        
 
 # ==============================
 # FIREBASE CONFIG (JSON DIRETO)
