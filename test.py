@@ -67,8 +67,6 @@ ADMIN_PASSWORD = "wavesong9090"
 # ==============================
 # FUNÇÃO PARA O POP-UP DE BOAS-VINDAS (VERSÃO CORRIGIDA)
 # ==============================
-import streamlit as st
-
 def show_welcome_popup():
     """Exibe um pop-up de boas-vindas com efeito de vidro fosco, instruções e um botão para fechar, exibido uma única vez."""
 
