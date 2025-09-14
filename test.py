@@ -1485,7 +1485,7 @@ with st.sidebar:
     else:
         # Usuário não logado
         if st.button("🔐 Login/Cadastro", key="login_btn"):
-        st.session_state.show_login = not st.session_state.get('show_login', False)
+            st.session_state.show_login = not st.session_state.get('show_login', False)
             st.rerun()
             
         if st.session_state.get('show_login', False):
