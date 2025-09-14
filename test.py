@@ -882,7 +882,7 @@ def add_system_notification(title, artist, image_url, song_id):
                 "song_id": song_id,
                 "timestamp": datetime.datetime.now().isoformat(),
                 "read_by": {},
-                "formatted_message": f"""🎵 Nova música adicionada!
+                "formatted_message": f"""Nova música adicionada!
 
 {title}
 {artist}"""
