@@ -7,6 +7,8 @@ import random
 import time
 import base64
 import threading
+import supabase
+from supabase import create_client, Client
 from firebase_admin import credentials, db
 from io import BytesIO
 from PIL import Image
@@ -67,9 +69,6 @@ if "admin_mode" not in st.session_state:
 # ==============================
 # CONFIGURAÇÕES DO SUPABASE
 # ==============================
-import supabase
-from supabase import create_client, Client
-
 SUPABASE_URL = "https://wvouegbuvuairukkupit.supabase.co" 
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2b3VlZ2J1dnVhaXJ1a2t1cGl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0NzM3NjAsImV4cCI6MjA3MzA0OTc2MH0.baLFbRTaMM8FCFG2a-Yb80Sg7JqhdQ6EMld8h7BABiE"
 # Inicializar cliente Supabase
