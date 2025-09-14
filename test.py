@@ -186,21 +186,26 @@ def debug_supabase_users():
 debug_supabase_users()
 
 
-# Verificação da estrutura do banco - executar uma vez
-if "supabase_checked" not in st.session_state:
-    st.session_state.supabase_checked = True
+# Verificação completa da estrutura
+if "full_debug_done" not in st.session_state:
+    st.session_state.full_debug_done = True
     
-    # Verificar tabelas
-    st.sidebar.info("🔍 Verificando estrutura do Supabase...")
+    st.sidebar.info("🔍 Verificação completa da estrutura...")
     
-    # Verificar tabela users
-    users_check = supabase_client.table("users").select("count").execute()
-    st.sidebar.info(f"Tabela 'users': {users_check.get('data', [])}")
-    
-    # Verificar se o usuário schutz existe
-    schutz_check = supabase_client.table("users").select("username").eq("username", "schutz").execute()
-    st.sidebar.info(f"Usuário 'schutz': {schutz_check.get('data', [])}")
-
+    # Verificar estrutura da tabela users
+    try:
+        # Verificar colunas
+        users_columns = supabase_client.table("users").select("count").execute()
+        st.sidebar.info(f"Estrutura users: {users_columns}")
+        
+        # Verificar usuários individualmente
+        all_users = supabase_client.table("users").select("*").execute()
+        if all_users.get("data"):
+            for user in all_users["data"]:
+                st.sidebar.info(f"Usuário: {user.get('username')} - ID: {user.get('id')} - Admin: {user.get('is_admin')}")
+        
+    except Exception as e:
+        st.sidebar.error(f"Erro na verificação: {e}")
 
 # ==============================
 # SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO (SEM EMAIL)
@@ -243,25 +248,38 @@ def sign_up(username, password):
             return False, "Usuário já existe!"
         
         # Criar novo usuário
-        response = supabase_client.table("users").insert({
+        user_data = {
             "username": username,
             "password_hash": hash_password(password),
-            "created_at": datetime.datetime.now().isoformat()
-        }).execute()
+            "created_at": datetime.datetime.now().isoformat(),
+            "is_admin": False
+        }
         
-        if response.get("data"):  # Corrigido aqui
+        response = supabase_client.table("users").insert(user_data).execute()
+        
+        # Debug: verificar a resposta completa
+        st.info(f"Resposta do sign_up: {response}")
+        
+        if response and response.get("data"):
             # ENVIAR NOTIFICAÇÃO PARA TELEGRAM
             telegram_message = f"👤 Nova conta criada!\n\nUsuário: {username}\nData: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}"
             send_telegram_notification(telegram_message)
             
             return True, "Conta criada com sucesso!"
-        return False, "Erro ao criar conta"
+        else:
+            st.error(f"Erro na resposta: {response}")
+            return False, "Erro ao criar conta"
+            
     except Exception as e:
+        st.error(f"Erro no sign_up: {str(e)}")
         return False, f"Erro: {str(e)}"
 
 def sign_in(username, password):
     """Autentica um usuário usando username e senha"""
     try:
+        # Debug da busca
+        debug_user = debug_user_search(username)
+        
         # Buscar usuário no banco
         response = supabase_client.table("users").select("*").eq("username", username).execute()
         
@@ -269,12 +287,28 @@ def sign_in(username, password):
         
         if not response.get("data") or len(response.get("data", [])) == 0:
             st.error(f"Usuário '{username}' não encontrado na tabela 'users'")
-            # Debug: verificar todos os usuários
-            all_users = supabase_client.table("users").select("username").execute()
-            st.info(f"Todos os usuários no sistema: {all_users.get('data', [])}")
-            return False, "Usuário não encontrado!"
-        
-        user_data = response["data"][0]
+            
+            # Tentar busca alternativa
+            all_users_response = supabase_client.table("users").select("username, id").execute()
+            if all_users_response.get("data"):
+                st.info(f"Todos os usuários no sistema: {all_users_response['data']}")
+                
+                # Verificar se o usuário existe com busca manual
+                for user in all_users_response["data"]:
+                    if user.get("username") == username:
+                        st.success(f"Usuário encontrado com busca manual: {user}")
+                        # Buscar dados completos
+                        user_id = user.get("id")
+                        user_full_response = supabase_client.table("users").select("*").eq("id", user_id).execute()
+                        if user_full_response.get("data"):
+                            user_data = user_full_response["data"][0]
+                            break
+                else:
+                    return False, "Usuário não encontrado!"
+            else:
+                return False, "Usuário não encontrado!"
+        else:
+            user_data = response["data"][0]
         
         # Debug: verificar estrutura do usuário
         st.info(f"Dados do usuário encontrado: {user_data}")
@@ -378,22 +412,41 @@ def promote_to_admin(target_username):
             st.error("❌ Apenas super administradores podem promover usuários")
             return False
         
-        # Buscar o ID do usuário pelo username - CORRIGIDO
-        user_response = supabase_client.table("users").select("id, username").eq("username", target_username).execute()
+        # Debug: verificar todos os usuários primeiro
+        all_users = supabase_client.table("users").select("id, username, is_admin").execute()
+        st.info(f"Todos os usuários: {all_users.get('data', [])}")
+        
+        # Buscar o ID do usuário pelo username
+        user_response = supabase_client.table("users").select("id, username, is_admin").eq("username", target_username).execute()
+        
+        st.info(f"Resposta da busca por {target_username}: {user_response}")
         
         if not user_response.get("data") or len(user_response.get("data", [])) == 0:
             st.error("❌ Usuário não encontrado")
-            return False
+            
+            # Tentar busca manual
+            if all_users.get("data"):
+                for user in all_users["data"]:
+                    if user.get("username") == target_username:
+                        user_id = user["id"]
+                        username = user["username"]
+                        break
+                else:
+                    return False
+            else:
+                return False
+        else:
+            user_data = user_response["data"][0]
+            user_id = user_data["id"]
+            username = user_data["username"]
         
-        user_data = user_response["data"][0]
-        user_id = user_data["id"]
-        username = user_data["username"]
-        
-        # Atualizar o campo admin para True - CORRIGIDO
+        # Atualizar o campo is_admin para True
         update_response = supabase_client.table("users").update({
             "is_admin": True,
             "updated_at": datetime.datetime.now().isoformat()
         }).eq("id", user_id).execute()
+        
+        st.info(f"Resposta da atualização: {update_response}")
         
         if update_response.get("data"):
             st.success(f"✅ Usuário {username} promovido a administrador!")
@@ -405,6 +458,30 @@ def promote_to_admin(target_username):
     except Exception as e:
         st.error(f"❌ Erro ao promover usuário: {e}")
         return False
+
+def debug_user_search(username):
+    """Debug da busca de usuário"""
+    try:
+        st.info(f"Buscando usuário: {username}")
+        
+        # Tentar diferentes formas de buscar
+        response1 = supabase_client.table("users").select("*").eq("username", username).execute()
+        st.info(f"Busca 1 - eq: {response1}")
+        
+        response2 = supabase_client.table("users").select("*").execute()
+        st.info(f"Todos os usuários: {response2}")
+        
+        # Verificar se o usuário está na lista
+        if response2.get("data"):
+            for user in response2["data"]:
+                if user.get("username") == username:
+                    st.success(f"Usuário encontrado na lista completa: {user}")
+                    return user
+        
+        return None
+    except Exception as e:
+        st.error(f"Erro no debug: {e}")
+        return None
 
 # ==============================
 # CONFIGURAÇÕES DE SEGURANÇA
@@ -655,10 +732,17 @@ def mark_notification_as_read(notification_id, notification_type):
         elif notification_type == "music":
             ref = db.reference(f"/system_notifications/{notification_id}/read_by/{user_key}")
         else:
+            st.error(f"Tipo de notificação desconhecido: {notification_type}")
             return False
         
         ref.set(True)
+        
+        # Atualizar o cache de notificações não lidas
+        if "unread_notifications_cache" in st.session_state:
+            st.session_state.unread_notifications_cache = None
+            
         return True
+        
     except Exception as e:
         st.error(f"❌ Erro ao marcar notificação como lida: {e}")
         return False
@@ -695,6 +779,44 @@ def show_admin_management():
             st.info("Nenhum administrador cadastrado.")
     except Exception as e:
         st.error(f"❌ Erro ao carregar administradores: {e}")
+
+
+def send_specific_user_notification():
+    """Interface para enviar notificação para usuário específico"""
+    st.subheader("📨 Enviar Notificação para Usuário Específico")
+    
+    # Buscar todos os usuários
+    try:
+        users_response = supabase_client.table("users").select("id, username").execute()
+        
+        if users_response.get("data"):
+            users = {user["username"]: user["id"] for user in users_response["data"]}
+            
+            with st.form("specific_notification_form"):
+                selected_user = st.selectbox(
+                    "Selecionar usuário:",
+                    options=list(users.keys())
+                )
+                
+                message = st.text_area("Mensagem:", placeholder="Digite a mensagem para o usuário...")
+                
+                submitted = st.form_submit_button("Enviar Notificação")
+                
+                if submitted:
+                    if not message.strip():
+                        st.error("A mensagem não pode estar vazia!")
+                        return
+                    
+                    user_id = users[selected_user]
+                    if send_user_notification(user_id, message):
+                        st.success(f"✅ Notificação enviada para {selected_user}!")
+                    else:
+                        st.error("❌ Erro ao enviar notificação!")
+        else:
+            st.info("Nenhum usuário cadastrado.")
+            
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar usuários: {e}")
 
 # função para verificar o status do Telegram
 def check_telegram_bot_status():
@@ -1234,7 +1356,7 @@ def show_notification_panel():
         return
     
     # Abas para diferentes tipos de notificações
-    tab1, tab2, tab3 = st.tabs(["📢 Notificações Globais", "🎵 Notificações de Músicas", "🤖 Status do Telegram"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📢 Notificações Globais", "🎵 Notificações de Músicas", "🤖 Status do Telegram", "📨 Notificações para Usuários"])
     
     with tab1:
         with st.form("notification_form"):
@@ -1337,6 +1459,9 @@ def show_notification_panel():
                     st.success("✅ Bot reconectado!")
                 except Exception as e:
                     st.error(f"❌ Erro: {e}")
+
+    with tab4:
+    send_specific_user_notification()
     
     if st.button("🔒 Sair do Painel de Notificações"):
         st.session_state.admin_authenticated = False
@@ -1827,9 +1952,9 @@ elif st.session_state.current_page == "notifications":
                 if is_unread:
                     if st.button("✅ Marcar como lida", key=f"read_{i}_{notification.get('id', 'unknown')}"):
                         if mark_notification_as_read(notification.get('id'), notification.get('type', 'global')):
-                            st.success("✅ Notificação marcada como lida!")
+                            st.success("✅ Notificação lida!")
                             time.sleep(1)
-                            st.rerun()
+                            st.experimental_rerun()
                 
                 st.markdown("---")
         
