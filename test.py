@@ -481,35 +481,6 @@ def initialize_database():
     except Exception as e:
         return False
 
-
-#TESTEEEEEEEEE    
-
-def debug_check_notification_status(notification_id, notification_type):
-    """Função de debug para verificar o status de uma notificação"""
-    if not st.session_state.firebase_connected or not st.session_state.user_id:
-        return "Não conectado"
-    
-    user_id = st.session_state.user_id
-    
-    try:
-        if notification_type == "global":
-            ref = db.reference(f"/global_notifications/{notification_id}/read_by/{user_id}")
-        elif notification_type == "music":
-            ref = db.reference(f"/system_notifications/{notification_id}/read_by/{user_id}")
-        elif notification_type == "personal":
-            ref = db.reference(f"/user_notifications/{user_id}/{notification_id}/read")
-        else:
-            return "Tipo inválido"
-        
-        status = ref.get()
-        return f"Status: {status} (Usuario: {user_id})"
-        
-    except Exception as e:
-        return f"Erro: {e}"
-
-
-# ------------------------------------------------------
-
 def get_all_songs():
     try:
         if st.session_state.firebase_connected:
@@ -658,66 +629,35 @@ def get_all_notifications():
 
 def send_user_notification(user_id, message, notification_type="info"):
     """Envia uma notificação para um usuário específico"""
-    try:
-        ref = db.reference(f"/user_notifications/{user_id}")
-        notification_data = {
-            "message": message,
-            "type": notification_type,
-            "timestamp": datetime.datetime.now().isoformat(),
-            "read": False,
-            "sent_by": st.session_state.username if st.session_state.username else "Sistema"
-        }
-        
-        # Enviar notificação
-        new_ref = ref.push(notification_data)
-        
-        # Enviar também para Telegram
-        user_response = supabase_client.table("users").select("username").eq("id", user_id).execute()
-        username = user_response["data"][0]["username"] if user_response.get("data") else str(user_id)
-        
-        telegram_msg = f"📨 Notificação enviada para {username}:\n{message}"
-        send_telegram_notification(telegram_msg)
-        
+    # Primeiro envia para Telegram
+    user_response = supabase_client.table("users").select("username").eq("id", user_id).execute()
+    username = user_response["data"][0]["username"] if user_response.get("data") else str(user_id)
+    
+    telegram_msg = f"📨 Notificação para {username}:\n{message}"
+    telegram_success = send_telegram_notification(telegram_msg)
+    
+    if not telegram_success:
+        st.error("❌ Erro ao enviar notificação para Telegram")
+        return False
+    
+    # Depois salva no Firebase
+    if st.session_state.firebase_connected:
+        try:
+            ref = db.reference(f"/user_notifications/{user_id}")
+            notification_data = {
+                "message": message,
+                "type": notification_type,
+                "timestamp": datetime.datetime.now().isoformat(),
+                "read": False,
+                "sent_by": st.session_state.username if st.session_state.username else "Sistema"
+            }
+            ref.push(notification_data)
+            return True
+        except Exception as e:
+            st.error(f"❌ Erro ao enviar notificação para usuário: {e}")
+            return False
+    else:
         return True
-            
-    except Exception as e:
-        st.error(f"❌ Erro ao enviar notificação para usuário: {e}")
-        return False
-
-def mark_user_notification_as_read(notification_id):
-    """Marca uma notificação pessoal como lida"""
-    if not st.session_state.user_id:
-        return False
-    
-    try:
-        ref = db.reference(f"/user_notifications/{st.session_state.user_id}/{notification_id}/read")
-        ref.set(True)
-        return True
-    except Exception as e:
-        st.error(f"❌ Erro ao marcar notificação como lida: {e}")
-        return False
-
-def check_if_global_notification_read(note_id):
-    """Verifica se uma notificação global foi lida pelo usuário atual"""
-    if not st.session_state.user_id:
-        return False
-    
-    try:
-        ref = db.reference(f"/global_notifications/{note_id}/read_by/{st.session_state.user_id}")
-        return ref.get() or False
-    except:
-        return False
-
-def check_if_system_notification_read(note_id):
-    """Verifica se uma notificação do sistema foi lida pelo usuário atual"""
-    if not st.session_state.user_id:
-        return False
-    
-    try:
-        ref = db.reference(f"/system_notifications/{note_id}/read_by/{st.session_state.user_id}")
-        return ref.get() or False
-    except:
-        return False
 
 def mark_notification_as_read(notification_id, notification_type):
     """Marca uma notificação como lida apenas para o usuário atual"""
@@ -870,8 +810,19 @@ def check_telegram_bot_status():
         return f"❌ Erro: {str(e)[:50]}..."
 
 def add_system_notification(title, artist, image_url, song_id):
-    """Adiciona notificação ao sistema interno de notificações"""
+    """Adiciona notificação ao sistema interno de notificações e envia para Telegram"""
     try:
+        # Primeiro envia para o Telegram
+        telegram_message = f"""🎵 Nova música adicionada!
+
+{title}
+{artist}"""
+
+        if not send_telegram_notification(telegram_message):
+            st.error("❌ Erro ao enviar notificação para Telegram")
+            return False
+
+        # Depois salva no Firebase (se estiver conectado)
         if st.session_state.firebase_connected:
             ref = db.reference("/system_notifications")
             notification_data = {
@@ -882,36 +833,18 @@ def add_system_notification(title, artist, image_url, song_id):
                 "song_id": song_id,
                 "timestamp": datetime.datetime.now().isoformat(),
                 "read_by": {},
-                "formatted_message": f"""Nova música adicionada!
-
-{title}
-{artist}"""
+                "formatted_message": telegram_message
             }
-            st.info(f"💾 Tentando salvar notificação para: {title} - {artist}")
-            new_notification_ref = ref.push(notification_data)
-            notification_key = new_notification_ref.key
-            st.success(f"✅ Notificação salva com ID: {notification_key}")
             
-            # Verificar imediatamente se foi salva
-            try:
-                check_ref = db.reference(f"/system_notifications/{notification_key}")
-                saved_notification = check_ref.get()
-                if saved_notification:
-                    st.info("✅ Notificação verificada no banco de dados!")
-                    return True
-                else:
-                    st.error("❌ Notificação não encontrada após salvar!")
-                    return False
-            except Exception as check_error:
-                st.error(f"❌ Erro ao verificar notificação: {check_error}")
-                return False
+            new_notification_ref = ref.push(notification_data)
+            return True
         else:
-            st.error("❌ Firebase não conectado para salvar notificação")
-            return False
+            return True  # Retorna True mesmo se Firebase não estiver conectado, pois Telegram foi enviado
+            
     except Exception as e:
         st.error(f"❌ Erro ao adicionar notificação do sistema: {e}")
-        st.error(f"Traceback: {traceback.format_exc()}")
         return False
+
 
 def check_firebase_rules():
     """Verifica se as regras do Firebase estão configuradas corretamente"""
@@ -1148,68 +1081,84 @@ def send_telegram_notification(message, retry_count=2):
     return False
 
 def send_global_notification(message):
-    if not st.session_state.firebase_connected:
+    """Envia notificação global para todos os usuários e para o Telegram"""
+    # Primeiro envia para Telegram
+    telegram_success = send_telegram_notification(f"📢 Notificação Global:\n{message}")
+    
+    if not telegram_success:
+        st.error("❌ Erro ao enviar notificação para Telegram")
         return False
     
-    try:
-        ref = db.reference("/global_notifications")
-        notification_data = {
-            "message": message,
-            "admin": "Schutz",
-            "timestamp": datetime.datetime.now().isoformat(),
-            "read_by": {}
-        }
-        ref.push(notification_data)
-        
-        send_telegram_notification(f"📢 Nova notificação global:\n{message}")
-        return True
-    except Exception as e:
-        st.error(f"❌ Erro ao enviar notificação global: {e}")
-        return False
+    # Depois salva no Firebase
+    if st.session_state.firebase_connected:
+        try:
+            ref = db.reference("/global_notifications")
+            notification_data = {
+                "message": message,
+                "admin": st.session_state.username if st.session_state.username else "Admin",
+                "timestamp": datetime.datetime.now().isoformat(),
+                "read_by": {}
+            }
+            ref.push(notification_data)
+            return True
+        except Exception as e:
+            st.error(f"❌ Erro ao salvar notificação global: {e}")
+            return False
+    else:
+        return True  # Retorna True se Telegram foi enviado, mesmo sem Firebase
+
 
 def check_unread_notifications():
-    """Verifica notificações não lidas para o usuário atual"""
+    """Verifica se há notificações novas - versão simplificada"""
     if not st.session_state.firebase_connected or not st.session_state.user_id:
         return 0
     
     # Usar cache para melhor performance
     current_time = time.time()
     if (st.session_state.unread_notifications_cache is not None and 
-        current_time - st.session_state.unread_cache_timestamp < 30):  # 30 segundos de cache
+        current_time - st.session_state.unread_cache_timestamp < 30):
         return st.session_state.unread_notifications_cache
     
     try:
-        # Buscar notificações não lidas
-        unread_notifications = get_all_notifications()
-        unread_count = len(unread_notifications)
+        # Contagem simplificada - verifica apenas se há notificações recentes
+        count = 0
+        
+        # Verificar notificações globais
+        try:
+            global_ref = db.reference("/global_notifications")
+            global_data = global_ref.order_by_child("timestamp").limit_to_last(1).get()
+            if global_data:
+                count += 1
+        except:
+            pass
+        
+        # Verificar notificações de sistema
+        try:
+            system_ref = db.reference("/system_notifications")
+            system_data = system_ref.order_by_child("timestamp").limit_to_last(1).get()
+            if system_data:
+                count += 1
+        except:
+            pass
+        
+        # Verificar notificações pessoais
+        try:
+            personal_ref = db.reference(f"/user_notifications/{st.session_state.user_id}")
+            personal_data = personal_ref.order_by_child("timestamp").limit_to_last(1).get()
+            if personal_data:
+                count += len(personal_data)
+        except:
+            pass
         
         # Atualizar cache
-        st.session_state.unread_notifications_cache = unread_count
+        st.session_state.unread_notifications_cache = count
         st.session_state.unread_cache_timestamp = current_time
         
-        return unread_count
+        return count
         
     except Exception as e:
-        st.error(f"❌ Erro ao verificar notificações: {e}")
         return 0
 
-def mark_notification_as_read(notification_id, notification_type):
-    """Marca uma notificação como lida"""
-    if not st.session_state.firebase_connected:
-        return False
-    
-    try:
-        user_key = "anonymous"
-        if notification_type == "global":
-            ref = db.reference(f"/global_notifications/{notification_id}/read_by/{user_key}")
-        else:
-            ref = db.reference(f"/system_notifications/{notification_id}/read_by/{user_key}")
-        
-        ref.set(True)
-        return True
-    except Exception as e:
-        st.error(f"❌ Erro ao marcar notificação como lida: {e}")
-        return False
 
 def setup_telegram_webhook():
     if not TELEGRAM_NOTIFICATIONS_ENABLED:
@@ -1924,124 +1873,101 @@ elif st.session_state.current_page == "notifications":
             st.rerun()
         st.stop()
     
-    # Estado para controlar recarregamentos
-    if "notification_refresh" not in st.session_state:
-        st.session_state.notification_refresh = 0
+    # Botão para recarregar
+    if st.button("🔄 Atualizar Notificações", key="refresh_notifications"):
+        st.session_state.notifications_cache = None
+        st.rerun()
     
-    # Botão para recarregar notificações
-    col1, col2 = st.columns([3, 1])
-    with col2:
-        if st.button("🔄 Atualizar", key="refresh_notifications_btn"):
-            st.session_state.notification_refresh += 1
-            st.session_state.unread_notifications_cache = None
-            st.session_state.notifications_cache = None
-            st.session_state.notifications_cache_timestamp = 0
-            st.rerun()
-    
-    # Buscar notificações
     try:
-        all_notifications = get_all_notifications()
+        # Buscar TODAS as notificações (sem filtrar por lidas)
+        all_notifications = []
+        
+        # Notificações globais
+        try:
+            global_ref = db.reference("/global_notifications")
+            global_data = global_ref.get() or {}
+            for note_id, note_data in global_data.items():
+                all_notifications.append({
+                    "id": note_id,
+                    "type": "global",
+                    "title": "📢 Notificação Global",
+                    "message": note_data.get("message", ""),
+                    "timestamp": note_data.get("timestamp", ""),
+                    "admin": note_data.get("admin", "Admin")
+                })
+        except:
+            pass
+        
+        # Notificações de música
+        try:
+            system_ref = db.reference("/system_notifications")
+            system_data = system_ref.get() or {}
+            for note_id, note_data in system_data.items():
+                all_notifications.append({
+                    "id": note_id,
+                    "type": "music",
+                    "title": "🎵 Nova Música",
+                    "message": f"{note_data.get('title', '')} - {note_data.get('artist', '')}",
+                    "timestamp": note_data.get("timestamp", "")
+                })
+        except:
+            pass
+        
+        # Notificações pessoais
+        try:
+            personal_ref = db.reference(f"/user_notifications/{st.session_state.user_id}")
+            personal_data = personal_ref.get() or {}
+            for note_id, note_data in personal_data.items():
+                all_notifications.append({
+                    "id": note_id,
+                    "type": "personal",
+                    "title": f"📨 {note_data.get('sent_by', 'Sistema')}",
+                    "message": note_data.get("message", ""),
+                    "timestamp": note_data.get("timestamp", "")
+                })
+        except:
+            pass
+        
+        # Ordenar por timestamp
+        try:
+            all_notifications.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        except:
+            pass
         
         if not all_notifications:
-            st.info("🎉 Não há notificações não lidas!")
+            st.info("📝 Não há notificações no momento.")
             if st.button("Voltar para o Início", key="back_from_notifications_empty"):
                 st.session_state.current_page = "home"
             st.stop()
         
-        st.success(f"📬 Você tem {len(all_notifications)} notificação(ões) não lida(s)")
-        st.markdown("---")
-        
         # Exibir notificações
-        for i, notification in enumerate(all_notifications):
-            # Estilo para notificações não lidas
-            border_color = "#1DB954"
-            background_color = "#1f2937"
+        for notification in all_notifications[:20]:  # Limitar a 20 mais recentes
+            timestamp = notification.get("timestamp", "")
+            if timestamp:
+                try:
+                    dt = datetime.datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                    timestamp_display = dt.strftime("%d/%m/%Y %H:%M")
+                except:
+                    timestamp_display = timestamp[:10]
+            else:
+                timestamp_display = "Data não disponível"
             
-            with st.container():
-                if notification.get("type") == "global":
-                    timestamp_display = notification.get("timestamp", "")[:10] if notification.get("timestamp") else "Data não disponível"
-                    
-                    st.markdown(f"""
-                    <div style='
-                        background-color: {background_color};
-                        padding: 15px;
-                        border-radius: 10px;
-                        margin-bottom: 15px;
-                        border-left: 4px solid {border_color};
-                    '>
-                        <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
-                            📢 <strong>{notification.get('admin', 'Admin')}</strong> • {timestamp_display}
-                            <span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>
-                        </p>
-                        <p style='color: white; font-size: 16px; margin: 8px 0 0 0;'>
-                            {notification.get('message', '')}
-                        </p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                elif notification.get("type") == "personal":
-                    timestamp_display = notification.get("timestamp", "")[:10] if notification.get("timestamp") else "Data não disponível"
-                    
-                    st.markdown(f"""
-                    <div style='
-                        background-color: {background_color};
-                        padding: 15px;
-                        border-radius: 10px;
-                        margin-bottom: 15px;
-                        border-left: 4px solid {border_color};
-                    '>
-                        <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
-                            📨 <strong>{notification.get('title', 'Notificação Pessoal')}</strong> • {timestamp_display}
-                            <span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>
-                        </p>
-                        <p style='color: white; font-size: 16px; margin: 8px 0 0 0;'>
-                            {notification.get('message', '')}
-                        </p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                else:
-                    timestamp_display = notification.get("timestamp", "")[:10] if notification.get("timestamp") else "Data não disponível"
-                    title = notification.get('title', 'Sem título')
-                    artist = notification.get('artist', 'Artista desconhecido')
-    
-                    st.markdown(f"""
-                    <div style='
-                        background-color: {background_color};
-                        padding: 15px;
-                        border-radius: 10px;
-                        margin-bottom: 15px;
-                        border-left: 4px solid {border_color};
-                    '>
-                    <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
-                        Nova Música • {timestamp_display}
-                        <span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>
-                    </p>
-                    <p style='color: white; font-size: 18px; font-weight: bold; margin: 8px 0 5px 0;'>
-                        {title}
-                    </p>
-                    <p style='color: #1DB954; font-size: 16px; margin: 0;'>
-                        {artist}
-                    </p>
-                </div>
+            st.markdown(f"""
+            <div style='
+                background-color: #1f2937;
+                padding: 15px;
+                border-radius: 10px;
+                margin-bottom: 15px;
+                border-left: 4px solid #1DB954;
+            '>
+                <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
+                    <strong>{notification['title']}</strong> • {timestamp_display}
+                </p>
+                <p style='color: white; font-size: 16px; margin: 8px 0 0 0;'>
+                    {notification['message']}
+                </p>
+            </div>
             """, unsafe_allow_html=True)
-                
-                # Botão para marcar como lida - COM CHAVE ÚNICA
-                unique_key = f"read_{notification['id']}_{st.session_state.notification_refresh}_{i}"
-                col1, col2 = st.columns([3, 1])
-                with col2:
-                    if st.button("✅ Marcar como Lida", key=unique_key):
-                        if mark_notification_as_read(notification.get('id'), notification.get('type', 'global')):
-                            st.success("Notificação marcada como lida!")
-                            # Forçar recarregamento completo
-                            st.session_state.unread_notifications_cache = None
-                            st.session_state.notifications_cache = None
-                            st.session_state.notifications_cache_timestamp = 0
-                            st.session_state.notification_refresh += 1
-                            time.sleep(0.5)
-                            st.rerun()
-                
-                st.markdown("---")
         
         if st.button("Voltar para o Início", key="back_from_notifications"):
             st.session_state.current_page = "home"
