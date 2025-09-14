@@ -186,16 +186,20 @@ def debug_supabase_users():
 debug_supabase_users()
 
 
-# Verificação final - remover depois de testar
-if st.sidebar.button("🔄 Verificar estrutura completa", key="final_check"):
-    st.sidebar.info("Verificando tabela users...")
-    users_response = supabase_client.table("users").select("*").execute()
-    st.sidebar.write("Users:", users_response.get("data", []))
+# Verificação da estrutura do banco - executar uma vez
+if "supabase_checked" not in st.session_state:
+    st.session_state.supabase_checked = True
     
-    st.sidebar.info("Verificando tabela profiles...")
-    profiles_response = supabase_client.table("profiles").select("*").execute()
-    st.sidebar.write("Profiles:", profiles_response.get("data", []))
-
+    # Verificar tabelas
+    st.sidebar.info("🔍 Verificando estrutura do Supabase...")
+    
+    # Verificar tabela users
+    users_check = supabase_client.table("users").select("count").execute()
+    st.sidebar.info(f"Tabela 'users': {users_check.get('data', [])}")
+    
+    # Verificar se o usuário schutz existe
+    schutz_check = supabase_client.table("users").select("username").eq("username", "schutz").execute()
+    st.sidebar.info(f"Usuário 'schutz': {schutz_check.get('data', [])}")
 
 
 # ==============================
@@ -264,15 +268,20 @@ def sign_in(username, password):
         st.info(f"Resposta do login: {response}")  # Debug
         
         if not response.get("data") or len(response.get("data", [])) == 0:
+            st.error(f"Usuário '{username}' não encontrado na tabela 'users'")
+            # Debug: verificar todos os usuários
+            all_users = supabase_client.table("users").select("username").execute()
+            st.info(f"Todos os usuários no sistema: {all_users.get('data', [])}")
             return False, "Usuário não encontrado!"
         
         user_data = response["data"][0]
         
         # Debug: verificar estrutura do usuário
-        st.info(f"Dados do usuário: {user_data}")
+        st.info(f"Dados do usuário encontrado: {user_data}")
         
         # Verificar se a senha hash existe
         if "password_hash" not in user_data:
+            st.error("Estrutura do usuário inválida: campo password_hash não encontrado")
             return False, "Erro: estrutura de usuário inválida!"
         
         # Verificar senha
@@ -282,11 +291,15 @@ def sign_in(username, password):
             st.session_state.username = user_data.get("username")
             st.session_state.is_admin = user_data.get("is_admin", False)
             st.session_state.show_login = False  # Fechar o formulário após login
+            
+            st.success(f"Login bem-sucedido! Admin: {st.session_state.is_admin}")
             return True, "Login realizado com sucesso!"
         else:
+            st.error("Senha incorreta!")
             return False, "Senha incorreta!"
             
     except Exception as e:
+        st.error(f"❌ Erro no login: {str(e)}")
         return False, f"Erro: {str(e)}"
 
 def sign_out():
@@ -365,23 +378,24 @@ def promote_to_admin(target_username):
             st.error("❌ Apenas super administradores podem promover usuários")
             return False
         
-        # Buscar o ID do usuário pelo username
+        # Buscar o ID do usuário pelo username - CORRIGIDO
         user_response = supabase_client.table("users").select("id, username").eq("username", target_username).execute()
         
-        if not user_response.data or len(user_response.data) == 0:
+        if not user_response.get("data") or len(user_response.get("data", [])) == 0:
             st.error("❌ Usuário não encontrado")
             return False
         
-        user_id = user_response.data[0]["id"]
-        username = user_response.data[0]["username"]
+        user_data = user_response["data"][0]
+        user_id = user_data["id"]
+        username = user_data["username"]
         
-        # Atualizar o campo admin para True
+        # Atualizar o campo admin para True - CORRIGIDO
         update_response = supabase_client.table("users").update({
-            "admin": True,
+            "is_admin": True,
             "updated_at": datetime.datetime.now().isoformat()
         }).eq("id", user_id).execute()
         
-        if update_response.data:
+        if update_response.get("data"):
             st.success(f"✅ Usuário {username} promovido a administrador!")
             return True
         else:
@@ -391,7 +405,6 @@ def promote_to_admin(target_username):
     except Exception as e:
         st.error(f"❌ Erro ao promover usuário: {e}")
         return False
-
 
 # ==============================
 # CONFIGURAÇÕES DE SEGURANÇA
@@ -636,10 +649,13 @@ def mark_notification_as_read(notification_id, notification_type):
     
     try:
         user_key = st.session_state.user_id
+        
         if notification_type == "global":
             ref = db.reference(f"/global_notifications/{notification_id}/read_by/{user_key}")
-        else:
+        elif notification_type == "music":
             ref = db.reference(f"/system_notifications/{notification_id}/read_by/{user_key}")
+        else:
+            return False
         
         ref.set(True)
         return True
@@ -666,11 +682,11 @@ def show_admin_management():
             if promote_to_admin(admin_username):
                 st.rerun()
     
-    # Listar administradores atuais
+    # Listar administradores atuais - CORRIGIDO: usar tabela users em vez de profiles
     st.write("### Administradores atuais")
     try:
-        response = supabase_client.table("profiles").select("username, admin").neq("admin", None).execute()
-    
+        response = supabase_client.table("users").select("username, is_admin").eq("is_admin", True).execute()
+        
         if response.get("data"):
             for admin in response["data"]:
                 status = "✅ Super Admin" if admin.get('username') in ["schutz", "admin"] else "✅ Admin"
@@ -1583,6 +1599,21 @@ with st.sidebar:
             st.session_state.current_page = "search"
             st.session_state.show_request_form = False
 
+
+        # Menu para administradores
+    if st.session_state.is_admin:
+        st.markdown("---")
+        st.subheader("🛡️ Painel de Administração")
+        
+        if st.button("👥 Gerenciar Administradores", key="btn_admin_manage", use_container_width=True):
+            st.session_state.current_page = "admin_management"
+            
+        if st.button("📊 Estatísticas do Sistema", key="btn_admin_stats", use_container_width=True):
+            st.session_state.current_page = "stats"
+            
+        if st.button("🔔 Painel de Notificações", key="btn_admin_notifications", use_container_width=True):
+            st.session_state.current_page = "notification_panel"
+
 # ==============================
 # PÁGINAS PRINCIPAIS
 # ==============================
@@ -1669,8 +1700,8 @@ elif st.session_state.current_page == "search":
         st.info("Nenhuma música cadastrada.")
         show_request_music_section()
 
-elif st.session_state.current_page == "add_music":
-    show_add_music_page()
+elif st.session_state.current_page == "admin_management":  # NOVO
+    show_admin_management()
 
 elif st.session_state.current_page == "notification_panel":
     show_notification_panel()
