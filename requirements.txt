@@ -1,6 +1,8 @@
-streamlit==1.28.0
-firebase-admin>=6.4.0
+streamlit==1.36.0
+firebase-admin==6.5.0
 requests==2.31.0
-google-cloud-firestore==2.11.1
-Pillow
-pyTelegramBotAPI==4.14.1
+telebot==0.0.5
+Pillow==10.3.0
+supabase==2.3.1
+python-dotenv==1.0.1
+pytelegrambotapi==4.19.1
