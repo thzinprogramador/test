@@ -250,6 +250,25 @@ def debug_user_search(username):
         st.error(f"Erro no debug: {e}")
         return None
 
+
+def debug_user_notifications(user_id):
+    """Debug das notificações do usuário"""
+    try:
+        ref = db.reference(f"/user_notifications/{user_id}")
+        notifications = ref.get()
+        
+        st.info(f"Notificações para usuário {user_id}: {notifications}")
+        
+        if notifications:
+            return True
+        else:
+            st.warning("Nenhuma notificação encontrada para este usuário")
+            return False
+            
+    except Exception as e:
+        st.error(f"Erro ao verificar notificações: {e}")
+        return False
+
 # ==============================
 # SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO (SEM EMAIL)
 # ==============================
@@ -668,42 +687,30 @@ def send_user_notification(user_id, message, notification_type="info"):
             "message": message,
             "type": notification_type,
             "timestamp": datetime.datetime.now().isoformat(),
-            "read": False
+            "read": False,
+            "sent_by": st.session_state.username if st.session_state.username else "Sistema"
         }
-        ref.push(notification_data)
-        return True
+        
+        # Debug: verificar antes de enviar
+        st.info(f"Enviando notificação para usuário {user_id}: {message}")
+        
+        new_ref = ref.push(notification_data)
+        
+        # Verificar se foi salvo
+        time.sleep(0.5)  # Pequeno delay para o Firebase processar
+        check_ref = db.reference(f"/user_notifications/{user_id}/{new_ref.key}")
+        saved_data = check_ref.get()
+        
+        if saved_data:
+            st.success("✅ Notificação salva com sucesso no Firebase!")
+            return True
+        else:
+            st.error("❌ Notificação não foi salva no Firebase")
+            return False
+            
     except Exception as e:
         st.error(f"❌ Erro ao enviar notificação para usuário: {e}")
         return False
-
-def get_user_notifications():
-    """Busca notificações pessoais do usuário atual"""
-    if not st.session_state.user_id:
-        return []
-    
-    try:
-        ref = db.reference(f"/user_notifications/{st.session_state.user_id}")
-        notifications = ref.get()
-        
-        user_notifications = []
-        if notifications:
-            for note_id, note_data in notifications.items():
-                user_notifications.append({
-                    "id": note_id,
-                    "message": note_data.get("message", ""),
-                    "type": note_data.get("type", "info"),
-                    "timestamp": note_data.get("timestamp", ""),
-                    "read": note_data.get("read", False)
-                })
-            
-            # Ordenar por timestamp (mais recente primeiro)
-            user_notifications.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
-        
-        return user_notifications
-    except Exception as e:
-        st.error(f"❌ Erro ao buscar notificações do usuário: {e}")
-        return []
-
 
 def mark_user_notification_as_read(notification_id):
     """Marca uma notificação pessoal como lida"""
@@ -756,6 +763,12 @@ def mark_notification_as_read(notification_id, notification_type):
             st.error(f"Tipo de notificação desconhecido: {notification_type}")
             return False
         
+        # Verificar se já está marcada como lida antes de atualizar
+        current_status = ref.get()
+        if current_status:
+            st.info("Notificação já estava marcada como lida")
+            return True
+        
         ref.set(True)
         
         # Atualizar o cache de notificações não lidas
@@ -767,7 +780,6 @@ def mark_notification_as_read(notification_id, notification_type):
     except Exception as e:
         st.error(f"❌ Erro ao marcar notificação como lida: {e}")
         return False
-
 
 def show_admin_management():
     """Interface simplificada para admin"""
@@ -796,22 +808,22 @@ def send_specific_user_notification():
     """Interface para enviar notificação para usuário específico"""
     st.subheader("📨 Enviar Notificação para Usuário Específico")
     
-    # Buscar todos os usuários
+    # Buscar todos os usuários do Supabase
     try:
         users_response = supabase_client.table("users").select("id, username").execute()
         
         if users_response.get("data"):
             users = {user["username"]: user["id"] for user in users_response["data"]}
             
-            with st.form("specific_notification_form"):
+            with st.form("specific_notification_form", clear_on_submit=True):
                 selected_user = st.selectbox(
                     "Selecionar usuário:",
                     options=list(users.keys())
                 )
                 
-                message = st.text_area("Mensagem:", placeholder="Digite a mensagem para o usuário...")
+                message = st.text_area("Mensagem:", placeholder="Digite a mensagem para o usuário...", height=100)
                 
-                submitted = st.form_submit_button("Enviar Notificação")
+                submitted = st.form_submit_button("📨 Enviar Notificação")
                 
                 if submitted:
                     if not message.strip():
@@ -821,6 +833,8 @@ def send_specific_user_notification():
                     user_id = users[selected_user]
                     if send_user_notification(user_id, message):
                         st.success(f"✅ Notificação enviada para {selected_user}!")
+                        # Limpar o formulário
+                        st.rerun()
                     else:
                         st.error("❌ Erro ao enviar notificação!")
         else:
@@ -1511,41 +1525,45 @@ def get_system_notifications_fallback():
 
 
 def show_request_music_section():
-    st.markdown("---")
-    st.subheader("Não encontrou a música que procura?")
-    
-    if st.button("Pedir Música +", use_container_width=True):
-        st.session_state.show_request_form = True
+    """Seção para pedir músicas - chamada apenas uma vez"""
+    # Usar container para evitar múltiplas renderizações
+    with st.container():
+        st.markdown("---")
+        st.subheader("Não encontrou a música que procura?")
         
-    if st.session_state.show_request_form:
-        with st.form("request_music_form", clear_on_submit=True):
-            st.write("### Solicitar Nova Música")
-            col1, col2 = st.columns(2)
-            with col1:
-                req_title = st.text_input("Título da Música*", placeholder="Ex: Boate Azul")
-                req_artist = st.text_input("Artista*", placeholder="Ex: Bruno & Marrone")
-            with col2:
-                req_album = st.text_input("Álbum (se conhecido)")
-                req_username = st.text_input("Seu nome (opcional)")
+        # Usar estado único para controlar o formulário
+        if st.button("Pedir Música +", key="request_music_btn", use_container_width=True):
+            st.session_state.show_request_form = True
             
-            submitted = st.form_submit_button("Enviar Pedido")
-            if submitted:
-                if not all([req_title, req_artist]):
-                    st.error("⚠️ Preencha pelo menos o título e artista!")
-                    return
-                    
-                request_data = {
-                    "title": req_title,
-                    "artist": req_artist,
-                    "album": req_album,
-                    "requested_by": req_username or "Anônimo"
-                }
+        if st.session_state.show_request_form:
+            with st.form("request_music_form", clear_on_submit=True):
+                st.write("### Solicitar Nova Música")
+                col1, col2 = st.columns(2)
+                with col1:
+                    req_title = st.text_input("Título da Música*", placeholder="Ex: Boate Azul", key="req_title")
+                    req_artist = st.text_input("Artista*", placeholder="Ex: Bruno & Marrone", key="req_artist")
+                with col2:
+                    req_album = st.text_input("Álbum (se conhecido)", key="req_album")
+                    req_username = st.text_input("Seu nome (opcional)", key="req_username")
                 
-                if add_song_request(request_data):
-                    st.success("✅ Pedido enviado com sucesso! Adicionaremos em breve.")
-                    st.session_state.show_request_form = False
-                else:
-                    st.error("❌ Erro ao enviar pedido. Tente novamente.")
+                submitted = st.form_submit_button("Enviar Pedido")
+                if submitted:
+                    if not all([req_title, req_artist]):
+                        st.error("⚠️ Preencha pelo menos o título e artista!")
+                    else:
+                        request_data = {
+                            "title": req_title,
+                            "artist": req_artist,
+                            "album": req_album,
+                            "requested_by": req_username or "Anônimo"
+                        }
+                        
+                        if add_song_request(request_data):
+                            st.success("✅ Pedido enviado com sucesso! Adicionaremos em breve.")
+                            st.session_state.show_request_form = False
+                            st.rerun()
+                        else:
+                            st.error("❌ Erro ao enviar pedido. Tente novamente.")
 
 def image_to_base64(img):
     buffered = BytesIO()
@@ -1798,7 +1816,6 @@ if st.session_state.current_page == "home":
                     if st.button("Tocar", key=f"play_{song_key}", use_container_width=True):
                         play_song(song)
                         
-        show_request_music_section()
     else:
         st.info("Nenhuma música encontrada.")
         show_request_music_section()
@@ -1826,8 +1843,7 @@ elif st.session_state.current_page == "search":
                     st.write(f"*{song['artist']}*")
                     if st.button("Tocar", key=f"search_{i}", use_container_width=True):
                         play_song(song)
-                        
-            show_request_music_section()
+                    
             
         else:
             st.warning("Nenhuma música encontrada.")
@@ -1963,11 +1979,11 @@ elif st.session_state.current_page == "notifications":
                 if is_unread:
                     col1, col2 = st.columns([3, 1])
                     with col2:
-                        if st.button("✅ Lida", key=f"read_{i}"):
+                        if st.button("✅ Lida", key=f"read_{i}_{int(time.time())}"):
                             if mark_notification_as_read(notification.get('id'), notification.get('type', 'global')):
                                 st.success("Marcada como lida!")
-                                time.sleep(0.3)
-                                st.rerun()
+                                time.sleep(0.5)
+                                st.experimental_rerun()
                 
                 st.markdown("---")
         else:
@@ -2001,6 +2017,11 @@ st.markdown("""
     background-color: #1ed760;
     color: white;
 }
+.stButton > button:disabled {
+    background-color: #666;
+    color: #999;
+    cursor: not-allowed;
+}
 [data-testid="stSidebar"] { 
     background: linear-gradient(180deg, #000000 0%, #121212 100%); 
     color: white;
@@ -2021,6 +2042,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 .stMarkdown {
     color: white;
+}
+/* Corrigir o botão de pedir música */
+div[data-testid="stVerticalBlock"] > div:has(button:contains("Pedir Música +")) {
+    margin-top: 20px;
+    padding: 10px;
+    background: linear-gradient(135deg, #1DB954 0%, #1ed760 100%);
+    border-radius: 15px;
 }
 </style>
 """, unsafe_allow_html=True)
