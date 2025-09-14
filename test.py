@@ -76,7 +76,7 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ==============================
-# SISTEMA DE AUTENTICAÇÃO
+# SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO
 # ==============================
 def init_auth():
     """Inicializa o sistema de autenticação"""
@@ -84,14 +84,17 @@ def init_auth():
         st.session_state.user = None
     if "user_id" not in st.session_state:
         st.session_state.user_id = None
-    if "user_email" not in st.session_state:
-        st.session_state.user_email = None
+    if "username" not in st.session_state:
+        st.session_state.username = None
 
-def sign_up(email, password, username):
-    """Registra um novo usuário"""
+def sign_up(username, password):
+    """Registra um novo usuário apenas com username e senha"""
     try:
+        # Criar email fictício baseado no username
+        fake_email = f"{username}@wavesong.com"
+        
         response = supabase_client.auth.sign_up({
-            "email": email,
+            "email": fake_email,
             "password": password,
             "options": {
                 "data": {
@@ -104,29 +107,40 @@ def sign_up(email, password, username):
             # Criar perfil do usuário com admin como null
             supabase_client.table("profiles").insert({
                 "id": response.user.id,
-                "email": email,
                 "username": username,
                 "admin": None,  # Campo admin inicializado como null
                 "created_at": datetime.datetime.now().isoformat()
             }).execute()
             
-            return True, "Conta criada com sucesso! Verifique seu email."
+            return True, "Conta criada com sucesso!"
         return False, "Erro ao criar conta"
     except Exception as e:
         return False, f"Erro: {str(e)}"
 
-def sign_in(email, password):
-    """Autentica um usuário"""
+def sign_in(username, password):
+    """Autentica um usuário usando username"""
     try:
+        # Converter username para email fictício
+        fake_email = f"{username}@wavesong.com"
+        
         response = supabase_client.auth.sign_in_with_password({
-            "email": email,
+            "email": fake_email,
             "password": password
         })
         
         if response.user:
             st.session_state.user = response.user
             st.session_state.user_id = response.user.id
-            st.session_state.user_email = response.user.email
+            st.session_state.username = username
+            
+            # Buscar username do perfil
+            try:
+                profile_response = supabase_client.table("profiles").select("username").eq("id", response.user.id).execute()
+                if profile_response.data and len(profile_response.data) > 0:
+                    st.session_state.username = profile_response.data[0].get("username", username)
+            except:
+                st.session_state.username = username
+            
             return True, "Login realizado com sucesso!"
         return False, "Credenciais inválidas"
     except Exception as e:
@@ -138,7 +152,7 @@ def sign_out():
         supabase_client.auth.sign_out()
         st.session_state.user = None
         st.session_state.user_id = None
-        st.session_state.user_email = None
+        st.session_state.username = None
         return True
     except Exception as e:
         st.error(f"Erro ao fazer logout: {e}")
@@ -151,24 +165,32 @@ def get_current_user():
         if response.user:
             st.session_state.user = response.user
             st.session_state.user_id = response.user.id
-            st.session_state.user_email = response.user.email
+            
+            # Buscar username do perfil
+            try:
+                profile_response = supabase_client.table("profiles").select("username").eq("id", response.user.id).execute()
+                if profile_response.data and len(profile_response.data) > 0:
+                    st.session_state.username = profile_response.data[0].get("username", "Usuário")
+            except:
+                st.session_state.username = "Usuário"
+            
             return response.user
         return None
     except:
         return None
 
 def show_auth_ui():
-    """Interface de autenticação"""
+    """Interface de autenticação simplificada"""
     tab1, tab2 = st.tabs(["Login", "Cadastro"])
     
     with tab1:
         with st.form("login_form"):
-            email = st.text_input("Email", key="login_email")
+            username = st.text_input("Nome de usuário", key="login_username")
             password = st.text_input("Senha", type="password", key="login_password")
             submitted = st.form_submit_button("Entrar")
             
             if submitted:
-                success, message = sign_in(email, password)
+                success, message = sign_in(username, password)
                 if success:
                     st.success(message)
                     st.rerun()
@@ -178,7 +200,6 @@ def show_auth_ui():
     with tab2:
         with st.form("signup_form"):
             username = st.text_input("Nome de usuário", key="signup_username")
-            email = st.text_input("Email", key="signup_email")
             password = st.text_input("Senha", type="password", key="signup_password")
             confirm_password = st.text_input("Confirmar senha", type="password", key="signup_confirm")
             
@@ -189,8 +210,10 @@ def show_auth_ui():
                     st.error("As senhas não coincidem")
                 elif len(password) < 6:
                     st.error("A senha deve ter pelo menos 6 caracteres")
+                elif len(username) < 3:
+                    st.error("O nome de usuário deve ter pelo menos 3 caracteres")
                 else:
-                    success, message = sign_up(email, password, username)
+                    success, message = sign_up(username, password)
                     if success:
                         st.success(message)
                     else:
@@ -216,7 +239,13 @@ def is_admin():
         st.error(f"❌ Erro ao verificar permissões: {e}")
         return False
 
-def promote_to_admin(user_email):
+def is_super_admin():
+    """Verifica se o usuário é um super administrador"""
+    # Lista de usernames de super administradores
+    super_admin_usernames = ["schutz"]
+    return st.session_state.username in super_admin_usernames
+
+def promote_to_admin(target_username):
     """Promove um usuário a administrador"""
     try:
         # Primeiro verificar se o usuário atual é super admin
@@ -224,14 +253,15 @@ def promote_to_admin(user_email):
             st.error("❌ Apenas super administradores podem promover usuários")
             return False
         
-        # Buscar o ID do usuário pelo email
-        user_response = supabase_client.table("profiles").select("id").eq("email", user_email).execute()
+        # Buscar o ID do usuário pelo username
+        user_response = supabase_client.table("profiles").select("id, username").eq("username", target_username).execute()
         
         if not user_response.data or len(user_response.data) == 0:
             st.error("❌ Usuário não encontrado")
             return False
         
         user_id = user_response.data[0]["id"]
+        username = user_response.data[0]["username"]
         
         # Atualizar o campo admin para True
         update_response = supabase_client.table("profiles").update({
@@ -240,7 +270,7 @@ def promote_to_admin(user_email):
         }).eq("id", user_id).execute()
         
         if update_response.data:
-            st.success(f"✅ Usuário {user_email} promovido a administrador!")
+            st.success(f"✅ Usuário {username} promovido a administrador!")
             return True
         else:
             st.error("❌ Erro ao promover usuário")
@@ -523,34 +553,22 @@ def show_admin_management():
     # Formulário para promover usuários
     with st.form("promote_admin_form"):
         st.write("### Promover usuário a administrador")
-        admin_email = st.text_input("Email do usuário para promover:")
+        admin_username = st.text_input("Nome de usuário para promover:")
         
         submitted = st.form_submit_button("Promover a Admin")
         if submitted:
-            if promote_to_admin(admin_email):
+            if promote_to_admin(admin_username):
                 st.rerun()
     
     # Listar administradores atuais
     st.write("### Administradores atuais")
     try:
-        response = supabase_client.table("profiles").select("email, username, admin").neq("admin", None).execute()
+        response = supabase_client.table("profiles").select("username, admin").neq("admin", None).execute()
         
         if response.data:
             for admin in response.data:
-                st.write(f"**{admin['email']}** - {admin['username']}")
-        else:
-            st.info("Nenhum administrador cadastrado.")
-    except Exception as e:
-        st.error(f"❌ Erro ao carregar administradores: {e}")
-    
-    # Listar administradores atuais
-    st.write("### Administradores atuais")
-    try:
-        response = supabase_client.table("profiles").select("email, username, admin").neq("admin", None).execute()
-        
-        if response.data:
-            for admin in response.data:
-                st.write(f"**{admin['email']}** - {admin['username']}")
+                status = "✅ Super Admin" if admin['username'] in ["schutz", "admin"] else "✅ Admin"
+                st.write(f"**{admin['username']}** - {status}")
         else:
             st.info("Nenhum administrador cadastrado.")
     except Exception as e:
@@ -1398,7 +1416,7 @@ with st.sidebar:
     
     if current_user:
         # Usuário logado
-        st.markdown(f"**👤 {current_user.email}**")
+        st.markdown(f"**👤 {st.session_state.username}**")
         if st.button("🚪 Sair", key="logout_btn"):
             if sign_out():
                 st.success("Logout realizado!")
