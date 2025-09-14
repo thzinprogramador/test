@@ -408,10 +408,8 @@ def display_system_notifications():
                 pass
             
             for note in notifications_list[:20]:  # Limitar a 10 notificações
-                with st.container():
-                    col1, col2 = st.columns([1, 3])
-                    
-                    with col2:
+                with st.container():  
+                    with:
                         # Formatar a data se disponível
                         timestamp_display = ""
                         if note.get("timestamp"):
