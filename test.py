@@ -66,6 +66,10 @@ if "admin_mode" not in st.session_state:
     st.session_state.admin_mode = False
 if "show_login" not in st.session_state:
     st.session_state.show_login = False
+if "notifications_cache" not in st.session_state:
+    st.session_state.notifications_cache = None
+if "notifications_cache_timestamp" not in st.session_state:
+    st.session_state.notifications_cache_timestamp = 0
 
 
 # ==============================
@@ -221,23 +225,11 @@ def sign_in(username, password):
         # Buscar usuário no banco - método mais direto
         response = supabase_client.table("users").select("*").eq("username", username).execute()
         
-        st.info(f"Resposta do login: {response}")
+        # REMOVER ESTA LINHA DE DEBUG:
+        # st.info(f"Resposta do login: {response}")
         
         if not response.get("data") or len(response.get("data", [])) == 0:
-            # Tentar busca alternativa sem filtro
-            all_response = supabase_client.table("users").select("*").execute()
-            st.info(f"Todos os usuários: {all_response.get('data', [])}")
-            
-            # Busca manual
-            if all_response.get("data"):
-                for user in all_response["data"]:
-                    if user.get("username") == username:
-                        user_data = user
-                        break
-                else:
-                    return False, "Usuário não encontrado!"
-            else:
-                return False, "Usuário não encontrado!"
+            return False, "Usuário não encontrado!"
         else:
             user_data = response["data"][0]
         
@@ -256,6 +248,7 @@ def sign_in(username, password):
     except Exception as e:
         st.error(f"Erro no login: {str(e)}")
         return False, f"Erro: {str(e)}"
+
 
 def sign_out():
     """Desconecta o usuário"""
@@ -544,7 +537,13 @@ def get_user_notifications():
         return []
 
 def get_all_notifications():
-    """Busca todas as notificações (globais, de sistema e pessoais) de forma unificada"""
+    """Busca todas as notificações (globais, de sistema e pessoais) de forma unificada com cache"""
+    # Usar cache para melhor performance (5 segundos)
+    current_time = time.time()
+    if (st.session_state.notifications_cache is not None and 
+        current_time - st.session_state.notifications_cache_timestamp < 5):
+        return st.session_state.notifications_cache
+    
     all_notifications = []
     
     # Buscar notificações globais
@@ -606,7 +605,11 @@ def get_all_notifications():
     except:
         pass
     
-    return all_notifications[:10]  # Limitar a 10 notificações
+    # Atualizar cache
+    st.session_state.notifications_cache = all_notifications[:20]  # Limitar a 20 notificações
+    st.session_state.notifications_cache_timestamp = current_time
+    
+    return st.session_state.notifications_cache
 
 def send_user_notification(user_id, message, notification_type="info"):
     """Envia uma notificação para um usuário específico"""
@@ -1113,12 +1116,12 @@ def send_global_notification(message):
         return False
 
 def check_unread_notifications():
-    """Verifica notificações não lidas para o usuário atual"""
+    """Verifica notificações não lidas para o usuário atual (incluindo pessoais)"""
     if not st.session_state.firebase_connected or not st.session_state.user_id:
         return 0
     
     try:
-        all_notifications = []
+        unread_count = 0
         user_id = st.session_state.user_id
         
         # Verificar notificações globais
@@ -1128,7 +1131,7 @@ def check_unread_notifications():
             for note_id, note_data in global_notifications.items():
                 read_by = note_data.get("read_by", {})
                 if user_id not in read_by or not read_by[user_id]:
-                    all_notifications.append(note_id)
+                    unread_count += 1
         
         # Verificar notificações do sistema
         system_ref = db.reference("/system_notifications")
@@ -1137,13 +1140,20 @@ def check_unread_notifications():
             for note_id, note_data in system_notifications.items():
                 read_by = note_data.get("read_by", {})
                 if user_id not in read_by or not read_by[user_id]:
-                    all_notifications.append(note_id)
+                    unread_count += 1
         
-        return len(all_notifications)
+        # Verificar notificações pessoais
+        personal_ref = db.reference(f"/user_notifications/{user_id}")
+        personal_notifications = personal_ref.get()
+        if personal_notifications:
+            for note_id, note_data in personal_notifications.items():
+                if not note_data.get("read", False):
+                    unread_count += 1
+        
+        return unread_count
     except Exception as e:
         st.error(f"❌ Erro ao verificar notificações: {e}")
         return 0
-
 
 def mark_notification_as_read(notification_id, notification_type):
     """Marca uma notificação como lida"""
@@ -1706,7 +1716,12 @@ with st.sidebar:
 
     # Menu para usuários normais
     if not st.session_state.admin_mode:
-        unread_notifications = check_unread_notifications()
+        if "unread_notifications_cache" not in st.session_state or time.time() - st.session_state.get
+        ("unread_cache_timestamp", 0) > 10:
+            st.session_state.unread_notifications_cache = check_unread_notifications()
+            st.session_state.unread_cache_timestamp = time.time()
+
+        unread_notifications = st.session_state.unread_notifications_cache
         notification_text = f"🔔 Notificações ({unread_notifications})" if unread_notifications else "🔔 Notificações"
 
         if st.button(notification_text, use_container_width=True, key="btn_notifications"):
@@ -1870,9 +1885,20 @@ elif st.session_state.current_page == "notifications":
             st.rerun()
         st.stop()
     
+    # Botão para recarregar notificações
+    if st.button("🔄 Atualizar Notificações", key="refresh_notifications"):
+        # Limpar cache para forçar recarregamento
+        if "unread_notifications_cache" in st.session_state:
+            st.session_state.unread_notifications_cache = None
+        st.rerun()
+    
     # Buscar notificações
     try:
-        all_notifications = get_all_notifications()
+        # Usar cache para melhor performance
+        if "notifications_cache" not in st.session_state:
+            st.session_state.notifications_cache = get_all_notifications()
+        
+        all_notifications = st.session_state.notifications_cache
         
         if not all_notifications:
             st.info("📝 Não há notificações no momento.")
@@ -1885,6 +1911,9 @@ elif st.session_state.current_page == "notifications":
         
         if unread_count > 0:
             st.success(f"📬 Você tem {unread_count} notificação(ões) não lida(s)")
+            st.markdown("---")
+        else:
+            st.info("🎉 Todas as notificações foram lidas!")
             st.markdown("---")
         
         # Exibir notificações (apenas não lidas, exceto para admin)
@@ -1974,15 +2003,20 @@ elif st.session_state.current_page == "notifications":
                     if is_unread:
                         col1, col2 = st.columns([3, 1])
                         with col2:
-                            if st.button("✅ Lida", key=f"read_{notification['id']}_{int(time.time())}"):
+                            if st.button("✅ Marcar como Lida", key=f"read_{notification['id']}_{int(time.time())}"):
                                 if mark_notification_as_read(notification.get('id'), notification.get('type', 'global')):
-                                    st.success("Marcada como lida!")
+                                    st.success("Notificação marcada como lida!")
+                                    # Limpar cache e forçar recarregamento
+                                    if "notifications_cache" in st.session_state:
+                                        st.session_state.notifications_cache = None
+                                    if "unread_notifications_cache" in st.session_state:
+                                        st.session_state.unread_notifications_cache = None
                                     time.sleep(0.5)
                                     st.rerun()
                     
                     st.markdown("---")
         
-        if displayed_count == 0:
+        if displayed_count == 0 and not st.session_state.is_admin:
             st.info("🎉 Todas as notificações foram lidas!")
         
         if st.button("Voltar para o Início", key="back_from_notifications"):
