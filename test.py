@@ -2004,7 +2004,7 @@ elif st.session_state.current_page == "notifications":
                     timestamp_display = notification.get("timestamp", "")[:10] if notification.get("timestamp") else "Data não disponível"
                     title = notification.get('title', 'Sem título')
                     artist = notification.get('artist', 'Artista desconhecido')
-                    
+    
                     st.markdown(f"""
                     <div style='
                         background-color: {background_color};
@@ -2013,18 +2013,18 @@ elif st.session_state.current_page == "notifications":
                         margin-bottom: 15px;
                         border-left: 4px solid {border_color};
                     '>
-                        <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
-                            🎵 Nova Música • {timestamp_display}
-                            <span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>
-                        </p>
-                        <p style='color: white; font-size: 18px; font-weight: bold; margin: 8px 0 5px 0;'>
-                            {title}
-                        </p>
-                        <p style='color: #1DB954; font-size: 16px; margin: 0;'>
-                            {artist}
-                        </p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
+                        Nova Música • {timestamp_display}
+                        <span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>
+                    </p>
+                    <p style='color: white; font-size: 18px; font-weight: bold; margin: 8px 0 5px 0;'>
+                        {title}
+                    </p>
+                    <p style='color: #1DB954; font-size: 16px; margin: 0;'>
+                        {artist}
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
                 
                 # Botão para marcar como lida - COM CHAVE ÚNICA
                 unique_key = f"read_{notification['id']}_{st.session_state.notification_refresh}_{i}"
