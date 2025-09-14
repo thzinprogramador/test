@@ -1529,18 +1529,18 @@ with st.sidebar:
                 st.rerun()
     else:
     # Usuário não logado - versão simplificada
-    if not st.session_state.show_login:
-        if st.button("🔐 Login/Cadastro", key="login_btn", use_container_width=True):
-            st.session_state.show_login = True
-            st.rerun()
-    else:
-        # Botão para fechar o formulário
-        if st.button("✕ Fechar", key="close_login", use_container_width=True):
-            st.session_state.show_login = False
-            st.rerun()
+        if not st.session_state.show_login:
+            if st.button("🔐 Login/Cadastro", key="login_btn", use_container_width=True):
+                st.session_state.show_login = True
+                st.rerun()
+        else:
+            # Botão para fechar o formulário
+            if st.button("✕ Fechar", key="close_login", use_container_width=True):
+                st.session_state.show_login = False
+                st.rerun()
         
-        # Mostrar formulário de autenticação
-        show_auth_ui()
+            # Mostrar formulário de autenticação
+            show_auth_ui()
 
 
     if st.session_state.current_track:
