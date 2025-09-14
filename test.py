@@ -1949,14 +1949,16 @@ elif st.session_state.current_page == "notifications":
                     """, unsafe_allow_html=True)
                 
                 # Botão para marcar como lida (apenas para não lidas)
-                if is_unread:
+                    short_key = f"read_{hash(notification['id']) % 10000}"
                     if st.button("✅ Marcar como lida", key=f"read_{i}_{notification.get('id', 'unknown')}"):
                         if mark_notification_as_read(notification.get('id'), notification.get('type', 'global')):
                             st.success("✅ Notificação lida!")
-                            time.sleep(1)
-                            st.experimental_rerun()
+                            time.sleep(0.5)
+                            st.rerun()
                 
                 st.markdown("---")
+        else:
+            st.info("Não há notificações não lidas.")
         
         if st.button("Voltar para o Início", key="back_from_notifications"):
             st.session_state.current_page = "home"
