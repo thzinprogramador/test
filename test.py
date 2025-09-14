@@ -88,15 +88,6 @@ except Exception as e:
     TELEGRAM_NOTIFICATIONS_ENABLED = False
 
 
-
-# Adicione isso em algum lugar para testar
-if st.sidebar.button("Testar Conexão Telegram"):
-    success, message = test_telegram_connection()
-    if success:
-        st.sidebar.success(message)
-    else:
-        st.sidebar.error(message)
-
 # ==============================
 # FIREBASE CONFIG (JSON DIRETO)
 # ==============================
