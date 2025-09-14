@@ -1242,7 +1242,10 @@ elif st.session_state.current_page == "notifications":
         border_color = "#1DB954" if is_unread else "#555"
         background_color = "#1f2937" if is_unread else "#2d3748"
         
-        with st.container():
+        # Usar columns para criar um layout mais controlado
+        col1, col2 = st.columns([0.9, 0.1])
+        
+        with col1:
             if notification["type"] == "global":
                 # Notificação global
                 timestamp_display = ""
@@ -1272,7 +1275,7 @@ elif st.session_state.current_page == "notifications":
                 """, unsafe_allow_html=True)
                 
             else:
-                # Notificação de música
+                # Notificação de música - CORREÇÃO AQUI
                 timestamp_display = ""
                 if notification.get("timestamp"):
                     try:
@@ -1281,6 +1284,7 @@ elif st.session_state.current_page == "notifications":
                     except:
                         timestamp_display = notification["timestamp"][:10] if len(notification["timestamp"]) > 10 else notification["timestamp"]
                 
+                # CORREÇÃO: Remover as tags <p> problemáticas e usar divs
                 st.markdown(f"""
                 <div style='
                     background-color: {background_color};
@@ -1289,29 +1293,30 @@ elif st.session_state.current_page == "notifications":
                     margin-bottom: 15px;
                     border-left: 4px solid {border_color};
                 '>
-                    <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
+                    <div style='color: #9ca3af; font-size: 12px; margin: 0;'>
                         🎵 Nova Música • {timestamp_display}
                         {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
-                    </p>
-                    <p style='color: white; font-size: 18px; font-weight: bold; margin: 8px 0 5px 0;'>
+                    </div>
+                    <div style='color: white; font-size: 18px; font-weight: bold; margin: 8px 0 5px 0;'>
                         {notification['title']}
-                    </p>
-                    <p style='color: #1DB954; font-size: 16px; margin: 0;'>
+                    </div>
+                    <div style='color: #1DB954; font-size: 16px; margin: 0;'>
                         {notification.get('artist', 'Artista desconhecido')}
-                    </p>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
-            
+        
+        with col2:
             # Botão para marcar como lida (apenas para não lidas)
             if is_unread:
-                if st.button("✅ Marcar como lida", key=f"read_{notification['id']}"):
+                if st.button("✅ Lida", key=f"read_{notification['id']}"):
                     if mark_notification_as_read(notification['id'], notification['type']):
                         st.success("✅ Notificação marcada como lida!")
                         st.session_state.unread_notifications_cache = None
                         time.sleep(0.5)
                         st.rerun()
             
-            st.markdown("---")
+        st.markdown("---")
     
     if st.button("Voltar para o Início", key="back_from_notifications"):
         st.session_state.current_page = "home"
