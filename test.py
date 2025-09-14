@@ -1582,9 +1582,6 @@ def show_request_music_section():
         
         if not st.session_state.user_id:
             st.warning("⚠️ Faça login para solicitar músicas")
-            if st.button("Fazer Login", key="request_login_btn"):
-                st.session_state.show_login = True
-                st.rerun()
             return
         
         # Usar estado único para controlar o formulário
