@@ -7,10 +7,8 @@ import random
 import time
 import base64
 import threading
-import supabase
 import traceback
 import bcrypt
-from supabase import create_client, Client
 from firebase_admin import credentials, db
 from io import BytesIO
 from PIL import Image
@@ -69,12 +67,86 @@ if "admin_mode" not in st.session_state:
 
 
 # ==============================
-# CONFIGURAÇÕES DO SUPABASE
+# CONFIGURAÇÕES DO SUPABASE (SIMPLIFICADO)
 # ==============================
 SUPABASE_URL = "https://wvouegbuvuairukkupit.supabase.co" 
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2b3VlZ2J1dnVhaXJ1a2t1cGl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0NzM3NjAsImV4cCI6MjA3MzA0OTc2MH0.baLFbRTaMM8FCFG2a-Yb80Sg7JqhdQ6EMld8h7BABiE"
-# Inicializar cliente Supabase
-supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Cliente Supabase simplificado usando requests
+import requests
+
+class SimpleSupabaseClient:
+    def __init__(self, url, key):
+        self.url = url
+        self.key = key
+        self.headers = {
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json"
+        }
+    
+    def execute_query(self, endpoint, method="GET", data=None):
+        try:
+            url = f"{self.url}/rest/v1/{endpoint}"
+            if method == "GET":
+                response = requests.get(url, headers=self.headers, params=data)
+            elif method == "POST":
+                response = requests.post(url, headers=self.headers, json=data)
+            elif method == "PUT":
+                response = requests.put(url, headers=self.headers, json=data)
+            elif method == "DELETE":
+                response = requests.delete(url, headers=self.headers)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"Erro Supabase: {response.status_code} - {response.text}")
+                return []
+        except Exception as e:
+            print(f"Erro ao conectar com Supabase: {e}")
+            return []
+    
+    def table(self, table_name):
+        return SupabaseTable(self, table_name)
+
+class SupabaseTable:
+    def __init__(self, client, table_name):
+        self.client = client
+        self.table_name = table_name
+    
+    def select(self, columns="*"):
+        self.columns = columns
+        return self
+    
+    def eq(self, column, value):
+        self.filter_column = column
+        self.filter_value = value
+        return self
+    
+    def execute(self):
+        endpoint = self.table_name
+        params = {"select": self.columns}
+        
+        if hasattr(self, 'filter_column') and hasattr(self, 'filter_value'):
+            params[self.filter_column] = f"eq.{self.filter_value}"
+        
+        return {"data": self.client.execute_query(endpoint, "GET", params)}
+    
+    def insert(self, data):
+        endpoint = self.table_name
+        result = self.client.execute_query(endpoint, "POST", data)
+        return {"data": [result]} if result else {"data": []}
+    
+    def update(self, data):
+        endpoint = self.table_name
+        if hasattr(self, 'filter_column') and hasattr(self, 'filter_value'):
+            endpoint = f"{self.table_name}?{self.filter_column}=eq.{self.filter_value}"
+        result = self.client.execute_query(endpoint, "PUT", data)
+        return {"data": [result]} if result else {"data": []}
+
+# Inicializar cliente Supabase simplificado
+supabase_client = SimpleSupabaseClient(SUPABASE_URL, SUPABASE_KEY)
+
 
 # ==============================
 # SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO (SEM EMAIL)
@@ -218,7 +290,8 @@ def is_admin():
 
 def is_super_admin():
     """Verifica se o usuário é um super administrador"""
-    return st.session_state.username in ["schutz", "admin"]
+    return st.session_state.username in ["schutz"]
+
 
 def promote_to_admin(target_username):
     """Promove um usuário a administrador"""
@@ -254,12 +327,6 @@ def promote_to_admin(target_username):
     except Exception as e:
         st.error(f"❌ Erro ao promover usuário: {e}")
         return False
-
-def is_super_admin():
-    """Verifica se o usuário é um super administrador"""
-    # Lista de emails de super administradores (configurável)
-    super_admin_emails = ["schutz@example.com", "admin@example.com"]
-    return st.session_state.user_email in super_admin_emails
 
 
 # ==============================
