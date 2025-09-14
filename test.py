@@ -77,14 +77,36 @@ TELEGRAM_BOT_TOKEN = "7680456440:AAFRmCOdehS13VjYY5qKttBbm-hDZRDFjP4"  # Obtenha
 TELEGRAM_ADMIN_CHAT_ID = "5919571280"  # Obtenha com @userinfobot
 TELEGRAM_NOTIFICATIONS_ENABLED = False  # Inicialmente desativado
 
-# Inicializar bot do Telegram
+# Inicializar bot do Telegram - MODIFICADO
+telegram_bot = None
 try:
     telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
     TELEGRAM_NOTIFICATIONS_ENABLED = True
+    print("✅ Bot do Telegram inicializado com sucesso!")
 except Exception as e:
     st.error(f"❌ Erro ao conectar com Telegram: {e}")
     TELEGRAM_NOTIFICATIONS_ENABLED = False
-        
+
+
+def test_telegram_connection():
+    """Testa a conexão com o Telegram de forma simples"""
+    try:
+        # Teste simples de conexão
+        response = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getMe")
+        if response.status_code == 200:
+            return True, "✅ Conexão bem-sucedida!"
+        else:
+            return False, f"❌ Erro na API: {response.status_code}"
+    except Exception as e:
+        return False, f"❌ Erro de conexão: {e}"
+
+# Adicione isso em algum lugar para testar
+if st.sidebar.button("Testar Conexão Telegram"):
+    success, message = test_telegram_connection()
+    if success:
+        st.sidebar.success(message)
+    else:
+        st.sidebar.error(message)
 
 # ==============================
 # FIREBASE CONFIG (JSON DIRETO)
@@ -366,6 +388,8 @@ def setup_telegram_commands():
 
 def check_and_display_telegram_status():
     """Verifica e exibe o status do Telegram de forma amigável"""
+    global telegram_bot, TELEGRAM_NOTIFICATIONS_ENABLED  # Adicione esta linha
+    
     if not TELEGRAM_NOTIFICATIONS_ENABLED:
         st.error("❌ Telegram desativado")
         return False
@@ -383,14 +407,15 @@ def check_and_display_telegram_status():
         
         # Tentar reconectar
         try:
-            global telegram_bot
-            telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+            telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)  # Remova o global daqui
+            TELEGRAM_NOTIFICATIONS_ENABLED = True
             st.success("✅ Reconectado ao Telegram!")
             # Reconfigurar comandos após reconexão
             setup_telegram_commands()
             return True
         except Exception as e2:
             st.error(f"❌ Falha ao reconectar: {e2}")
+            TELEGRAM_NOTIFICATIONS_ENABLED = False
             return False
 
 
