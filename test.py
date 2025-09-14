@@ -77,7 +77,15 @@ TELEGRAM_BOT_TOKEN = "7680456440:AAFRmCOdehS13VjYY5qKttBbm-hDZRDFjP4"  # Obtenha
 TELEGRAM_ADMIN_CHAT_ID = "5919571280"  # Obtenha com @userinfobot
 TELEGRAM_NOTIFICATIONS_ENABLED = False  # Inicialmente desativado
 
-
+# Inicializar bot do Telegram - MODIFICADO
+telegram_bot = None
+try:
+    telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+    TELEGRAM_NOTIFICATIONS_ENABLED = True
+    print("✅ Bot do Telegram inicializado com sucesso!")
+except Exception as e:
+    st.error(f"❌ Erro ao conectar com Telegram: {e}")
+    TELEGRAM_NOTIFICATIONS_ENABLED = False
 
 
 # ==============================
