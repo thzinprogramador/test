@@ -1089,7 +1089,7 @@ elif st.session_state.current_page == "stats":
                 st.rerun()
             else:
                 st.error("❌ Senha incorreta!")
-        return
+            return
     
     st.metric("Total de Músicas", len(st.session_state.all_songs))
     
