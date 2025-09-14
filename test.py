@@ -63,6 +63,139 @@ if "unread_notifications_cache" not in st.session_state:
 if "admin_mode" not in st.session_state:
     st.session_state.admin_mode = False
 
+
+# ==============================
+# CONFIGURAÇÕES DO SUPABASE
+# ==============================
+import supabase
+from supabase import create_client, Client
+
+SUPABASE_URL = "https://wvouegbuvuairukkupit.supabase.co" 
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2b3VlZ2J1dnVhaXJ1a2t1cGl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0NzM3NjAsImV4cCI6MjA3MzA0OTc2MH0.baLFbRTaMM8FCFG2a-Yb80Sg7JqhdQ6EMld8h7BABiE"
+# Inicializar cliente Supabase
+supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# ==============================
+# SISTEMA DE AUTENTICAÇÃO
+# ==============================
+def init_auth():
+    """Inicializa o sistema de autenticação"""
+    if "user" not in st.session_state:
+        st.session_state.user = None
+    if "user_id" not in st.session_state:
+        st.session_state.user_id = None
+    if "user_email" not in st.session_state:
+        st.session_state.user_email = None
+
+def sign_up(email, password, username):
+    """Registra um novo usuário"""
+    try:
+        response = supabase_client.auth.sign_up({
+            "email": email,
+            "password": password,
+            "options": {
+                "data": {
+                    "username": username
+                }
+            }
+        })
+        
+        if response.user:
+            # Criar perfil do usuário
+            supabase_client.table("profiles").insert({
+                "id": response.user.id,
+                "email": email,
+                "username": username,
+                "created_at": datetime.datetime.now().isoformat()
+            }).execute()
+            
+            return True, "Conta criada com sucesso! Verifique seu email."
+        return False, "Erro ao criar conta"
+    except Exception as e:
+        return False, f"Erro: {str(e)}"
+
+def sign_in(email, password):
+    """Autentica um usuário"""
+    try:
+        response = supabase_client.auth.sign_in_with_password({
+            "email": email,
+            "password": password
+        })
+        
+        if response.user:
+            st.session_state.user = response.user
+            st.session_state.user_id = response.user.id
+            st.session_state.user_email = response.user.email
+            return True, "Login realizado com sucesso!"
+        return False, "Credenciais inválidas"
+    except Exception as e:
+        return False, f"Erro: {str(e)}"
+
+def sign_out():
+    """Desconecta o usuário"""
+    try:
+        supabase_client.auth.sign_out()
+        st.session_state.user = None
+        st.session_state.user_id = None
+        st.session_state.user_email = None
+        return True
+    except Exception as e:
+        st.error(f"Erro ao fazer logout: {e}")
+        return False
+
+def get_current_user():
+    """Retorna o usuário atual"""
+    try:
+        response = supabase_client.auth.get_user()
+        if response.user:
+            st.session_state.user = response.user
+            st.session_state.user_id = response.user.id
+            st.session_state.user_email = response.user.email
+            return response.user
+        return None
+    except:
+        return None
+
+def show_auth_ui():
+    """Interface de autenticação"""
+    tab1, tab2 = st.tabs(["Login", "Cadastro"])
+    
+    with tab1:
+        with st.form("login_form"):
+            email = st.text_input("Email", key="login_email")
+            password = st.text_input("Senha", type="password", key="login_password")
+            submitted = st.form_submit_button("Entrar")
+            
+            if submitted:
+                success, message = sign_in(email, password)
+                if success:
+                    st.success(message)
+                    st.rerun()
+                else:
+                    st.error(message)
+    
+    with tab2:
+        with st.form("signup_form"):
+            username = st.text_input("Nome de usuário", key="signup_username")
+            email = st.text_input("Email", key="signup_email")
+            password = st.text_input("Senha", type="password", key="signup_password")
+            confirm_password = st.text_input("Confirmar senha", type="password", key="signup_confirm")
+            
+            submitted = st.form_submit_button("Criar conta")
+            
+            if submitted:
+                if password != confirm_password:
+                    st.error("As senhas não coincidem")
+                elif len(password) < 6:
+                    st.error("A senha deve ter pelo menos 6 caracteres")
+                else:
+                    success, message = sign_up(email, password, username)
+                    if success:
+                        st.success(message)
+                    else:
+                        st.error(message)
+
+
 # ==============================
 # CONFIGURAÇÕES DE SEGURANÇA
 # ==============================
@@ -220,28 +353,34 @@ def get_all_notifications():
     return all_notifications[:20]  # Limitar a 20 notificações
 
 def check_if_global_notification_read(note_id):
-    """Verifica se uma notificação global foi lida"""
+    """Verifica se uma notificação global foi lida pelo usuário atual"""
+    if not st.session_state.user_id:
+        return False
+    
     try:
-        ref = db.reference(f"/global_notifications/{note_id}/read_by/anonymous")
+        ref = db.reference(f"/global_notifications/{note_id}/read_by/{st.session_state.user_id}")
         return ref.get() or False
     except:
         return False
 
 def check_if_system_notification_read(note_id):
-    """Verifica se uma notificação do sistema foi lida"""
+    """Verifica se uma notificação do sistema foi lida pelo usuário atual"""
+    if not st.session_state.user_id:
+        return False
+    
     try:
-        ref = db.reference(f"/system_notifications/{note_id}/read_by/anonymous")
+        ref = db.reference(f"/system_notifications/{note_id}/read_by/{st.session_state.user_id}")
         return ref.get() or False
     except:
         return False
 
 def mark_notification_as_read(notification_id, notification_type):
-    """Marca uma notificação como lida"""
-    if not st.session_state.firebase_connected:
+    """Marca uma notificação como lida para o usuário atual"""
+    if not st.session_state.firebase_connected or not st.session_state.user_id:
         return False
     
     try:
-        user_key = "anonymous"
+        user_key = st.session_state.user_id
         if notification_type == "global":
             ref = db.reference(f"/global_notifications/{notification_id}/read_by/{user_key}")
         else:
@@ -564,12 +703,13 @@ def send_global_notification(message):
         return False
 
 def check_unread_notifications():
-    """Verifica notificações não lidas para mostrar no badge"""
-    if not st.session_state.firebase_connected:
+    """Verifica notificações não lidas para o usuário atual"""
+    if not st.session_state.firebase_connected or not st.session_state.user_id:
         return 0
     
     try:
         all_notifications = []
+        user_id = st.session_state.user_id
         
         # Verificar notificações globais
         global_ref = db.reference("/global_notifications")
@@ -577,7 +717,7 @@ def check_unread_notifications():
         if global_notifications:
             for note_id, note_data in global_notifications.items():
                 read_by = note_data.get("read_by", {})
-                if "anonymous" not in read_by or not read_by["anonymous"]:
+                if user_id not in read_by or not read_by[user_id]:
                     all_notifications.append(note_id)
         
         # Verificar notificações do sistema
@@ -586,13 +726,14 @@ def check_unread_notifications():
         if system_notifications:
             for note_id, note_data in system_notifications.items():
                 read_by = note_data.get("read_by", {})
-                if "anonymous" not in read_by or not read_by["anonymous"]:
+                if user_id not in read_by or not read_by[user_id]:
                     all_notifications.append(note_id)
         
         return len(all_notifications)
     except Exception as e:
         st.error(f"❌ Erro ao verificar notificações: {e}")
         return 0
+
 
 def mark_notification_as_read(notification_id, notification_type):
     """Marca uma notificação como lida"""
@@ -1082,11 +1223,27 @@ except Exception as e:
     st.session_state.all_songs = get_all_songs_cached()
 
 # ==============================
-# SIDEBAR (MODIFICADA PARA SEPARAR USUÁRIO/ADMIN)
+# SIDEBAR (MODIFICADA PARA INCLUIR LOGIN)
 # ==============================
 with st.sidebar:
     st.title("🌊 Wave Song")
     st.success("✅ Online" if st.session_state.firebase_connected else "⚠️ Offline")
+
+    # Verificar autenticação
+    init_auth()
+    current_user = get_current_user()
+    
+    if current_user:
+        # Usuário logado
+        st.markdown(f"**👤 {current_user.email}**")
+        if st.button("🚪 Sair", key="logout_btn"):
+            if sign_out():
+                st.success("Logout realizado!")
+                st.rerun()
+    else:
+        # Usuário não logado
+        if st.expander("🔐 Login/Cadastro", expanded=False):
+            show_auth_ui()
 
     if st.session_state.current_track:
         song = st.session_state.current_track
