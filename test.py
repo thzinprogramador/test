@@ -1234,68 +1234,105 @@ elif st.session_state.current_page == "notifications":
             st.session_state.current_page = "home"
         st.stop()
     
+    # CSS para estilização
+    st.markdown("""
+    <style>
+    .notification-container {
+        background-color: #1f2937;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 15px;
+        border-left: 4px solid #555;
+    }
+    .notification-container.unread {
+        border-left-color: #1DB954;
+        background-color: #2d3748;
+    }
+    .notification-header {
+        color: #9ca3af;
+        font-size: 12px;
+        margin: 0;
+    }
+    .notification-title {
+        color: white;
+        font-size: 18px;
+        font-weight: bold;
+        margin: 8px 0 5px 0;
+    }
+    .notification-artist {
+        color: #1DB954;
+        font-size: 16px;
+        margin: 0;
+    }
+    .notification-message {
+        color: white;
+        font-size: 16px;
+        margin: 8px 0 0 0;
+    }
+    .new-badge {
+        color: #1DB954;
+        margin-left: 10px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     # Exibir todas as notificações
     for notification in all_notifications:
         is_unread = not notification.get("is_read", False)
         
-        # Estilo visual para notificações não lidas
-        if is_unread:
-            st.markdown("""<style> .unread-notification { border-left: 4px solid #1DB954; padding-left: 10px; } </style>""", unsafe_allow_html=True)
-            container_style = "unread-notification"
-        else:
-            container_style = ""
+        # Determinar timestamp
+        timestamp_display = ""
+        if notification.get("timestamp"):
+            try:
+                dt = datetime.datetime.fromisoformat(notification["timestamp"].replace('Z', '+00:00'))
+                timestamp_display = dt.strftime("%d/%m/%Y %H:%M")
+            except:
+                timestamp_display = notification["timestamp"][:10] if len(notification["timestamp"]) > 10 else notification["timestamp"]
         
-        # Usar container do Streamlit
-        with st.container():
-            # Adicionar classe CSS se for não lida
-            if is_unread:
-                st.markdown(f'<div class="{container_style}">', unsafe_allow_html=True)
-            
-            if notification["type"] == "global":
-                # Notificação global
-                timestamp_display = ""
-                if notification.get("timestamp"):
-                    try:
-                        dt = datetime.datetime.fromisoformat(notification["timestamp"].replace('Z', '+00:00'))
-                        timestamp_display = dt.strftime("%d/%m/%Y %H:%M")
-                    except:
-                        timestamp_display = notification["timestamp"][:10] if len(notification["timestamp"]) > 10 else notification["timestamp"]
-                
-                st.markdown("📢 **Notificação Global**")
-                st.markdown(f"*De: {notification.get('admin', 'Admin')} • {timestamp_display}*")
-                st.markdown(f"{notification['message']}")
-                
-            else:
-                # Notificação de música - USANDO COMPONENTES NATIVOS
-                timestamp_display = ""
-                if notification.get("timestamp"):
-                    try:
-                        dt = datetime.datetime.fromisoformat(notification["timestamp"].replace('Z', '+00:00'))
-                        timestamp_display = dt.strftime("%d/%m/%Y %H:%M")
-                    except:
-                        timestamp_display = notification["timestamp"][:10] if len(notification["timestamp"]) > 10 else notification["timestamp"]
-                
-                # Componentes nativos do Streamlit
-                st.markdown(f"🎵 **{notification['title']}**")
-                st.markdown(f"*{notification.get('artist', 'Artista desconhecido')}*")
-                st.caption(f"Nova música adicionada • {timestamp_display}")
-            
-            # Botão para marcar como lida (apenas para não lidas)
-            if is_unread:
-                col1, col2 = st.columns([3, 1])
-                with col2:
-                    if st.button("✅ Marcar como lida", key=f"read_{notification['id']}"):
-                        if mark_notification_as_read(notification['id'], notification['type']):
-                            st.success("✅ Notificação marcada como lida!")
-                            st.session_state.unread_notifications_cache = None
-                            time.sleep(0.5)
-                            st.rerun()
-            
-            # Fechar div se for não lida
-            if is_unread:
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            st.markdown("---")
+        # Renderizar a notificação com HTML
+        if notification["type"] == "global":
+            html_content = f"""
+            <div class="notification-container {'unread' if is_unread else ''}">
+                <div class="notification-header">
+                    📢 <strong>{notification.get('admin', 'Admin')}</strong> • {timestamp_display}
+                    {'<span class="new-badge">● NOVA</span>' if is_unread else ''}
+                </div>
+                <div class="notification-message">
+                    {notification['message']}
+                </div>
+            </div>
+            """
+        else:
+            html_content = f"""
+            <div class="notification-container {'unread' if is_unread else ''}">
+                <div class="notification-header">
+                    🎵 Nova Música • {timestamp_display}
+                    {'<span class="new-badge">● NOVA</span>' if is_unread else ''}
+                </div>
+                <div class="notification-title">
+                    {notification['title']}
+                </div>
+                <div class="notification-artist">
+                    {notification.get('artist', 'Artista desconhecido')}
+                </div>
+            </div>
+            """
+        
+        # Renderizar o HTML
+        st.markdown(html_content, unsafe_allow_html=True)
+        
+        # Botão para marcar como lida (apenas para não lidas) - separado do HTML
+        if is_unread:
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                if st.button("✅ Marcar como lida", key=f"read_{notification['id']}", use_container_width=True):
+                    if mark_notification_as_read(notification['id'], notification['type']):
+                        st.success("✅ Notificação marcada como lida!")
+                        st.session_state.unread_notifications_cache = None
+                        time.sleep(0.5)
+                        st.rerun()
+        
+        st.markdown("---")
     
     if st.button("Voltar para o Início", key="back_from_notifications"):
         st.session_state.current_page = "home"
