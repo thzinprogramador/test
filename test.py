@@ -199,11 +199,21 @@ def add_song_request(request_data):
             request_data["status"] = "pending"
             ref.push(request_data)
             
-            # Enviar notificação para Telegram - CORRIGIDO
+            # Enviar notificação para Telegram - FORMATO CORRIGIDO
             title = request_data.get("title", "Sem título")
             artist = request_data.get("artist", "Artista desconhecido")
+            album = request_data.get("album", "Álbum desconhecido")
             req_username = request_data.get("requested_by", "Anônimo")
-            send_telegram_notification(f"🎵 Novo pedido de música:\n{title} - {artist}\nSolicitado por: {req_username}")
+            
+            # Mensagem formatada como solicitado
+            notification_message = f"""🎵 *Novo pedido de música:*
+
+*Música:* {title}
+*Artista:* {artist}
+*Álbum:* {album}
+*Solicitado por:* {req_username}"""
+
+            send_telegram_notification(notification_message)
             
             return True
         return False
@@ -286,6 +296,7 @@ def check_telegram_connection():
         st.error(f"❌ Bot do Telegram desconectado: {e}")
         return False
 
+
 def setup_telegram_commands():
     if not TELEGRAM_NOTIFICATIONS_ENABLED:
         return
@@ -350,6 +361,7 @@ def setup_telegram_commands():
 🤖 Telegram: {'✅ Conectado' if TELEGRAM_NOTIFICATIONS_ENABLED else '❌ Desconectado'}
 🛡️ Admin: {admin_name}"""
         telegram_bot.send_message(message.chat.id, response, parse_mode='Markdown')
+
 
 def check_and_display_telegram_status():
     global telegram_bot, TELEGRAM_NOTIFICATIONS_ENABLED
@@ -508,15 +520,42 @@ def send_telegram_command_response(command, message=""):
     
     try:
         if command == "/status":
-            telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, "✅ Comando de status recebido via painel")
+            # Status real do sistema em vez de mensagem genérica
+            status = "✅ Online" if st.session_state.firebase_connected else "⚠️ Offline"
+            total_songs = len(st.session_state.all_songs)
+            response = f"""🌊 *Status do Wave Song*
+
+{status}
+🎵 Músicas no banco: {total_songs}
+🔔 Notificações: {'✅ Ativas' if TELEGRAM_NOTIFICATIONS_ENABLED else '❌ Inativas'}
+🛡️ Admin: {admin_name}"""
+            telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, response, parse_mode='Markdown')
             return True
             
         elif command == "/help":
-            telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, "✅ Comando de ajuda recebido via painel")
+            # Mensagem de ajuda real
+            response = """🌊 *Wave Song Bot* 🌊
+
+*Comandos disponíveis:*
+/status - Ver status do sistema
+/notify [mensagem] - Enviar notificação global
+/users - Estatísticas do sistema
+/help - Mostra esta ajuda
+
+*Desenvolvido por Schutz*"""
+            telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, response, parse_mode='Markdown')
             return True
             
         elif command == "/users":
-            telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, "✅ Comando de estatísticas recebido via painel")
+            # Estatísticas reais
+            total_songs = len(st.session_state.all_songs)
+            response = f"""👥 *Estatísticas do Wave Song*
+
+🎵 Músicas: {total_songs}
+🔗 Firebase: {'✅ Conectado' if st.session_state.firebase_connected else '❌ Desconectado'}
+🤖 Telegram: {'✅ Conectado' if TELEGRAM_NOTIFICATIONS_ENABLED else '❌ Desconectado'}
+🛡️ Admin: {admin_name}"""
+            telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, response, parse_mode='Markdown')
             return True
             
         else:
@@ -526,7 +565,6 @@ def send_telegram_command_response(command, message=""):
     except Exception as e:
         st.error(f"❌ Erro ao enviar comando: {e}")
         return False
-
 # ==============================
 # FUNÇÃO DE CONVERSÃO DE URL CORRIGIDA
 # ==============================
