@@ -1955,8 +1955,8 @@ elif st.session_state.current_page == "notifications":
             if is_unread or st.session_state.is_admin:
             
             # Estilo diferente para notificações não lidas
-            border_color = "#1DB954" if is_unread else "#555"
-            background_color = "#1f2937" if is_unread else "#2d3748"
+                border_color = "#1DB954" if is_unread else "#555"
+                background_color = "#1f2937" if is_unread else "#2d3748"
             
             with st.container():
                 if notification.get("type") == "global":
