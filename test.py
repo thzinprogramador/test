@@ -1385,8 +1385,7 @@ elif st.session_state.current_page == "stats":
             else:
                 st.error("❌ Senha incorreta!")
         st.stop()
-    # No painel de notificações, adicione:
-    st.metric("Status das Regras Firebase", check_firebase_rules())
+
     st.metric("Total de Músicas", len(st.session_state.all_songs))
     
     top_songs = get_top6_songs()
@@ -1395,11 +1394,13 @@ elif st.session_state.current_page == "stats":
         st.write(f"{i+1}. **{song['title']}** - {song['artist']} ({song.get('play_count', 0)} plays)")
     
     st.subheader("🔗 Status das Conexões")
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Firebase", "✅ Conectado" if st.session_state.firebase_connected else "❌ Desconectado")
     with col2:
         st.metric("Telegram", "✅ Conectado" if TELEGRAM_NOTIFICATIONS_ENABLED else "❌ Desconectado")
+    with col3:
+        st.metric("Regras Firebase", check_firebase_rules())
     
     if st.button("Voltar"):
         st.session_state.current_page = "home"
