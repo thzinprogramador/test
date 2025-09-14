@@ -88,17 +88,6 @@ except Exception as e:
     TELEGRAM_NOTIFICATIONS_ENABLED = False
 
 
-def test_telegram_connection():
-    """Testa a conexão com o Telegram de forma simples"""
-    try:
-        # Teste simples de conexão
-        response = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getMe")
-        if response.status_code == 200:
-            return True, "✅ Conexão bem-sucedida!"
-        else:
-            return False, f"❌ Erro na API: {response.status_code}"
-    except Exception as e:
-        return False, f"❌ Erro de conexão: {e}"
 
 # Adicione isso em algum lugar para testar
 if st.sidebar.button("Testar Conexão Telegram"):
