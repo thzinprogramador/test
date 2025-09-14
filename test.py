@@ -481,6 +481,35 @@ def initialize_database():
     except Exception as e:
         return False
 
+
+#TESTEEEEEEEEE    
+
+def debug_check_notification_status(notification_id, notification_type):
+    """Função de debug para verificar o status de uma notificação"""
+    if not st.session_state.firebase_connected or not st.session_state.user_id:
+        return "Não conectado"
+    
+    user_id = st.session_state.user_id
+    
+    try:
+        if notification_type == "global":
+            ref = db.reference(f"/global_notifications/{notification_id}/read_by/{user_id}")
+        elif notification_type == "music":
+            ref = db.reference(f"/system_notifications/{notification_id}/read_by/{user_id}")
+        elif notification_type == "personal":
+            ref = db.reference(f"/user_notifications/{user_id}/{notification_id}/read")
+        else:
+            return "Tipo inválido"
+        
+        status = ref.get()
+        return f"Status: {status} (Usuario: {user_id})"
+        
+    except Exception as e:
+        return f"Erro: {e}"
+
+
+# ------------------------------------------------------
+
 def get_all_songs():
     try:
         if st.session_state.firebase_connected:
@@ -716,12 +745,17 @@ def mark_notification_as_read(notification_id, notification_type):
         st.session_state.notifications_cache = None
         st.session_state.notifications_cache_timestamp = 0
         
+        # DEBUG: Verificar se realmente foi marcado
+        time.sleep(0.5)  # Pequeno delay para o Firebase atualizar
+        check_ref = db.reference(ref.path)
+        is_read = check_ref.get()
+        print(f"DEBUG: Notificação {notification_id} marcada como lida: {is_read}")
+        
         return True
         
     except Exception as e:
         st.error(f"❌ Erro ao marcar notificação como lida: {e}")
         return False
-
 
 def show_admin_management():
     """Interface simplificada para admin"""
@@ -1138,8 +1172,26 @@ def check_unread_notifications():
     if not st.session_state.firebase_connected or not st.session_state.user_id:
         return 0
     
-    # Simplesmente retorna o número de notificações não lidas
-    return len(get_all_notifications())
+    # Usar cache para melhor performance
+    current_time = time.time()
+    if (st.session_state.unread_notifications_cache is not None and 
+        current_time - st.session_state.unread_cache_timestamp < 30):  # 30 segundos de cache
+        return st.session_state.unread_notifications_cache
+    
+    try:
+        # Buscar notificações não lidas
+        unread_notifications = get_all_notifications()
+        unread_count = len(unread_notifications)
+        
+        # Atualizar cache
+        st.session_state.unread_notifications_cache = unread_count
+        st.session_state.unread_cache_timestamp = current_time
+        
+        return unread_count
+        
+    except Exception as e:
+        st.error(f"❌ Erro ao verificar notificações: {e}")
+        return 0
 
 def mark_notification_as_read(notification_id, notification_type):
     """Marca uma notificação como lida"""
@@ -1872,31 +1924,35 @@ elif st.session_state.current_page == "notifications":
             st.rerun()
         st.stop()
     
-    # Estado para controlar quais notificações foram marcadas como lidas DURANTE ESTA SESSÃO
-    if "read_notifications" not in st.session_state:
-        st.session_state.read_notifications = set()
+    # Estado para controlar recarregamentos
+    if "notification_refresh" not in st.session_state:
+        st.session_state.notification_refresh = 0
+    
+    # Botão para recarregar notificações
+    col1, col2 = st.columns([3, 1])
+    with col2:
+        if st.button("🔄 Atualizar", key="refresh_notifications_btn"):
+            st.session_state.notification_refresh += 1
+            st.session_state.unread_notifications_cache = None
+            st.session_state.notifications_cache = None
+            st.session_state.notifications_cache_timestamp = 0
+            st.rerun()
     
     # Buscar notificações
     try:
         all_notifications = get_all_notifications()
         
-        # Filtrar notificações que não foram marcadas como lidas durante esta sessão
-        notifications_to_show = [
-            note for note in all_notifications 
-            if note['id'] not in st.session_state.read_notifications
-        ]
-        
-        if not notifications_to_show:
+        if not all_notifications:
             st.info("🎉 Não há notificações não lidas!")
             if st.button("Voltar para o Início", key="back_from_notifications_empty"):
                 st.session_state.current_page = "home"
             st.stop()
         
-        st.success(f"📬 Você tem {len(notifications_to_show)} notificação(ões) não lida(s)")
+        st.success(f"📬 Você tem {len(all_notifications)} notificação(ões) não lida(s)")
         st.markdown("---")
         
         # Exibir notificações
-        for i, notification in enumerate(notifications_to_show):
+        for i, notification in enumerate(all_notifications):
             # Estilo para notificações não lidas
             border_color = "#1DB954"
             background_color = "#1f2937"
@@ -1946,6 +2002,8 @@ elif st.session_state.current_page == "notifications":
                 
                 else:
                     timestamp_display = notification.get("timestamp", "")[:10] if notification.get("timestamp") else "Data não disponível"
+                    title = notification.get('title', 'Sem título')
+                    artist = notification.get('artist', 'Artista desconhecido')
                     
                     st.markdown(f"""
                     <div style='
@@ -1960,23 +2018,27 @@ elif st.session_state.current_page == "notifications":
                             <span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>
                         </p>
                         <p style='color: white; font-size: 18px; font-weight: bold; margin: 8px 0 5px 0;'>
-                            {notification.get('title', 'Sem título')}
+                            {title}
                         </p>
                         <p style='color: #1DB954; font-size: 16px; margin: 0;'>
-                            {notification.get('artist', 'Artista desconhecido')}
+                            {artist}
                         </p>
                     </div>
                     """, unsafe_allow_html=True)
                 
-                # Botão para marcar como lida
+                # Botão para marcar como lida - COM CHAVE ÚNICA
+                unique_key = f"read_{notification['id']}_{st.session_state.notification_refresh}_{i}"
                 col1, col2 = st.columns([3, 1])
                 with col2:
-                    if st.button("✅ Lida", key=f"read_{notification['id']}"):
+                    if st.button("✅ Marcar como Lida", key=unique_key):
                         if mark_notification_as_read(notification.get('id'), notification.get('type', 'global')):
-                            # Adicionar à lista de notificações lidas durante esta sessão
-                            st.session_state.read_notifications.add(notification['id'])
                             st.success("Notificação marcada como lida!")
-                            # Usar callback para recarregar
+                            # Forçar recarregamento completo
+                            st.session_state.unread_notifications_cache = None
+                            st.session_state.notifications_cache = None
+                            st.session_state.notifications_cache_timestamp = 0
+                            st.session_state.notification_refresh += 1
+                            time.sleep(0.5)
                             st.rerun()
                 
                 st.markdown("---")
