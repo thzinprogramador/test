@@ -70,6 +70,8 @@ if "unread_cache_timestamp" not in st.session_state:
     st.session_state.unread_cache_timestamp = 0
 if "notifications_cache_timestamp" not in st.session_state:
     st.session_state.notifications_cache_timestamp = 0
+if "notifications_cache" not in st.session_state:
+    st.session_state.notifications_cache = None
 
 
 # ==============================
@@ -537,13 +539,7 @@ def get_user_notifications():
         return []
 
 def get_all_notifications():
-    """Busca todas as notificações (globais, de sistema e pessoais) de forma unificada com cache"""
-    # Usar cache para melhor performance (5 segundos)
-    current_time = time.time()
-    if (st.session_state.notifications_cache is not None and 
-        current_time - st.session_state.notifications_cache_timestamp < 5):
-        return st.session_state.notifications_cache
-    
+    """Busca todas as notificações (globais, de sistema e pessoais) de forma unificada"""
     all_notifications = []
     
     # Buscar notificações globais
@@ -605,11 +601,8 @@ def get_all_notifications():
     except:
         pass
     
-    # Atualizar cache
-    st.session_state.notifications_cache = all_notifications[:20]  # Limitar a 20 notificações
-    st.session_state.notifications_cache_timestamp = current_time
-    
-    return st.session_state.notifications_cache
+    return all_notifications[:20]  # Limitar a 20 notificações
+
 
 def send_user_notification(user_id, message, notification_type="info"):
     """Envia uma notificação para um usuário específico"""
@@ -1888,18 +1881,11 @@ elif st.session_state.current_page == "notifications":
     
     # Botão para recarregar notificações
     if st.button("🔄 Atualizar Notificações", key="refresh_notifications"):
-        # Limpar cache para forçar recarregamento
-        if "unread_notifications_cache" in st.session_state:
-            st.session_state.unread_notifications_cache = None
         st.rerun()
     
     # Buscar notificações
     try:
-        # Usar cache para melhor performance
-        if "notifications_cache" not in st.session_state:
-            st.session_state.notifications_cache = get_all_notifications()
-        
-        all_notifications = st.session_state.notifications_cache
+        all_notifications = get_all_notifications()
         
         if not all_notifications:
             st.info("📝 Não há notificações no momento.")
@@ -1994,7 +1980,7 @@ elif st.session_state.current_page == "notifications":
                             <p style='color: white; font-size: 18px; font-weight: bold; margin: 8px 0 5px 0;'>
                                 {notification.get('title', 'Sem título')}
                             </p>
-                            <p style='color: #1DB954; font-size: 16px; margin: 0;'>
+                            <p style'color: #1DB954; font-size: 16px; margin: 0;'>
                                 {notification.get('artist', 'Artista desconhecido')}
                             </p>
                         </div>
@@ -2007,11 +1993,6 @@ elif st.session_state.current_page == "notifications":
                             if st.button("✅ Marcar como Lida", key=f"read_{notification['id']}_{int(time.time())}"):
                                 if mark_notification_as_read(notification.get('id'), notification.get('type', 'global')):
                                     st.success("Notificação marcada como lida!")
-                                    # Limpar cache e forçar recarregamento
-                                    if "notifications_cache" in st.session_state:
-                                        st.session_state.notifications_cache = None
-                                    if "unread_notifications_cache" in st.session_state:
-                                        st.session_state.unread_notifications_cache = None
                                     time.sleep(0.5)
                                     st.rerun()
                     
@@ -2027,6 +2008,7 @@ elif st.session_state.current_page == "notifications":
         st.error(f"❌ Erro ao carregar notificações: {e}")
         if st.button("Voltar para o Início", key="back_from_notifications_error"):
             st.session_state.current_page = "home"
+
 
 # ==============================
 # FOOTER + CSS
