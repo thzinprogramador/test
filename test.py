@@ -1958,7 +1958,7 @@ elif st.session_state.current_page == "notifications":
     if not st.session_state.user_id:
         st.warning("⚠️ Faça login para ver suas notificações")
         #if st.button("Fazer Login", key="goto_login_notifications"):
-            st.session_state.show_login = True
+            #st.session_state.show_login = True
             st.rerun()
         st.stop()
     
