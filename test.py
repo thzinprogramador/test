@@ -301,7 +301,7 @@ def check_firebase_rules():
         # Testar ordenação em system_notifications
         ref = db.reference("/system_notifications")
         test_data = ref.order_by_child("timestamp").limit_to_last(1).get()
-        return "✅ Regras configuradas corretamente"
+        return "✅ Conectado"
     except Exception as e:
         if "indexOn" in str(e):
             return "⚠️ Regras não configuradas (usando fallback)"
