@@ -17,34 +17,6 @@ from io import BytesIO
 from PIL import Image
 
 
-# apagar -----------------------------
-def migrate_songs_to_custom_keys():
-    """Migra músicas existentes para usar chaves personalizadas (executar uma vez)"""
-    try:
-        ref = db.reference("/songs")
-        old_songs = ref.get() or {}
-        
-        for old_key, song_data in old_songs.items():
-            if "title" in song_data and "artist" in song_data:
-                # Gera nova chave personalizada
-                new_key = generate_firebase_key(f"{song_data['title']}_{song_data['artist']}")
-                
-                # Copia para nova chave
-                ref.child(new_key).set(song_data)
-                
-                # Remove a antiga (opcional)
-                # ref.child(old_key).delete()
-                
-                print(f"Migrado: {old_key} -> {new_key}")
-        
-        return True
-    except Exception as e:
-        print(f"Erro na migração: {e}")
-        return False
-
-#---------------------------------
-
-
 def get_current_timestamp():
     """Retorna timestamp formatado corretamente para Firebase"""
     return datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
@@ -942,48 +914,73 @@ def check_firebase_rules():
             return "⚠️ Regras não configuradas (usando fallback)"
         return f"❌ Erro: {str(e)[:100]}"
 
-
-
 def add_song_request(request_data):
     try:
         if st.session_state.firebase_connected:
             ref = db.reference("/song_requests")
             
-            # Gera chave personalizada baseada no nome da música solicitada
-            request_key = generate_firebase_key(f"{request_data['title']}_{request_data['artist']}_{request_data.get('requested_by', 'anon')}")
+            # Garantir campos obrigatórios
+            title = request_data.get("title", "Sem título")
+            artist = request_data.get("artist", "Artista desconhecido")
+            requested_by = request_data.get("requested_by", st.session_state.username or "Anônimo")
             
+            # Gera chave personalizada no formato "titulo_artista_usuario"
+            request_key = generate_firebase_key(f"{title}_{artist}_{requested_by}")
+            
+            # Verifica se já existe um pedido igual
+            existing_request = ref.child(request_key).get()
+            if existing_request:
+                st.warning("⚠️ Já existe um pedido igual para esta música!")
+                return False
+            
+            # Prepara dados completos
             request_data["created_at"] = get_current_timestamp()
             request_data["status"] = "pending"
-            
-            # Garantir que o requested_by seja o username do usuário logado
-            if "requested_by" not in request_data or not request_data["requested_by"]:
-                request_data["requested_by"] = st.session_state.username or "Anônimo"
+            request_data["requested_by"] = requested_by
             
             # Usa set() com chave personalizada
             ref.child(request_key).set(request_data)
             
             # Enviar notificação para Telegram
-            title = request_data.get("title", "Sem título")
-            artist = request_data.get("artist", "Artista desconhecido")
             album = request_data.get("album", "Álbum desconhecido")
-            req_username = request_data.get("requested_by", "Anônimo")
             
-            notification_message = f"""Novo pedido de música:
-            
+            notification_message = f"""🎵 Novo pedido de música:
+
 {artist} - {title} - {album}
 
-Música: {title}
-Artista: {artist}
-Álbum: {album}
-Solicitado por: {req_username}"""
+🎼 Música: {title}
+🎙️ Artista: {artist}
+💿 Álbum: {album}
+👤 Solicitado por: {requested_by}"""
 
             send_telegram_notification(notification_message)
             
+            st.success("✅ Pedido enviado com sucesso!")
             return True
+            
         return False
+        
     except Exception as e:
         st.error(f"❌ Erro ao enviar pedido: {e}")
         return False
+
+def check_existing_request(title, artist, username):
+    """Verifica se já existe um pedido igual"""
+    try:
+        if st.session_state.firebase_connected:
+            ref = db.reference("/song_requests")
+            
+            # Gera a chave que seria usada
+            expected_key = generate_firebase_key(f"{title}_{artist}_{username}")
+            
+            # Verifica se já existe
+            existing = ref.child(expected_key).get()
+            return existing is not None
+            
+    except Exception as e:
+        print(f"Erro ao verificar pedido existente: {e}")
+        
+    return False
 
 def search_songs(query, songs=None):
     if songs is None:
