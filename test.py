@@ -510,8 +510,41 @@ def get_all_songs():
 def get_all_songs_cached():
     return get_all_songs()
 
+
+def get_user_notifications():
+    """Busca notificações pessoais do usuário atual"""
+    if not st.session_state.firebase_connected or not st.session_state.user_id:
+        return []
+    
+    try:
+        ref = db.reference(f"/user_notifications/{st.session_state.user_id}")
+        notifications_data = ref.get()
+        
+        notifications = []
+        if notifications_data:
+            for note_id, note_data in notifications_data.items():
+                notifications.append({
+                    "id": note_id,
+                    "type": "personal",
+                    "message": note_data.get("message", ""),
+                    "timestamp": note_data.get("timestamp", ""),
+                    "read": note_data.get("read", False),
+                    "sent_by": note_data.get("sent_by", "Sistema")
+                })
+        
+        # Ordenar por timestamp (mais recente primeiro)
+        try:
+            notifications.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        except:
+            pass
+        
+        return notifications
+    except Exception as e:
+        st.error(f"❌ Erro ao buscar notificações pessoais: {e}")
+        return []
+
 def get_all_notifications():
-    """Busca todas as notificações (globais e de sistema) de forma unificada"""
+    """Busca todas as notificações (globais, de sistema e pessoais) de forma unificada"""
     all_notifications = []
     
     # Buscar notificações globais
@@ -552,13 +585,28 @@ def get_all_notifications():
     except Exception as e:
         st.error(f"❌ Erro ao buscar notificações do sistema: {e}")
     
+    # Buscar notificações pessoais do usuário
+    try:
+        personal_notifications = get_user_notifications()
+        for note in personal_notifications:
+            all_notifications.append({
+                "id": note["id"],
+                "type": "personal",
+                "title": f"Notificação Pessoal - {note['sent_by']}",
+                "message": note["message"],
+                "timestamp": note["timestamp"],
+                "is_read": note["read"]
+            })
+    except Exception as e:
+        st.error(f"❌ Erro ao buscar notificações pessoais: {e}")
+    
     # Ordenar por timestamp (mais recente primeiro)
     try:
         all_notifications.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
     except:
         pass
     
-    return all_notifications[:20]  # Limitar a 20 notificações
+    return all_notifications[:10]  # Limitar a 10 notificações
 
 def send_user_notification(user_id, message, notification_type="info"):
     """Envia uma notificação para um usuário específico"""
@@ -635,6 +683,8 @@ def mark_notification_as_read(notification_id, notification_type):
             ref = db.reference(f"/global_notifications/{notification_id}/read_by/{user_id}")
         elif notification_type == "music":
             ref = db.reference(f"/system_notifications/{notification_id}/read_by/{user_id}")
+        elif notification_type == "personal":
+            ref = db.reference(f"/user_notifications/{user_id}/{notification_id}/read")
         else:
             st.error(f"Tipo de notificação desconhecido: {notification_type}")
             return False
@@ -651,7 +701,6 @@ def mark_notification_as_read(notification_id, notification_type):
     except Exception as e:
         st.error(f"❌ Erro ao marcar notificação como lida: {e}")
         return False
-
 
 def show_admin_management():
     """Interface simplificada para admin"""
@@ -829,15 +878,18 @@ def add_song_request(request_data):
             ref = db.reference("/song_requests")
             request_data["created_at"] = datetime.datetime.now().isoformat()
             request_data["status"] = "pending"
+            # Garantir que o requested_by seja o username do usuário logado
+            if "requested_by" not in request_data or not request_data["requested_by"]:
+                request_data["requested_by"] = st.session_state.username or "Anônimo"
+            
             ref.push(request_data)
             
-            # Enviar notificação para Telegram - FORMATO CORRIGIDO
+            # Enviar notificação para Telegram
             title = request_data.get("title", "Sem título")
             artist = request_data.get("artist", "Artista desconhecido")
             album = request_data.get("album", "Álbum desconhecido")
             req_username = request_data.get("requested_by", "Anônimo")
             
-            # Mensagem formatada como solicitado
             notification_message = f"""Novo pedido de música:
             
 {artist} - {title} - {album}
@@ -1434,11 +1486,17 @@ def get_system_notifications_fallback():
 
 
 def show_request_music_section():
-    """Seção para pedir músicas - chamada apenas uma vez"""
-    # Usar container para evitar múltiplas renderizações
+    """Seção para pedir músicas - apenas para usuários logados"""
     with st.container():
         st.markdown("---")
         st.subheader("Não encontrou a música que procura?")
+        
+        if not st.session_state.user_id:
+            st.warning("⚠️ Faça login para solicitar músicas")
+            if st.button("Fazer Login", key="request_login_btn"):
+                st.session_state.show_login = True
+                st.rerun()
+            return
         
         # Usar estado único para controlar o formulário
         if st.button("Pedir Música +", key="request_music_btn", use_container_width=True):
@@ -1453,7 +1511,8 @@ def show_request_music_section():
                     req_artist = st.text_input("Artista*", placeholder="Ex: Bruno & Marrone", key="req_artist")
                 with col2:
                     req_album = st.text_input("Álbum (se conhecido)", key="req_album")
-                    req_username = st.text_input("Seu nome (opcional)", key="req_username")
+                    # Campo de nome preenchido automaticamente com o username
+                    st.text_input("Solicitado por:", value=st.session_state.username, disabled=True, key="req_username")
                 
                 submitted = st.form_submit_button("Enviar Pedido")
                 if submitted:
@@ -1464,7 +1523,7 @@ def show_request_music_section():
                             "title": req_title,
                             "artist": req_artist,
                             "album": req_album,
-                            "requested_by": req_username or "Anônimo"
+                            "requested_by": st.session_state.username  # Usa o username automaticamente
                         }
                         
                         if add_song_request(request_data):
@@ -1828,78 +1887,103 @@ elif st.session_state.current_page == "notifications":
             st.success(f"📬 Você tem {unread_count} notificação(ões) não lida(s)")
             st.markdown("---")
         
-        # Exibir notificações
+        # Exibir notificações (apenas não lidas, exceto para admin)
+        displayed_count = 0
         for i, notification in enumerate(all_notifications):
             is_unread = not notification.get("is_read", False)
-
+            
             # Mostrar apenas notificações não lidas OU todas se for admin
             if is_unread or st.session_state.is_admin:
-            
-            # Estilo diferente para notificações não lidas
+                displayed_count += 1
+                
+                # Estilo diferente para notificações não lidas
                 border_color = "#1DB954" if is_unread else "#555"
                 background_color = "#1f2937" if is_unread else "#2d3748"
-            
-            with st.container():
-                if notification.get("type") == "global":
-                    # Notificação global
-                    timestamp_display = notification.get("timestamp", "")[:10] if notification.get("timestamp") else "Data não disponível"
-                    
-                    st.markdown(f"""
-                    <div style='
-                        background-color: {background_color};
-                        padding: 15px;
-                        border-radius: 10px;
-                        margin-bottom: 15px;
-                        border-left: 4px solid {border_color};
-                    '>
-                        <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
-                            📢 <strong>{notification.get('admin', 'Admin')}</strong> • {timestamp_display}
-                            {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
-                        </p>
-                        <p style='color: white; font-size: 16px; margin: 8px 0 0 0;'>
-                            {notification.get('message', '')}
-                        </p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                else:
-                    # Notificação de música
-                    timestamp_display = notification.get("timestamp", "")[:10] if notification.get("timestamp") else "Data não disponível"
-                    
-                    st.markdown(f"""
-                    <div style='
-                        background-color: {background_color};
-                        padding: 15px;
-                        border-radius: 10px;
-                        margin-bottom: 15px;
-                        border-left: 4px solid {border_color};
-                    '>
-                        <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
-                            🎵 Nova Música • {timestamp_display}
-                            {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
-                        </p>
-                        <p style='color: white; font-size: 18px; font-weight: bold; margin: 8px 0 5px 0;'>
-                            {notification.get('title', 'Sem título')}
-                        </p>
-                        <p style='color: #1DB954; font-size: 16px; margin: 0;'>
-                            {notification.get('artist', 'Artista desconhecido')}
-                        </p>
-                    </div>
-                    """, unsafe_allow_html=True)
                 
-                # Botão para marcar como lida (apenas para não lidas)
-                if is_unread:
-                    col1, col2 = st.columns([3, 1])
-                    with col2:
-                        if st.button("✅ Lida", key=f"read_{i}_{int(time.time())}"):
-                            if mark_notification_as_read(notification.get('id'), notification.get('type', 'global')):
-                                st.success("Marcada como lida!")
-                                time.sleep(0.5)
-                                st.experimental_rerun()
-                
-                st.markdown("---")
-        else:
-            st.info("Não há notificações não lidas.")
+                with st.container():
+                    if notification.get("type") == "global":
+                        # Notificação global
+                        timestamp_display = notification.get("timestamp", "")[:10] if notification.get("timestamp") else "Data não disponível"
+                        
+                        st.markdown(f"""
+                        <div style='
+                            background-color: {background_color};
+                            padding: 15px;
+                            border-radius: 10px;
+                            margin-bottom: 15px;
+                            border-left: 4px solid {border_color};
+                        '>
+                            <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
+                                📢 <strong>{notification.get('admin', 'Admin')}</strong> • {timestamp_display}
+                                {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
+                            </p>
+                            <p style='color: white; font-size: 16px; margin: 8px 0 0 0;'>
+                                {notification.get('message', '')}
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                    elif notification.get("type") == "personal":
+                        # Notificação pessoal
+                        timestamp_display = notification.get("timestamp", "")[:10] if notification.get("timestamp") else "Data não disponível"
+                        
+                        st.markdown(f"""
+                        <div style='
+                            background-color: {background_color};
+                            padding: 15px;
+                            border-radius: 10px;
+                            margin-bottom: 15px;
+                            border-left: 4px solid {border_color};
+                        '>
+                            <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
+                                📨 <strong>{notification.get('title', 'Notificação Pessoal')}</strong> • {timestamp_display}
+                                {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
+                            </p>
+                            <p style='color: white; font-size: 16px; margin: 8px 0 0 0;'>
+                                {notification.get('message', '')}
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    else:
+                        # Notificação de música
+                        timestamp_display = notification.get("timestamp", "")[:10] if notification.get("timestamp") else "Data não disponível"
+                        
+                        st.markdown(f"""
+                        <div style='
+                            background-color: {background_color};
+                            padding: 15px;
+                            border-radius: 10px;
+                            margin-bottom: 15px;
+                            border-left: 4px solid {border_color};
+                        '>
+                            <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
+                                🎵 Nova Música • {timestamp_display}
+                                {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
+                            </p>
+                            <p style='color: white; font-size: 18px; font-weight: bold; margin: 8px 0 5px 0;'>
+                                {notification.get('title', 'Sem título')}
+                            </p>
+                            <p style='color: #1DB954; font-size: 16px; margin: 0;'>
+                                {notification.get('artist', 'Artista desconhecido')}
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # Botão para marcar como lida (apenas para não lidas)
+                    if is_unread:
+                        col1, col2 = st.columns([3, 1])
+                        with col2:
+                            if st.button("✅ Lida", key=f"read_{notification['id']}_{int(time.time())}"):
+                                if mark_notification_as_read(notification.get('id'), notification.get('type', 'global')):
+                                    st.success("Marcada como lida!")
+                                    time.sleep(0.5)
+                                    st.rerun()
+                    
+                    st.markdown("---")
+        
+        if displayed_count == 0:
+            st.info("🎉 Todas as notificações foram lidas!")
         
         if st.button("Voltar para o Início", key="back_from_notifications"):
             st.session_state.current_page = "home"
