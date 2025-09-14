@@ -187,43 +187,69 @@ def add_song_to_db(song_data):
             image_url = song_data.get("image_url", "")
             
             # Formatar mensagem para Telegram
-            telegram_message = f"""Nova música adicionada!
+            telegram_message = f"""🎵 *Nova música adicionada!*
 
-{title}
+*{title}*
 {artist}
 
 """
             
-            # Tentar enviar com imagem se disponível
-            if image_url and "http" in image_url:
-                try:
-                    # Baixar a imagem
-                    response = requests.get(image_url, timeout=10)
-                    if response.status_code == 200:
-                        # Enviar foto com legenda
-                        telegram_bot.send_photo(
-                            TELEGRAM_ADMIN_CHAT_ID, 
-                            response.content,
-                            caption=telegram_message,
-                            parse_mode='Markdown'
-                        )
-                    else:
-                        # Fallback: enviar apenas texto
-                        send_telegram_notification(telegram_message)
-                except Exception as e:
-                    print(f"Erro ao enviar imagem para Telegram: {e}")
-                    send_telegram_notification(telegram_message)
-            else:
-                send_telegram_notification(telegram_message)
+            # Tentar enviar para Telegram
+            telegram_success = False
+            if TELEGRAM_NOTIFICATIONS_ENABLED:
+                # Tentar enviar com imagem se disponível
+                if image_url and "http" in image_url:
+                    try:
+                        # Baixar a imagem
+                        response = requests.get(image_url, timeout=10)
+                        if response.status_code == 200:
+                            # Enviar foto com legenda
+                            telegram_bot.send_photo(
+                                TELEGRAM_ADMIN_CHAT_ID, 
+                                response.content,
+                                caption=telegram_message,
+                                parse_mode='Markdown'
+                            )
+                            telegram_success = True
+                        else:
+                            # Fallback: enviar apenas texto
+                            telegram_success = send_telegram_notification(telegram_message)
+                    except Exception as e:
+                        print(f"Erro ao enviar imagem para Telegram: {e}")
+                        telegram_success = send_telegram_notification(telegram_message)
+                else:
+                    telegram_success = send_telegram_notification(telegram_message)
             
             # Adicionar notificação ao sistema interno
-            add_system_notification(title, artist, image_url, song_id)
+            system_success = add_system_notification(title, artist, image_url, song_id)
+            
+            if telegram_success:
+                st.success("✅ Notificação enviada para Telegram!")
+            elif TELEGRAM_NOTIFICATIONS_ENABLED:
+                st.warning("⚠️ Notificação do Telegram não enviada")
+            
+            if system_success:
+                st.success("✅ Notificação adicionada ao sistema!")
             
             return True
         return False
     except Exception as e:
         st.error(f"❌ Erro ao adicionar música: {e}")
         return False
+
+
+# função para verificar o status do Telegram
+def check_telegram_bot_status():
+    if not TELEGRAM_NOTIFICATIONS_ENABLED:
+        return "❌ Desativado"
+    
+    try:
+        bot_info = telegram_bot.get_me()
+        # Testar envio de mensagem
+        test_msg = telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, "🤖 Bot está funcionando!", disable_notification=True)
+        return f"✅ Conectado (@{bot_info.username})"
+    except Exception as e:
+        return f"❌ Erro: {str(e)[:50]}..."
 
 def add_system_notification(title, artist, image_url, song_id):
     """Adiciona notificação ao sistema interno de notificações"""
@@ -253,62 +279,48 @@ def add_system_notification(title, artist, image_url, song_id):
 def display_system_notifications():
     """Exibe notificações do sistema no formato solicitado"""
     try:
-        ref = db.reference("/system_notifications")
-        notifications = ref.order_by_child("timestamp").limit_to_last(10).get()
+        notifications_list = get_system_notifications_fallback()
         
-        if notifications:
-            notifications_list = []
-            for note_id, note_data in notifications.items():
-                notifications_list.append({
-                    "id": note_id,
-                    "title": note_data.get("title", ""),
-                    "artist": note_data.get("artist", ""),
-                    "image_url": note_data.get("image_url", ""),
-                    "timestamp": note_data.get("timestamp", ""),
-                    "formatted_message": note_data.get("formatted_message", "")
-                })
+        if not notifications_list:
+            st.info("📝 Nenhuma notificação de música encontrada.")
+            return
             
-            # Ordenar por timestamp (mais recente primeiro)
-            notifications_list.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
-            
-            for note in notifications_list:
-                with st.container():
-                    col1, col2 = st.columns([1, 3])
-                    
-                    with col1:
-                        if note["image_url"]:
-                            img = load_image_cached(note["image_url"])
-                            if img:
-                                st.image(img, width=100)
-                            else:
-                                st.image("https://via.placeholder.com/100x100/1DB954/FFFFFF?text=🎵", width=100)
+        for note in notifications_list:
+            with st.container():
+                col1, col2 = st.columns([1, 3])
+                
+                with col1:
+                    if note["image_url"]:
+                        img = load_image_cached(note["image_url"])
+                        if img:
+                            st.image(img, width=100)
                         else:
                             st.image("https://via.placeholder.com/100x100/1DB954/FFFFFF?text=🎵", width=100)
-                    
-                    with col2:
-                        st.markdown(f"""
-                        <div style='
-                            background-color: #1f2937;
-                            padding: 15px;
-                            border-radius: 10px;
-                            margin-bottom: 10px;
-                            border-left: 4px solid #1DB954;
-                        '>
-                            <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
-                                🆕 Nova música • {note['timestamp'][:10] if note['timestamp'] else ''}
-                            </p>
-                            <p style='color: white; font-size: 18px; font-weight: bold; margin: 5px 0; text-align: center;'>
-                                {note['title']}
-                            </p>
-                            <p style='color: #1DB954; font-size: 16px; margin: 0; text-align: center;'>
-                                {note['artist']}
-                            </p>
-                        </div>
-                        """, unsafe_allow_html=True)
+                    else:
+                        st.image("https://via.placeholder.com/100x100/1DB954/FFFFFF?text=🎵", width=100)
+                
+                with col2:
+                    st.markdown(f"""
+                    <div style='
+                        background-color: #1f2937;
+                        padding: 15px;
+                        border-radius: 10px;
+                        margin-bottom: 10px;
+                        border-left: 4px solid #1DB954;
+                    '>
+                        <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
+                            🆕 Nova música • {note['timestamp'][:10] if note['timestamp'] else ''}
+                        </p>
+                        <p style='color: white; font-size: 18px; font-weight: bold; margin: 5px 0; text-align: center;'>
+                            {note['title']}
+                        </p>
+                        <p style='color: #1DB954; font-size: 16px; margin: 0; text-align: center;'>
+                            {note['artist']}
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
     except Exception as e:
         st.error(f"❌ Erro ao carregar notificações do sistema: {e}")
-
-
 
 
 
@@ -939,6 +951,37 @@ def show_notification_panel():
     if st.button("🔒 Sair do Painel de Notificações"):
         st.session_state.admin_authenticated = False
         st.rerun()
+
+
+def get_system_notifications_fallback():
+    """Busca notificações sem ordenação para evitar erros de regras"""
+    try:
+        ref = db.reference("/system_notifications")
+        notifications = ref.get()
+        
+        if notifications:
+            notifications_list = []
+            for note_id, note_data in notifications.items():
+                notifications_list.append({
+                    "id": note_id,
+                    "title": note_data.get("title", ""),
+                    "artist": note_data.get("artist", ""),
+                    "image_url": note_data.get("image_url", ""),
+                    "timestamp": note_data.get("timestamp", ""),
+                    "formatted_message": note_data.get("formatted_message", "")
+                })
+            
+            # Ordenar manualmente por timestamp
+            try:
+                notifications_list.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+            except:
+                pass
+            
+            return notifications_list[:10]  # Limitar a 10 mais recentes
+        return []
+    except Exception as e:
+        st.error(f"❌ Erro ao buscar notificações: {e}")
+        return []
 
 
 def show_request_music_section():
