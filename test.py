@@ -8,6 +8,8 @@ import time
 import base64
 import threading
 import supabase
+import traceback
+import bcrypt
 from supabase import create_client, Client
 from firebase_admin import credentials, db
 from io import BytesIO
@@ -75,7 +77,7 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ==============================
-# SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO
+# SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO (SEM EMAIL)
 # ==============================
 def init_auth():
     """Inicializa o sistema de autenticação"""
@@ -85,98 +87,85 @@ def init_auth():
         st.session_state.user_id = None
     if "username" not in st.session_state:
         st.session_state.username = None
+    if "is_admin" not in st.session_state:
+        st.session_state.is_admin = False
+
+def hash_password(password):
+    """Gera hash da senha usando bcrypt"""
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
+
+def check_password(password, hashed_password):
+    """Verifica se a senha corresponde ao hash"""
+    return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+
+def username_exists(username):
+    """Verifica se o username já existe"""
+    try:
+        response = supabase_client.table("users").select("username").eq("username", username).execute()
+        return len(response.data) > 0
+    except Exception as e:
+        st.error(f"Erro ao verificar usuário: {e}")
+        return False
 
 def sign_up(username, password):
     """Registra um novo usuário apenas com username e senha"""
     try:
-        # Criar email fictício baseado no username
-        fake_email = f"{username}@wavesong.com"
+        # Verificar se usuário já existe
+        if username_exists(username):
+            return False, "Usuário já existe!"
         
-        response = supabase_client.auth.sign_up({
-            "email": fake_email,
-            "password": password,
-            "options": {
-                "data": {
-                    "username": username
-                }
-            }
-        })
+        # Criar novo usuário
+        response = supabase_client.table("users").insert({
+            "username": username,
+            "password_hash": hash_password(password),
+            "created_at": datetime.datetime.now().isoformat()
+        }).execute()
         
-        if response.user:
-            # Criar perfil do usuário com admin como null
-            supabase_client.table("profiles").insert({
-                "id": response.user.id,
-                "username": username,
-                "admin": None,  # Campo admin inicializado como null
-                "created_at": datetime.datetime.now().isoformat()
-            }).execute()
-            
+        if response.data:
             return True, "Conta criada com sucesso!"
         return False, "Erro ao criar conta"
     except Exception as e:
         return False, f"Erro: {str(e)}"
 
 def sign_in(username, password):
-    """Autentica um usuário usando username"""
+    """Autentica um usuário usando username e senha"""
     try:
-        # Converter username para email fictício
-        fake_email = f"{username}@wavesong.com"
+        # Buscar usuário no banco
+        response = supabase_client.table("users").select("*").eq("username", username).execute()
         
-        response = supabase_client.auth.sign_in_with_password({
-            "email": fake_email,
-            "password": password
-        })
+        if not response.data or len(response.data) == 0:
+            return False, "Usuário não encontrado!"
         
-        if response.user:
-            st.session_state.user = response.user
-            st.session_state.user_id = response.user.id
-            st.session_state.username = username
-            
-            # Buscar username do perfil
-            try:
-                profile_response = supabase_client.table("profiles").select("username").eq("id", response.user.id).execute()
-                if profile_response.data and len(profile_response.data) > 0:
-                    st.session_state.username = profile_response.data[0].get("username", username)
-            except:
-                st.session_state.username = username
-            
+        user_data = response.data[0]
+        
+        # Verificar senha
+        if check_password(password, user_data["password_hash"]):
+            st.session_state.user = user_data
+            st.session_state.user_id = user_data["id"]
+            st.session_state.username = user_data["username"]
+            st.session_state.is_admin = user_data.get("is_admin", False)
             return True, "Login realizado com sucesso!"
-        return False, "Credenciais inválidas"
+        else:
+            return False, "Senha incorreta!"
+            
     except Exception as e:
         return False, f"Erro: {str(e)}"
 
 def sign_out():
     """Desconecta o usuário"""
-    try:
-        supabase_client.auth.sign_out()
-        st.session_state.user = None
-        st.session_state.user_id = None
-        st.session_state.username = None
-        return True
-    except Exception as e:
-        st.error(f"Erro ao fazer logout: {e}")
-        return False
+    st.session_state.user = None
+    st.session_state.user_id = None
+    st.session_state.username = None
+    st.session_state.is_admin = False
+    return True
 
 def get_current_user():
-    """Retorna o usuário atual"""
-    try:
-        response = supabase_client.auth.get_user()
-        if response.user:
-            st.session_state.user = response.user
-            st.session_state.user_id = response.user.id
-            
-            # Buscar username do perfil
-            try:
-                profile_response = supabase_client.table("profiles").select("username").eq("id", response.user.id).execute()
-                if profile_response.data and len(profile_response.data) > 0:
-                    st.session_state.username = profile_response.data[0].get("username", "Usuário")
-            except:
-                st.session_state.username = "Usuário"
-            
-            return response.user
-        return None
-    except:
-        return None
+    """Retorna o usuário atual (simulado)"""
+    if st.session_state.user:
+        return st.session_state.user
+    return None
 
 def show_auth_ui():
     """Interface de autenticação simplificada"""
@@ -189,12 +178,15 @@ def show_auth_ui():
             submitted = st.form_submit_button("Entrar")
             
             if submitted:
-                success, message = sign_in(username, password)
-                if success:
-                    st.success(message)
-                    st.rerun()
+                if not username or not password:
+                    st.error("Preencha todos os campos!")
                 else:
-                    st.error(message)
+                    success, message = sign_in(username, password)
+                    if success:
+                        st.success(message)
+                        st.rerun()
+                    else:
+                        st.error(message)
     
     with tab2:
         with st.form("signup_form"):
@@ -205,7 +197,9 @@ def show_auth_ui():
             submitted = st.form_submit_button("Criar conta")
             
             if submitted:
-                if password != confirm_password:
+                if not username or not password:
+                    st.error("Preencha todos os campos!")
+                elif password != confirm_password:
                     st.error("As senhas não coincidem")
                 elif len(password) < 6:
                     st.error("A senha deve ter pelo menos 6 caracteres")
@@ -218,31 +212,13 @@ def show_auth_ui():
                     else:
                         st.error(message)
 
-
 def is_admin():
     """Verifica se o usuário atual é administrador"""
-    if not st.session_state.user_id:
-        return False
-    
-    try:
-        # Buscar o perfil do usuário no Supabase
-        response = supabase_client.table("profiles").select("admin").eq("id", st.session_state.user_id).execute()
-        
-        if response.data and len(response.data) > 0:
-            admin_value = response.data[0].get("admin")
-            # Retorna True se admin for True (não None)
-            return admin_value is True
-        
-        return False
-    except Exception as e:
-        st.error(f"❌ Erro ao verificar permissões: {e}")
-        return False
+    return st.session_state.is_admin
 
 def is_super_admin():
     """Verifica se o usuário é um super administrador"""
-    # Lista de usernames de super administradores
-    super_admin_usernames = ["schutz"]
-    return st.session_state.username in super_admin_usernames
+    return st.session_state.username in ["schutz", "admin"]
 
 def promote_to_admin(target_username):
     """Promove um usuário a administrador"""
@@ -627,7 +603,6 @@ def add_system_notification(title, artist, image_url, song_id):
             return False
     except Exception as e:
         st.error(f"❌ Erro ao adicionar notificação do sistema: {e}")
-        import traceback
         st.error(f"Traceback: {traceback.format_exc()}")
         return False
 
