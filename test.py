@@ -184,6 +184,17 @@ def add_song_to_db(song_data):
             
             st.success(f"✅ Música '{song_data['title']}' adicionada com ID: {song_id}")
             
+            # DEBUG: Verificar se a música foi realmente salva
+            try:
+                check_ref = db.reference(f"/songs/{song_id}")
+                saved_song = check_ref.get()
+                if saved_song:
+                    st.info(f"✅ Música verificada no banco: {saved_song.get('title')}")
+                else:
+                    st.error("❌ Música não encontrada no banco após salvar!")
+            except Exception as check_error:
+                st.error(f"❌ Erro ao verificar música no banco: {check_error}")
+            
             # Enviar notificação para Telegram no formato solicitado
             title = song_data.get("title", "Sem título")
             artist = song_data.get("artist", "Artista desconhecido")
@@ -205,12 +216,14 @@ def add_song_to_db(song_data):
                 try:
                     # Testar se o bot está funcionando
                     bot_info = telegram_bot.get_me()
+                    st.info(f"🤖 Bot info: {bot_info.username} (ID: {bot_info.id})")
                     
                     # Tentar enviar com imagem se disponível
                     if image_url and "http" in image_url:
                         try:
                             response = requests.get(image_url, timeout=10)
                             if response.status_code == 200:
+                                st.info("📸 Tentando enviar com imagem...")
                                 telegram_bot.send_photo(
                                     TELEGRAM_ADMIN_CHAT_ID, 
                                     response.content,
@@ -218,19 +231,28 @@ def add_song_to_db(song_data):
                                     parse_mode='Markdown'
                                 )
                                 telegram_success = True
+                                st.success("✅ Imagem enviada para Telegram!")
                             else:
+                                st.warning(f"⚠️ Erro ao baixar imagem: {response.status_code}")
                                 telegram_success = send_telegram_notification(telegram_message)
                         except Exception as img_error:
                             telegram_error = f"Erro imagem: {str(img_error)}"
+                            st.error(f"❌ Erro com imagem: {img_error}")
                             telegram_success = send_telegram_notification(telegram_message)
                     else:
+                        st.info("📝 Enviando apenas texto...")
                         telegram_success = send_telegram_notification(telegram_message)
                         
                 except Exception as tg_error:
                     telegram_error = f"Erro Telegram: {str(tg_error)}"
+                    st.error(f"❌ Erro no Telegram: {tg_error}")
                     telegram_success = False
+            else:
+                telegram_error = "Telegram desativado ou bot não inicializado"
+                st.warning("⚠️ Telegram não está habilitado")
             
             # Adicionar notificação ao sistema interno
+            st.info("💾 Salvando notificação no sistema...")
             system_success = add_system_notification(title, artist, image_url, song_id)
             
             # Mostrar status das notificações
@@ -242,6 +264,16 @@ def add_song_to_db(song_data):
             
             if system_success:
                 st.success("✅ Notificação adicionada ao sistema!")
+                # Verificar se a notificação foi realmente salva
+                try:
+                    notif_ref = db.reference("/system_notifications")
+                    notifications = notif_ref.order_by_child("song_id").equal_to(song_id).get()
+                    if notifications:
+                        st.info(f"✅ Notificação verificada no banco: {len(notifications)} encontrada(s)")
+                    else:
+                        st.error("❌ Notificação não encontrada no banco!")
+                except Exception as notif_error:
+                    st.error(f"❌ Erro ao verificar notificação: {notif_error}")
             else:
                 st.warning("⚠️ Notificação do sistema não foi salva")
             
@@ -251,6 +283,8 @@ def add_song_to_db(song_data):
             return False
     except Exception as e:
         st.error(f"❌ Erro ao adicionar música: {e}")
+        import traceback
+        st.error(f"Traceback: {traceback.format_exc()}")
         return False
 
 
@@ -285,15 +319,32 @@ def add_system_notification(title, artist, image_url, song_id):
 {title}
 {artist}"""
             }
+            st.info(f"💾 Tentando salvar notificação para: {title} - {artist}")
             new_notification_ref = ref.push(notification_data)
-            return True
+            notification_key = new_notification_ref.key
+            st.success(f"✅ Notificação salva com ID: {notification_key}")
+            
+            # Verificar imediatamente se foi salva
+            try:
+                check_ref = db.reference(f"/system_notifications/{notification_key}")
+                saved_notification = check_ref.get()
+                if saved_notification:
+                    st.info("✅ Notificação verificada no banco de dados!")
+                    return True
+                else:
+                    st.error("❌ Notificação não encontrada após salvar!")
+                    return False
+            except Exception as check_error:
+                st.error(f"❌ Erro ao verificar notificação: {check_error}")
+                return False
         else:
             st.error("❌ Firebase não conectado para salvar notificação")
             return False
     except Exception as e:
         st.error(f"❌ Erro ao adicionar notificação do sistema: {e}")
+        import traceback
+        st.error(f"Traceback: {traceback.format_exc()}")
         return False
-
 
 def check_firebase_rules():
     """Verifica se as regras do Firebase estão configuradas corretamente"""
