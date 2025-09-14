@@ -149,6 +149,10 @@ supabase_client = SimpleSupabaseClient(SUPABASE_URL, SUPABASE_KEY)
 
 
 # teste 
+# Fallback para modo offline
+if not st.session_state.get('supabase_working', True):
+    st.warning("⚠️ Modo offline ativado (Supabase não respondendo)")
+
 def check_supabase_connection():
     """Verifica a conexão com Supabase"""
     try:
@@ -207,6 +211,45 @@ if "full_debug_done" not in st.session_state:
     except Exception as e:
         st.sidebar.error(f"Erro na verificação: {e}")
 
+
+# Verificação inicial da conexão
+if "supabase_initialized" not in st.session_state:
+    st.session_state.supabase_initialized = True
+    
+    try:
+        # Testar conexão
+        test_response = supabase_client.table("users").select("count").execute()
+        if test_response.get("data") is not None:
+            st.sidebar.success("✅ Conectado ao Supabase")
+        else:
+            st.sidebar.error("❌ Erro na conexão com Supabase")
+    except Exception as e:
+        st.sidebar.error(f"❌ Falha na conexão: {e}")
+
+def debug_user_search(username):
+    """Debug da busca de usuário"""
+    try:
+        st.info(f"Buscando usuário: {username}")
+        
+        # Tentar diferentes formas de buscar
+        response1 = supabase_client.table("users").select("*").eq("username", username).execute()
+        st.info(f"Busca 1 - eq: {response1}")
+        
+        response2 = supabase_client.table("users").select("*").execute()
+        st.info(f"Todos os usuários: {response2}")
+        
+        # Verificar se o usuário está na lista
+        if response2.get("data"):
+            for user in response2["data"]:
+                if user.get("username") == username:
+                    st.success(f"Usuário encontrado na lista completa: {user}")
+                    return user
+        
+        return None
+    except Exception as e:
+        st.error(f"Erro no debug: {e}")
+        return None
+
 # ==============================
 # SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO (SEM EMAIL)
 # ==============================
@@ -244,8 +287,11 @@ def sign_up(username, password):
     """Registra um novo usuário apenas com username e senha"""
     try:
         # Verificar se usuário já existe
-        if username_exists(username):
-            return False, "Usuário já existe!"
+        all_users = supabase_client.table("users").select("username").execute()
+        if all_users.get("data"):
+            for user in all_users["data"]:
+                if user.get("username") == username:
+                    return False, "Usuário já existe!"
         
         # Criar novo usuário
         user_data = {
@@ -257,52 +303,37 @@ def sign_up(username, password):
         
         response = supabase_client.table("users").insert(user_data).execute()
         
-        # Debug: verificar a resposta completa
-        st.info(f"Resposta do sign_up: {response}")
-        
         if response and response.get("data"):
-            # ENVIAR NOTIFICAÇÃO PARA TELEGRAM
-            telegram_message = f"👤 Nova conta criada!\n\nUsuário: {username}\nData: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            # Telegram notification
+            telegram_message = f"👤 Nova conta: {username}"
             send_telegram_notification(telegram_message)
-            
             return True, "Conta criada com sucesso!"
         else:
-            st.error(f"Erro na resposta: {response}")
             return False, "Erro ao criar conta"
             
     except Exception as e:
-        st.error(f"Erro no sign_up: {str(e)}")
         return False, f"Erro: {str(e)}"
+
 
 def sign_in(username, password):
     """Autentica um usuário usando username e senha"""
     try:
-        # Debug da busca
-        debug_user = debug_user_search(username)
-        
-        # Buscar usuário no banco
+        # Buscar usuário no banco - método mais direto
         response = supabase_client.table("users").select("*").eq("username", username).execute()
         
-        st.info(f"Resposta do login: {response}")  # Debug
+        st.info(f"Resposta do login: {response}")
         
         if not response.get("data") or len(response.get("data", [])) == 0:
-            st.error(f"Usuário '{username}' não encontrado na tabela 'users'")
+            # Tentar busca alternativa sem filtro
+            all_response = supabase_client.table("users").select("*").execute()
+            st.info(f"Todos os usuários: {all_response.get('data', [])}")
             
-            # Tentar busca alternativa
-            all_users_response = supabase_client.table("users").select("username, id").execute()
-            if all_users_response.get("data"):
-                st.info(f"Todos os usuários no sistema: {all_users_response['data']}")
-                
-                # Verificar se o usuário existe com busca manual
-                for user in all_users_response["data"]:
+            # Busca manual
+            if all_response.get("data"):
+                for user in all_response["data"]:
                     if user.get("username") == username:
-                        st.success(f"Usuário encontrado com busca manual: {user}")
-                        # Buscar dados completos
-                        user_id = user.get("id")
-                        user_full_response = supabase_client.table("users").select("*").eq("id", user_id).execute()
-                        if user_full_response.get("data"):
-                            user_data = user_full_response["data"][0]
-                            break
+                        user_data = user
+                        break
                 else:
                     return False, "Usuário não encontrado!"
             else:
@@ -310,30 +341,20 @@ def sign_in(username, password):
         else:
             user_data = response["data"][0]
         
-        # Debug: verificar estrutura do usuário
-        st.info(f"Dados do usuário encontrado: {user_data}")
-        
-        # Verificar se a senha hash existe
-        if "password_hash" not in user_data:
-            st.error("Estrutura do usuário inválida: campo password_hash não encontrado")
-            return False, "Erro: estrutura de usuário inválida!"
-        
         # Verificar senha
         if check_password(password, user_data["password_hash"]):
             st.session_state.user = user_data
             st.session_state.user_id = user_data.get("id")
             st.session_state.username = user_data.get("username")
             st.session_state.is_admin = user_data.get("is_admin", False)
-            st.session_state.show_login = False  # Fechar o formulário após login
+            st.session_state.show_login = False
             
-            st.success(f"Login bem-sucedido! Admin: {st.session_state.is_admin}")
             return True, "Login realizado com sucesso!"
         else:
-            st.error("Senha incorreta!")
             return False, "Senha incorreta!"
             
     except Exception as e:
-        st.error(f"❌ Erro no login: {str(e)}")
+        st.error(f"Erro no login: {str(e)}")
         return False, f"Erro: {str(e)}"
 
 def sign_out():
@@ -459,28 +480,28 @@ def promote_to_admin(target_username):
         st.error(f"❌ Erro ao promover usuário: {e}")
         return False
 
-def debug_user_search(username):
-    """Debug da busca de usuário"""
+
+def direct_sql_query(sql):
+    """Executa SQL diretamente na API do Supabase"""
     try:
-        st.info(f"Buscando usuário: {username}")
+        url = f"{SUPABASE_URL}/rest/v1/"
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json"
+        }
         
-        # Tentar diferentes formas de buscar
-        response1 = supabase_client.table("users").select("*").eq("username", username).execute()
-        st.info(f"Busca 1 - eq: {response1}")
-        
-        response2 = supabase_client.table("users").select("*").execute()
-        st.info(f"Todos os usuários: {response2}")
-        
-        # Verificar se o usuário está na lista
-        if response2.get("data"):
-            for user in response2["data"]:
-                if user.get("username") == username:
-                    st.success(f"Usuário encontrado na lista completa: {user}")
-                    return user
-        
-        return None
+        # Para consultas SELECT
+        if sql.strip().lower().startswith("select"):
+            response = requests.get(url + f"?sql={sql}", headers=headers)
+            return response.json()
+        # Para INSERT/UPDATE
+        else:
+            response = requests.post(url, headers=headers, json={"query": sql})
+            return response.json()
+            
     except Exception as e:
-        st.error(f"Erro no debug: {e}")
+        st.error(f"Erro no SQL direto: {e}")
         return None
 
 # ==============================
@@ -749,36 +770,26 @@ def mark_notification_as_read(notification_id, notification_type):
 
 
 def show_admin_management():
-    """Interface para gerenciamento de administradores"""
-    if not is_super_admin():
-        st.error("❌ Acesso restrito a super administradores")
+    """Interface simplificada para admin"""
+    if not st.session_state.is_admin:
+        st.error("Acesso restrito a administradores")
         return
     
-    st.subheader("👥 Gerenciamento de Administradores")
+    st.subheader("👥 Gerenciamento de Usuários")
     
-    # Formulário para promover usuários
-    with st.form("promote_admin_form"):
-        st.write("### Promover usuário a administrador")
-        admin_username = st.text_input("Nome de usuário para promover:")
-        
-        submitted = st.form_submit_button("Promover a Admin")
-        if submitted:
-            if promote_to_admin(admin_username):
-                st.rerun()
-    
-    # Listar administradores atuais - CORRIGIDO: usar tabela users em vez de profiles
-    st.write("### Administradores atuais")
+    # Listar usuários
     try:
-        response = supabase_client.table("users").select("username, is_admin").eq("is_admin", True).execute()
+        users = supabase_client.table("users").select("id, username, is_admin, created_at").execute()
         
-        if response.get("data"):
-            for admin in response["data"]:
-                status = "✅ Super Admin" if admin.get('username') in ["schutz", "admin"] else "✅ Admin"
-                st.write(f"**{admin.get('username', 'N/A')}** - {status}")
+        if users.get("data"):
+            for user in users["data"]:
+                status = "🛡️ Admin" if user.get("is_admin") else "👤 Usuário"
+                st.write(f"**{user['username']}** - {status} - {user['created_at'][:10]}")
         else:
-            st.info("Nenhum administrador cadastrado.")
+            st.info("Nenhum usuário encontrado")
+            
     except Exception as e:
-        st.error(f"❌ Erro ao carregar administradores: {e}")
+        st.error(f"Erro ao carregar usuários: {e}")
 
 
 def send_specific_user_notification():
@@ -1949,12 +1960,14 @@ elif st.session_state.current_page == "notifications":
                     """, unsafe_allow_html=True)
                 
                 # Botão para marcar como lida (apenas para não lidas)
-                    short_key = f"read_{hash(notification['id']) % 10000}"
-                    if st.button("✅ Marcar como lida", key=f"read_{i}_{notification.get('id', 'unknown')}"):
-                        if mark_notification_as_read(notification.get('id'), notification.get('type', 'global')):
-                            st.success("✅ Notificação lida!")
-                            time.sleep(0.5)
-                            st.rerun()
+                if is_unread:
+                    col1, col2 = st.columns([3, 1])
+                    with col2:
+                        if st.button("✅ Lida", key=f"read_{i}"):
+                            if mark_notification_as_read(notification.get('id'), notification.get('type', 'global')):
+                                st.success("Marcada como lida!")
+                                time.sleep(0.3)
+                                st.rerun()
                 
                 st.markdown("---")
         else:
