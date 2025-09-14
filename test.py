@@ -290,11 +290,23 @@ def check_telegram_connection():
     
     try:
         # Tentativa simples de verificar conexão
-        telegram_bot.get_me()
+        bot_info = telegram_bot.get_me()
+        st.write(f"🤖 Bot: @{bot_info.username}")
+        st.write(f"🆔 ID: {bot_info.id}")
+        st.write(f"📛 Nome: {bot_info.first_name}")
         return True
     except Exception as e:
         st.error(f"❌ Bot do Telegram desconectado: {e}")
-        return False
+        
+        # Tentar reconectar
+        try:
+            global telegram_bot
+            telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+            st.success("✅ Reconectado ao Telegram!")
+            return True
+        except Exception as e2:
+            st.error(f"❌ Falha ao reconectar: {e2}")
+            return False
 
 
 def send_telegram_notification(message, retry_count=2):
@@ -393,18 +405,26 @@ def setup_telegram_webhook():
         return False
     
     try:
-        # Remove webhook existente primeiro
-        telegram_bot.remove_webhook()
-        time.sleep(1)
-        
-        # Para ambiente local/desenvolvimento, polling é melhor
-        # Em produção, você precisaria configurar um webhook real
-        st.warning("⚠️ Modo de desenvolvimento: Comandos do Telegram não disponíveis")
-        st.info("Em produção, configure webhooks para os comandos do Telegram")
-        return False
+        # Para desenvolvimento, não usamos webhook mas sim polling em thread separada
+        # Tentar iniciar o polling em background
+        try:
+            def start_polling():
+                try:
+                    telegram_bot.infinity_polling()
+                except Exception as e:
+                    print(f"Erro no polling do Telegram: {e}")
+            
+            # Iniciar em thread separada
+            polling_thread = threading.Thread(target=start_polling, daemon=True)
+            polling_thread.start()
+            st.success("✅ Bot do Telegram iniciado em modo desenvolvimento!")
+            return True
+        except:
+            st.warning("⚠️ Modo desenvolvimento: Use os comandos pelo painel admin")
+            return False
         
     except Exception as e:
-        st.error(f"❌ Erro ao configurar webhook: {e}")
+        st.error(f"❌ Erro ao configurar Telegram: {e}")
         return False
 
 def handle_telegram_commands():
@@ -421,9 +441,10 @@ if TELEGRAM_NOTIFICATIONS_ENABLED:
     setup_telegram_webhook()
 
 
-def send_telegram_command_response(command, message):
+def send_telegram_command_response(command, message=""):
     """Envia resposta para comandos do Telegram manualmente"""
     if not TELEGRAM_NOTIFICATIONS_ENABLED:
+        st.error("❌ Telegram não está habilitado")
         return False
     
     try:
@@ -435,12 +456,44 @@ def send_telegram_command_response(command, message):
             return True
             
         elif command == "/start" or command == "/help":
-            response = "🌊 Olá! Eu sou o bot do Wave Song.\n\nComandos disponíveis:\n/status - Ver status do sistema\n/notify [mensagem] - Enviar notificação global"
+            response = "🌊 Olá! Eu sou o bot do Wave Song.\n\nComandos disponíveis:\n/status - Ver status do sistema\n/notify [mensagem] - Enviar notificação global\n/users - Ver estatísticas de usuários"
             telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, response)
             return True
             
+        elif command == "/notify":
+            if not message.strip():
+                st.error("❌ A mensagem não pode estar vazia!")
+                return False
+            if send_global_notification(message):
+                response = f"✅ Notificação enviada:\n{message}"
+                telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, response)
+                return True
+            else:
+                st.error("❌ Falha ao enviar notificação")
+                return False
+                
+        elif command == "/users":
+            # Estatísticas simplificadas de usuários
+            response = "👥 Estatísticas de Usuários:\n"
+            response += f"Músicas no sistema: {len(st.session_state.all_songs)}\n"
+            response += f"Notificações ativas: {TELEGRAM_NOTIFICATIONS_ENABLED}\n"
+            response += f"Status Firebase: {'✅ Conectado' if st.session_state.firebase_connected else '❌ Desconectado'}"
+            telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, response)
+            return True
+            
+        else:
+            st.error(f"❌ Comando desconhecido: {command}")
+            return False
+            
     except Exception as e:
-        st.error(f"❌ Erro ao enviar comando: {e}")
+        st.error(f"❌ Erro ao enviar comando {command}: {e}")
+        # Tentar reconexão
+        try:
+            global telegram_bot
+            telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+            st.info("🔄 Tentando reconectar ao Telegram...")
+        except:
+            pass
         return False
 
 # ==============================
@@ -683,41 +736,81 @@ def show_notification_panel():
         # Comandos do Telegram manuais
     st.subheader("🤖 Comandos do Telegram")
 
-    # Botão para verificar conexão
-    if st.button("📡 Verificar Conexão Telegram", use_container_width=True):
+        # Comandos do Telegram manuais
+    st.subheader("🤖 Comandos do Telegram")
+    
+    # Status da conexão
+    if st.button("📡 Verificar Status da Conexão", use_container_width=True):
         if check_telegram_connection():
             st.success("✅ Conexão com Telegram está ativa!")
+            send_telegram_command_response("/status")
         else:
             st.error("❌ Sem conexão com Telegram")
     
-    col1, col2, col3 = st.columns(3)
+    # Grid de comandos
+    col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("🔄 Status do Sistema", use_container_width=True):
-            if send_telegram_command_response("/status", ""):
-                st.success("✅ Comando enviado!")
+        if st.button("🔄 Status do Sistema", use_container_width=True, help="Envia /status para o Telegram"):
+            if send_telegram_command_response("/status"):
+                st.success("✅ Comando /status enviado!")
+            else:
+                st.error("❌ Erro ao enviar comando")
+        
+        if st.button("❓ Ajuda / Comandos", use_container_width=True, help="Envia /help para o Telegram"):
+            if send_telegram_command_response("/help"):
+                st.success("✅ Comando /help enviado!")
             else:
                 st.error("❌ Erro ao enviar comando")
     
     with col2:
-        if st.button("❓ Ajuda", use_container_width=True):
-            if send_telegram_command_response("/help", ""):
-                st.success("✅ Comando enviado!")
+        if st.button("👥 Estatísticas", use_container_width=True, help="Envia /users para o Telegram"):
+            if send_telegram_command_response("/users"):
+                st.success("✅ Comando /users enviado!")
             else:
                 st.error("❌ Erro ao enviar comando")
+        
+        if st.button("🔄 Reconectar Bot", use_container_width=True, help="Tenta reconectar ao Telegram"):
+            try:
+                global telegram_bot
+                telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+                st.success("✅ Bot reconectado!")
+            except Exception as e:
+                st.error(f"❌ Erro ao reconectar: {e}")
     
-    with col3:
-        # Comando de notificação com formulário
-        with st.form("telegram_notify_form"):
-            notify_msg = st.text_input("Mensagem para /notify")
-            if st.form_submit_button("📢 Enviar Notificação"):
-                if notify_msg.strip():
-                    if send_telegram_command_response("/notify", notify_msg):
-                        st.success("✅ Comando enviado!")
+    # Comando de notificação com formulário
+    st.markdown("---")
+    st.subheader("📢 Enviar Notificação Global")
+    
+    with st.form("telegram_notify_form"):
+        notify_msg = st.text_area("Mensagem para notificação global:", 
+                                placeholder="Digite a mensagem que será enviada para todos os usuários...",
+                                height=100)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            send_telegram = st.checkbox("Enviar também para Telegram", value=True)
+        with col2:
+            send_test = st.checkbox("Enviar teste primeiro", value=True)
+        
+        submitted = st.form_submit_button("📢 Enviar Notificação Global")
+        if submitted:
+            if not notify_msg.strip():
+                st.error("⚠️ A mensagem não pode estar vazia!")
+            else:
+                if send_test:
+                    if send_telegram_notification(f"🧪 Teste: {notify_msg}"):
+                        st.success("✅ Teste enviado para Telegram!")
                     else:
-                        st.error("❌ Erro ao enviar comando")
+                        st.error("❌ Falha no teste do Telegram!")
+                        return
+                
+                if send_global_notification(notify_msg):
+                    st.success("✅ Notificação enviada para todos os usuários!")
+                    if send_telegram:
+                        send_telegram_command_response("/notify", notify_msg)
                 else:
-                    st.warning("⚠️ Digite uma mensagem")
+                    st.error("❌ Falha ao enviar notificação global!")
     
     
     if st.button("🔒 Sair do Painel de Notificações"):
