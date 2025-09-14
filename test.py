@@ -43,6 +43,11 @@ def load_image(url):
 def clear_memory():
     gc.collect()
 
+def search_songs_in_firebase(query):
+    ref = db.reference("/songs")
+    songs = ref.order_by_child("title").start_at(query).end_at(query + "\uf8ff").get()
+    return songs
+
 # ==============================
 # CONFIGURAÇÃO DA PÁGINA
 # ==============================
