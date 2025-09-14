@@ -206,12 +206,14 @@ def add_song_request(request_data):
             req_username = request_data.get("requested_by", "Anônimo")
             
             # Mensagem formatada como solicitado
-            notification_message = f"""🎵 *Novo pedido de música:*
+            notification_message = f"""Novo pedido de música:
+            
+{title} - {artist} - {album}
 
-*Música:* {title}
-*Artista:* {artist}
-*Álbum:* {album}
-*Solicitado por:* {req_username}"""
+Música: {title}
+Artista: {artist}
+Álbum: {album}
+Solicitado por: {req_username}"""
 
             send_telegram_notification(notification_message)
             
