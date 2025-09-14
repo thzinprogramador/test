@@ -691,22 +691,17 @@ def send_user_notification(user_id, message, notification_type="info"):
             "sent_by": st.session_state.username if st.session_state.username else "Sistema"
         }
         
-        # Debug: verificar antes de enviar
-        st.info(f"Enviando notificação para usuário {user_id}: {message}")
-        
+        # Enviar notificação
         new_ref = ref.push(notification_data)
         
-        # Verificar se foi salvo
-        time.sleep(0.5)  # Pequeno delay para o Firebase processar
-        check_ref = db.reference(f"/user_notifications/{user_id}/{new_ref.key}")
-        saved_data = check_ref.get()
+        # Enviar também para Telegram
+        user_response = supabase_client.table("users").select("username").eq("id", user_id).execute()
+        username = user_response["data"][0]["username"] if user_response.get("data") else str(user_id)
         
-        if saved_data:
-            st.success("✅ Notificação salva com sucesso no Firebase!")
-            return True
-        else:
-            st.error("❌ Notificação não foi salva no Firebase")
-            return False
+        telegram_msg = f"📨 Notificação enviada para {username}:\n{message}"
+        send_telegram_notification(telegram_msg)
+        
+        return True
             
     except Exception as e:
         st.error(f"❌ Erro ao enviar notificação para usuário: {e}")
@@ -748,27 +743,22 @@ def check_if_system_notification_read(note_id):
         return False
 
 def mark_notification_as_read(notification_id, notification_type):
-    """Marca uma notificação como lida para o usuário atual"""
+    """Marca uma notificação como lida apenas para o usuário atual"""
     if not st.session_state.firebase_connected or not st.session_state.user_id:
         return False
     
     try:
-        user_key = st.session_state.user_id
+        user_id = st.session_state.user_id
         
         if notification_type == "global":
-            ref = db.reference(f"/global_notifications/{notification_id}/read_by/{user_key}")
+            ref = db.reference(f"/global_notifications/{notification_id}/read_by/{user_id}")
         elif notification_type == "music":
-            ref = db.reference(f"/system_notifications/{notification_id}/read_by/{user_key}")
+            ref = db.reference(f"/system_notifications/{notification_id}/read_by/{user_id}")
         else:
             st.error(f"Tipo de notificação desconhecido: {notification_type}")
             return False
         
-        # Verificar se já está marcada como lida antes de atualizar
-        current_status = ref.get()
-        if current_status:
-            st.info("Notificação já estava marcada como lida")
-            return True
-        
+        # Marcar como lida para este usuário
         ref.set(True)
         
         # Atualizar o cache de notificações não lidas
@@ -780,6 +770,7 @@ def mark_notification_as_read(notification_id, notification_type):
     except Exception as e:
         st.error(f"❌ Erro ao marcar notificação como lida: {e}")
         return False
+
 
 def show_admin_management():
     """Interface simplificada para admin"""
@@ -794,9 +785,39 @@ def show_admin_management():
         users = supabase_client.table("users").select("id, username, is_admin, created_at").execute()
         
         if users.get("data"):
+            # Mostrar contagem
+            total_users = len(users["data"])
+            admin_count = sum(1 for user in users["data"] if user.get("is_admin"))
+            regular_count = total_users - admin_count
+            
+            st.metric("👥 Total de Usuários", total_users)
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("🛡️ Administradores", admin_count)
+            with col2:
+                st.metric("👤 Usuários Regulares", regular_count)
+            
+            st.markdown("---")
+            st.subheader("Lista de Usuários")
+            
             for user in users["data"]:
                 status = "🛡️ Admin" if user.get("is_admin") else "👤 Usuário"
-                st.write(f"**{user['username']}** - {status} - {user['created_at'][:10]}")
+                col1, col2, col3 = st.columns([3, 2, 2])
+                
+                with col1:
+                    st.write(f"**{user['username']}**")
+                with col2:
+                    st.write(status)
+                with col3:
+                    st.write(f"{user['created_at'][:10]}")
+                
+                # Botão para promover/remover admin (apenas para super admin)
+                if is_super_admin() and not user.get("is_admin"):
+                    if st.button(f"Promover Admin", key=f"promote_{user['id']}"):
+                        if promote_to_admin(user['username']):
+                            st.rerun()
+                
+                st.markdown("---")
         else:
             st.info("Nenhum usuário encontrado")
             
@@ -823,6 +844,12 @@ def send_specific_user_notification():
                 
                 message = st.text_area("Mensagem:", placeholder="Digite a mensagem para o usuário...", height=100)
                 
+                # Adicionar tipo de notificação
+                notification_type = st.selectbox(
+                    "Tipo de notificação:",
+                    options=["info", "alert", "success", "warning"]
+                )
+                
                 submitted = st.form_submit_button("📨 Enviar Notificação")
                 
                 if submitted:
@@ -831,10 +858,11 @@ def send_specific_user_notification():
                         return
                     
                     user_id = users[selected_user]
-                    if send_user_notification(user_id, message):
+                    if send_user_notification(user_id, message, notification_type):
                         st.success(f"✅ Notificação enviada para {selected_user}!")
-                        # Limpar o formulário
-                        st.rerun()
+                        # Telegram notification
+                        telegram_msg = f"📨 Notificação enviada para {selected_user}:\n{message}"
+                        send_telegram_notification(telegram_msg)
                     else:
                         st.error("❌ Erro ao enviar notificação!")
         else:
@@ -1922,6 +1950,9 @@ elif st.session_state.current_page == "notifications":
         # Exibir notificações
         for i, notification in enumerate(all_notifications):
             is_unread = not notification.get("is_read", False)
+
+            # Mostrar apenas notificações não lidas OU todas se for admin
+            if is_unread or st.session_state.is_admin:
             
             # Estilo diferente para notificações não lidas
             border_color = "#1DB954" if is_unread else "#555"
