@@ -101,11 +101,12 @@ def sign_up(email, password, username):
         })
         
         if response.user:
-            # Criar perfil do usuário
+            # Criar perfil do usuário com admin como null
             supabase_client.table("profiles").insert({
                 "id": response.user.id,
                 "email": email,
                 "username": username,
+                "admin": None,  # Campo admin inicializado como null
                 "created_at": datetime.datetime.now().isoformat()
             }).execute()
             
@@ -194,6 +195,66 @@ def show_auth_ui():
                         st.success(message)
                     else:
                         st.error(message)
+
+
+def is_admin():
+    """Verifica se o usuário atual é administrador"""
+    if not st.session_state.user_id:
+        return False
+    
+    try:
+        # Buscar o perfil do usuário no Supabase
+        response = supabase_client.table("profiles").select("admin").eq("id", st.session_state.user_id).execute()
+        
+        if response.data and len(response.data) > 0:
+            admin_value = response.data[0].get("admin")
+            # Retorna True se admin for True (não None)
+            return admin_value is True
+        
+        return False
+    except Exception as e:
+        st.error(f"❌ Erro ao verificar permissões: {e}")
+        return False
+
+def promote_to_admin(user_email):
+    """Promove um usuário a administrador"""
+    try:
+        # Primeiro verificar se o usuário atual é super admin
+        if not is_super_admin():
+            st.error("❌ Apenas super administradores podem promover usuários")
+            return False
+        
+        # Buscar o ID do usuário pelo email
+        user_response = supabase_client.table("profiles").select("id").eq("email", user_email).execute()
+        
+        if not user_response.data or len(user_response.data) == 0:
+            st.error("❌ Usuário não encontrado")
+            return False
+        
+        user_id = user_response.data[0]["id"]
+        
+        # Atualizar o campo admin para True
+        update_response = supabase_client.table("profiles").update({
+            "admin": True,
+            "updated_at": datetime.datetime.now().isoformat()
+        }).eq("id", user_id).execute()
+        
+        if update_response.data:
+            st.success(f"✅ Usuário {user_email} promovido a administrador!")
+            return True
+        else:
+            st.error("❌ Erro ao promover usuário")
+            return False
+            
+    except Exception as e:
+        st.error(f"❌ Erro ao promover usuário: {e}")
+        return False
+
+def is_super_admin():
+    """Verifica se o usuário é um super administrador"""
+    # Lista de emails de super administradores (configurável)
+    super_admin_emails = ["schutz@example.com", "admin@example.com"]
+    return st.session_state.user_email in super_admin_emails
 
 
 # ==============================
@@ -352,6 +413,64 @@ def get_all_notifications():
     
     return all_notifications[:20]  # Limitar a 20 notificações
 
+def send_user_notification(user_id, message, notification_type="info"):
+    """Envia uma notificação para um usuário específico"""
+    try:
+        ref = db.reference(f"/user_notifications/{user_id}")
+        notification_data = {
+            "message": message,
+            "type": notification_type,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "read": False
+        }
+        ref.push(notification_data)
+        return True
+    except Exception as e:
+        st.error(f"❌ Erro ao enviar notificação para usuário: {e}")
+        return False
+
+def get_user_notifications():
+    """Busca notificações pessoais do usuário atual"""
+    if not st.session_state.user_id:
+        return []
+    
+    try:
+        ref = db.reference(f"/user_notifications/{st.session_state.user_id}")
+        notifications = ref.get()
+        
+        user_notifications = []
+        if notifications:
+            for note_id, note_data in notifications.items():
+                user_notifications.append({
+                    "id": note_id,
+                    "message": note_data.get("message", ""),
+                    "type": note_data.get("type", "info"),
+                    "timestamp": note_data.get("timestamp", ""),
+                    "read": note_data.get("read", False)
+                })
+            
+            # Ordenar por timestamp (mais recente primeiro)
+            user_notifications.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        
+        return user_notifications
+    except Exception as e:
+        st.error(f"❌ Erro ao buscar notificações do usuário: {e}")
+        return []
+
+
+def mark_user_notification_as_read(notification_id):
+    """Marca uma notificação pessoal como lida"""
+    if not st.session_state.user_id:
+        return False
+    
+    try:
+        ref = db.reference(f"/user_notifications/{st.session_state.user_id}/{notification_id}/read")
+        ref.set(True)
+        return True
+    except Exception as e:
+        st.error(f"❌ Erro ao marcar notificação como lida: {e}")
+        return False
+
 def check_if_global_notification_read(note_id):
     """Verifica se uma notificação global foi lida pelo usuário atual"""
     if not st.session_state.user_id:
@@ -392,6 +511,50 @@ def mark_notification_as_read(notification_id, notification_type):
         st.error(f"❌ Erro ao marcar notificação como lida: {e}")
         return False
 
+
+def show_admin_management():
+    """Interface para gerenciamento de administradores"""
+    if not is_super_admin():
+        st.error("❌ Acesso restrito a super administradores")
+        return
+    
+    st.subheader("👥 Gerenciamento de Administradores")
+    
+    # Formulário para promover usuários
+    with st.form("promote_admin_form"):
+        st.write("### Promover usuário a administrador")
+        admin_email = st.text_input("Email do usuário para promover:")
+        
+        submitted = st.form_submit_button("Promover a Admin")
+        if submitted:
+            if promote_to_admin(admin_email):
+                st.rerun()
+    
+    # Listar administradores atuais
+    st.write("### Administradores atuais")
+    try:
+        response = supabase_client.table("profiles").select("email, username, admin").neq("admin", None).execute()
+        
+        if response.data:
+            for admin in response.data:
+                st.write(f"**{admin['email']}** - {admin['username']}")
+        else:
+            st.info("Nenhum administrador cadastrado.")
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar administradores: {e}")
+    
+    # Listar administradores atuais
+    st.write("### Administradores atuais")
+    try:
+        response = supabase_client.table("profiles").select("email, username, admin").neq("admin", None).execute()
+        
+        if response.data:
+            for admin in response.data:
+                st.write(f"**{admin['email']}** - {admin['username']}")
+        else:
+            st.info("Nenhum administrador cadastrado.")
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar administradores: {e}")
 
 # função para verificar o status do Telegram
 def check_telegram_bot_status():
@@ -1413,8 +1576,36 @@ elif st.session_state.current_page == "notifications":
     st.markdown(f"<h1 style='text-align:center;'>🔔 Notificações</h1>", unsafe_allow_html=True)
     st.markdown("---")
     
-    # Buscar todas as notificações (globais e de sistema)
+    if not st.session_state.user_id:
+        st.warning("⚠️ Faça login para ver suas notificações")
+        if st.button("Fazer Login", key="goto_login"):
+            st.session_state.show_auth = True
+            st.rerun()
+        st.stop()
+    
+    # Buscar todos os tipos de notificações
+    global_notifications = get_all_notifications()  # Notificações globais
+    user_notifications = get_user_notifications()   # Notificações pessoais
+
+    # Combinar e ordenar todas as notificações
     all_notifications = []
+
+    # Adicionar notificações globais
+    for note in global_notifications:
+        note["source"] = "global"
+        all_notifications.append(note)
+    
+    # Adicionar notificações pessoais
+    for note in user_notifications:
+        note["source"] = "personal"
+        note["type"] = "personal"
+        all_notifications.append(note)
+    
+    # Ordenar por timestamp
+    try:
+        all_notifications.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    except:
+        pass
     
     # Buscar notificações globais
     try:
