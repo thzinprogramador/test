@@ -737,7 +737,7 @@ def show_notification_panel():
                 st.error("❌ Senha incorreta!")
         return
     
-    # Formulário para enviar notificação
+    # Formulário para enviar notificação (MANTENHA APENAS ESTE)
     with st.form("notification_form"):
         notification_message = st.text_area("Mensagem da notificação:", 
                                           placeholder="Digite a mensagem que será enviada para todos os usuários...",
@@ -766,7 +766,7 @@ def show_notification_panel():
     st.subheader("Histórico de Notificações")
     try:
         ref = db.reference("/global_notifications")
-        notifications = ref.get()  # Remove a ordenação por enquanto
+        notifications = ref.get()
         
         if notifications:
             # Converter para lista e reverter para mostrar as mais recentes primeiro
@@ -779,14 +779,12 @@ def show_notification_panel():
                     "timestamp": note_data.get("timestamp", "")
                 })
 
-            # Ordenar por timestamp se disponível, caso contrário manter ordem original
+            # Ordenar por timestamp se disponível
             try:
                 notifications_list.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
             except:
-                # Se houver erro na ordenação, simplesmente reverter a lista
                 notifications_list.reverse()
             
-            # Mostrar em ordem reversa (mais recente primeiro)
             for note in notifications_list:
                 st.markdown(f"""
                 <div style='
@@ -809,7 +807,7 @@ def show_notification_panel():
     except Exception as e:
         st.error(f"❌ Erro ao carregar histórico: {e}")
 
-            # Comandos do Telegram
+    # Status do Telegram
     st.subheader("🤖 Status do Telegram")
     
     if check_and_display_telegram_status():
@@ -844,45 +842,15 @@ def show_notification_panel():
             except Exception as e:
                 st.error(f"❌ Erro: {e}")
     
-    # Comando de notificação com formulário
-    st.markdown("---")
-    st.subheader("📢 Enviar Notificação Global")
-    
-    with st.form("telegram_notify_form"):
-        notify_msg = st.text_area("Mensagem para notificação global:", 
-                                placeholder="Digite a mensagem que será enviada para todos os usuários...",
-                                height=100)
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            send_telegram = st.checkbox("Enviar também para Telegram", value=True)
-        with col2:
-            send_test = st.checkbox("Enviar teste primeiro", value=True)
-        
-        submitted = st.form_submit_button("📢 Enviar Notificação Global")
-        if submitted:
-            if not notify_msg.strip():
-                st.error("⚠️ A mensagem não pode estar vazia!")
-            else:
-                if send_test:
-                    if send_telegram_notification(f"🧪 Teste: {notify_msg}"):
-                        st.success("✅ Teste enviado para Telegram!")
-                    else:
-                        st.error("❌ Falha no teste do Telegram!")
-                        return
-                
-                if send_global_notification(notify_msg):
-                    st.success("✅ Notificação enviada para todos os usuários!")
-                    if send_telegram:
-                        send_telegram_command_response("/notify", notify_msg)
-                else:
-                    st.error("❌ Falha ao enviar notificação global!")
-    
+    # REMOVA ESTA SEÇÃO COMPLETA (segundo formulário duplicado)
+    # st.markdown("---")
+    # st.subheader("📢 Enviar Notificação Global")
+    # with st.form("telegram_notify_form"):
+    #     ... (todo o código do segundo formulário)
     
     if st.button("🔒 Sair do Painel de Notificações"):
         st.session_state.admin_authenticated = False
         st.rerun()
-
 
 
 def show_request_music_section():
