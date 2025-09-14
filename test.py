@@ -1716,13 +1716,13 @@ with st.sidebar:
 
     # Menu para usuários normais
     if not st.session_state.admin_mode:
-        if "unread_notifications_cache" not in st.session_state or time.time() - st.session_state.get
-        ("unread_cache_timestamp", 0) > 10:
-            st.session_state.unread_notifications_cache = check_unread_notifications()
-            st.session_state.unread_cache_timestamp = time.time()
+    if "unread_notifications_cache" not in st.session_state or time.time() - st.session_state.get
+    ("unread_cache_timestamp", 0) > 10:
+        st.session_state.unread_notifications_cache = check_unread_notifications()
+        st.session_state.unread_cache_timestamp = time.time()
 
-        unread_notifications = st.session_state.unread_notifications_cache
-        notification_text = f"🔔 Notificações ({unread_notifications})" if unread_notifications else "🔔 Notificações"
+    unread_notifications = st.session_state.unread_notifications_cache
+    notification_text = f"🔔 Notificações ({unread_notifications})" if unread_notifications else "🔔 Notificações"
 
         if st.button(notification_text, use_container_width=True, key="btn_notifications"):
             st.session_state.current_page = "notifications"
