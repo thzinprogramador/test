@@ -10,9 +10,40 @@ import threading
 import traceback
 import bcrypt
 import gc
+import re
+import unicodedata
 from firebase_admin import credentials, db
 from io import BytesIO
 from PIL import Image
+
+
+# apagar -----------------------------
+def migrate_songs_to_custom_keys():
+    """Migra músicas existentes para usar chaves personalizadas (executar uma vez)"""
+    try:
+        ref = db.reference("/songs")
+        old_songs = ref.get() or {}
+        
+        for old_key, song_data in old_songs.items():
+            if "title" in song_data and "artist" in song_data:
+                # Gera nova chave personalizada
+                new_key = generate_firebase_key(f"{song_data['title']}_{song_data['artist']}")
+                
+                # Copia para nova chave
+                ref.child(new_key).set(song_data)
+                
+                # Remove a antiga (opcional)
+                # ref.child(old_key).delete()
+                
+                print(f"Migrado: {old_key} -> {new_key}")
+        
+        return True
+    except Exception as e:
+        print(f"Erro na migração: {e}")
+        return False
+
+#---------------------------------
+
 
 def get_current_timestamp():
     """Retorna timestamp formatado corretamente para Firebase"""
@@ -194,6 +225,8 @@ def clear_dismissed_notifications():
     """Limpa a lista de notificações descartadas quando o usuário sai da página"""
     if "dismissed_notifications" in st.session_state:
         st.session_state.dismissed_notifications = set()
+
+
 
 
 # ==============================
@@ -672,14 +705,19 @@ def send_user_notification(user_id, message, notification_type="info"):
     if st.session_state.firebase_connected:
         try:
             ref = db.reference(f"/user_notifications/{user_id}")
+            
+            # Gera chave personalizada
+            notification_key = generate_firebase_key(f"user_{username}_{message[:15]}_{datetime.datetime.now().strftime('%H%M%S')}")
+            
             notification_data = {
                 "message": message,
                 "type": notification_type,
-                "timestamp": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                "timestamp": get_current_timestamp(),
                 "read": False,
                 "sent_by": st.session_state.username if st.session_state.username else "Sistema"
             }
-            ref.push(notification_data)
+            
+            ref.child(notification_key).set(notification_data)
             return True
         except Exception as e:
             st.error(f"❌ Erro ao enviar notificação para usuário: {e}")
@@ -837,6 +875,18 @@ def check_telegram_bot_status():
     except Exception as e:
         return f"❌ Erro: {str(e)[:50]}..."
 
+def generate_firebase_key(name):
+    """Gera uma chave amigável para o Firebase baseada no nome"""
+    # Remove acentos e caracteres especiais
+    name = unicodedata.normalize('NFKD', str(name)).encode('ASCII', 'ignore').decode('ASCII')
+    
+    # Substitui espaços e caracteres inválidos por underscores
+    name = re.sub(r'[^\w\s-]', '', name.lower())
+    name = re.sub(r'[-\s]+', '_', name)
+    
+    # Limita o tamanho para evitar chaves muito longas
+    return name[:50]  # Limite de 50 caracteres
+
 def add_system_notification(title, artist, image_url, song_id):
     """Adiciona notificação ao sistema interno de notificações e envia para Telegram"""
     try:
@@ -853,25 +903,31 @@ def add_system_notification(title, artist, image_url, song_id):
         # Depois salva no Firebase (se estiver conectado)
         if st.session_state.firebase_connected:
             ref = db.reference("/system_notifications")
+            
+            # Gera chave personalizada baseada no nome da música
+            notification_key = generate_firebase_key(f"{title}_{artist}")
+            
             notification_data = {
                 "type": "new_song",
                 "title": title,
                 "artist": artist,
                 "image_url": image_url,
                 "song_id": song_id,
-                "timestamp": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                "timestamp": get_current_timestamp(),
                 "read_by": {},
                 "formatted_message": telegram_message
             }
             
-            new_notification_ref = ref.push(notification_data)
+            # Usa set() em vez de push() para controlar a chave
+            ref.child(notification_key).set(notification_data)
             return True
         else:
-            return True  # Retorna True mesmo se Firebase não estiver conectado, pois Telegram foi enviado
+            return True
             
     except Exception as e:
         st.error(f"❌ Erro ao adicionar notificação do sistema: {e}")
         return False
+
 
 
 def check_firebase_rules():
@@ -892,13 +948,19 @@ def add_song_request(request_data):
     try:
         if st.session_state.firebase_connected:
             ref = db.reference("/song_requests")
-            request_data["created_at"] = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            
+            # Gera chave personalizada baseada no nome da música solicitada
+            request_key = generate_firebase_key(f"{request_data['title']}_{request_data['artist']}_{request_data.get('requested_by', 'anon')}")
+            
+            request_data["created_at"] = get_current_timestamp()
             request_data["status"] = "pending"
+            
             # Garantir que o requested_by seja o username do usuário logado
             if "requested_by" not in request_data or not request_data["requested_by"]:
                 request_data["requested_by"] = st.session_state.username or "Anônimo"
             
-            ref.push(request_data)
+            # Usa set() com chave personalizada
+            ref.child(request_key).set(request_data)
             
             # Enviar notificação para Telegram
             title = request_data.get("title", "Sem título")
@@ -1121,19 +1183,24 @@ def send_global_notification(message):
     if st.session_state.firebase_connected:
         try:
             ref = db.reference("/global_notifications")
+            
+            # Gera chave baseada no conteúdo da mensagem e timestamp
+            notification_key = generate_firebase_key(f"global_{message[:20]}_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}")
+            
             notification_data = {
                 "message": message,
                 "admin": st.session_state.username if st.session_state.username else "Admin",
-                "timestamp": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                "timestamp": get_current_timestamp(),
                 "read_by": {}
             }
-            ref.push(notification_data)
+            
+            ref.child(notification_key).set(notification_data)
             return True
         except Exception as e:
             st.error(f"❌ Erro ao salvar notificação global: {e}")
             return False
     else:
-        return True  # Retorna True se Telegram foi enviado, mesmo sem Firebase
+        return True
 
 
 def check_unread_notifications():
@@ -1343,6 +1410,7 @@ def play_song(song):
     
     if st.session_state.firebase_connected:
         try:
+            # Agora usa a chave personalizada diretamente
             ref = db.reference(f"/songs/{song['id']}/play_count")
             current_count = ref.get() or 0
             ref.set(current_count + 1)
@@ -1351,7 +1419,6 @@ def play_song(song):
     
     if current_id != new_id:
         st.rerun()
-
 
 def show_notification_panel():
     st.header("🔔 Painel de Notificações")
