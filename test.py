@@ -68,23 +68,6 @@ if "show_login" not in st.session_state:
     st.session_state.show_login = False
 
 
-# Prevenir loops infinitos
-if "last_rerun" not in st.session_state:
-    st.session_state.last_rerun = 0
-
-# Verificar se estamos em loop
-current_time = time.time()
-if current_time - st.session_state.last_rerun < 1:  # Menos de 1 segundo entre reruns
-    st.error("⚠️ Loop detectado! Recarregando a página...")
-    st.session_state.show_login = False
-    st.session_state.last_rerun = current_time
-    st.stop()
-else:
-    st.session_state.last_rerun = current_time
-
-
-
-
 # ==============================
 # CONFIGURAÇÕES DO SUPABASE (SIMPLIFICADO)
 # ==============================
@@ -203,22 +186,15 @@ def debug_supabase_users():
 debug_supabase_users()
 
 
-# Verificação da estrutura da tabela
-st.sidebar.markdown("---")
-if st.sidebar.button("🔍 Verificar estrutura da tabela"):
-    debug_response = supabase_client.table("users").select("*").execute()
-    st.sidebar.write("Estrutura da tabela users:", debug_response)
+# Verificação final - remover depois de testar
+if st.sidebar.button("🔄 Verificar estrutura completa", key="final_check"):
+    st.sidebar.info("Verificando tabela users...")
+    users_response = supabase_client.table("users").select("*").execute()
+    st.sidebar.write("Users:", users_response.get("data", []))
     
-    # Verificar se as colunas necessárias existem
-    if debug_response.get("data") and len(debug_response["data"]) > 0:
-        first_user = debug_response["data"][0]
-        required_columns = ["id", "username", "password_hash", "created_at"]
-        missing_columns = [col for col in required_columns if col not in first_user]
-        
-        if missing_columns:
-            st.sidebar.error(f"❌ Colunas faltando: {missing_columns}")
-        else:
-            st.sidebar.success("✅ Estrutura da tabela OK!")
+    st.sidebar.info("Verificando tabela profiles...")
+    profiles_response = supabase_client.table("profiles").select("*").execute()
+    st.sidebar.write("Profiles:", profiles_response.get("data", []))
 
 
 
@@ -390,7 +366,7 @@ def promote_to_admin(target_username):
             return False
         
         # Buscar o ID do usuário pelo username
-        user_response = supabase_client.table("profiles").select("id, username").eq("username", target_username).execute()
+        user_response = supabase_client.table("users").select("id, username").eq("username", target_username).execute()
         
         if not user_response.data or len(user_response.data) == 0:
             st.error("❌ Usuário não encontrado")
@@ -400,7 +376,7 @@ def promote_to_admin(target_username):
         username = user_response.data[0]["username"]
         
         # Atualizar o campo admin para True
-        update_response = supabase_client.table("profiles").update({
+        update_response = supabase_client.table("users").update({
             "admin": True,
             "updated_at": datetime.datetime.now().isoformat()
         }).eq("id", user_id).execute()
@@ -694,11 +670,11 @@ def show_admin_management():
     st.write("### Administradores atuais")
     try:
         response = supabase_client.table("profiles").select("username, admin").neq("admin", None).execute()
-        
-        if response.data:
-            for admin in response.data:
-                status = "✅ Super Admin" if admin['username'] in ["schutz", "admin"] else "✅ Admin"
-                st.write(f"**{admin['username']}** - {status}")
+    
+        if response.get("data"):
+            for admin in response["data"]:
+                status = "✅ Super Admin" if admin.get('username') in ["schutz", "admin"] else "✅ Admin"
+                st.write(f"**{admin.get('username', 'N/A')}** - {status}")
         else:
             st.info("Nenhum administrador cadastrado.")
     except Exception as e:
@@ -1552,36 +1528,21 @@ with st.sidebar:
                 st.session_state.show_login = False  # Resetar o estado de login
                 st.rerun()
     else:
-        # Usuário não logado - usar approach diferente para evitar loops
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            login_clicked = st.button(
-                "🔐 Login/Cadastro", 
-                key="login_btn",
-                use_container_width=True
-            )
-        with col2:
-            if st.session_state.show_login:
-                close_clicked = st.button("✕", key="close_login")
-            else:
-                close_clicked = False
-        
-        # Gerenciar o estado de show_login
-        if login_clicked:
+    # Usuário não logado - versão simplificada
+    if not st.session_state.show_login:
+        if st.button("🔐 Login/Cadastro", key="login_btn", use_container_width=True):
             st.session_state.show_login = True
-        if close_clicked:
+            st.rerun()
+    else:
+        # Botão para fechar o formulário
+        if st.button("✕ Fechar", key="close_login", use_container_width=True):
             st.session_state.show_login = False
+            st.rerun()
         
-        # Mostrar formulário de autenticação se necessário
-        if st.session_state.show_login:
-            # Adicionar botão de fechar dentro do formulário
-            st.markdown("<div style='text-align: right;'>", unsafe_allow_html=True)
-            if st.button("Fechar ✕", key="close_inside"):
-                st.session_state.show_login = False
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-            show_auth_ui()
+        # Mostrar formulário de autenticação
+        show_auth_ui()
+
+
     if st.session_state.current_track:
         song = st.session_state.current_track
         st.subheader("🎧 Tocando agora")
@@ -1746,180 +1707,108 @@ elif st.session_state.current_page == "stats":
     if st.button("Voltar"):
         st.session_state.current_page = "home"
 
+
 elif st.session_state.current_page == "notifications":
     st.markdown(f"<h1 style='text-align:center;'>🔔 Notificações</h1>", unsafe_allow_html=True)
     st.markdown("---")
     
     if not st.session_state.user_id:
         st.warning("⚠️ Faça login para ver suas notificações")
-        if st.button("Fazer Login", key="goto_login"):
-            st.session_state.show_auth = True
+        if st.button("Fazer Login", key="goto_login_notifications"):
+            st.session_state.show_login = True
             st.rerun()
         st.stop()
     
-    # Buscar todos os tipos de notificações
-    global_notifications = get_all_notifications()  # Notificações globais
-    user_notifications = get_user_notifications()   # Notificações pessoais
-
-    # Combinar e ordenar todas as notificações
-    all_notifications = []
-
-    # Adicionar notificações globais
-    for note in global_notifications:
-        note["source"] = "global"
-        all_notifications.append(note)
-    
-    # Adicionar notificações pessoais
-    for note in user_notifications:
-        note["source"] = "personal"
-        note["type"] = "personal"
-        all_notifications.append(note)
-    
-    # Ordenar por timestamp
+    # Buscar notificações
     try:
-        all_notifications.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
-    except:
-        pass
-    
-    # Buscar notificações globais
-    try:
-        global_ref = db.reference("/global_notifications")
-        global_notifications = global_ref.get()
+        all_notifications = get_all_notifications()
         
-        if global_notifications:
-            for note_id, note_data in global_notifications.items():
-                all_notifications.append({
-                    "id": note_id,
-                    "type": "global",
-                    "title": "Notificação Global",
-                    "message": note_data.get("message", ""),
-                    "admin": note_data.get("admin", "Admin"),
-                    "timestamp": note_data.get("timestamp", ""),
-                    "is_read": check_if_global_notification_read(note_id)
-                })
-    except Exception as e:
-        st.error(f"❌ Erro ao buscar notificações globais: {e}")
-    
-    # Buscar notificações do sistema (músicas)
-    try:
-        system_ref = db.reference("/system_notifications")
-        system_notifications = system_ref.get()
+        if not all_notifications:
+            st.info("📝 Não há notificações no momento.")
+            if st.button("Voltar para o Início", key="back_from_notifications_empty"):
+                st.session_state.current_page = "home"
+            st.stop()
         
-        if system_notifications:
-            for note_id, note_data in system_notifications.items():
-                all_notifications.append({
-                    "id": note_id,
-                    "type": "music",
-                    "title": note_data.get("title", "Nova Música"),
-                    "message": note_data.get("formatted_message", ""),
-                    "artist": note_data.get("artist", ""),
-                    "timestamp": note_data.get("timestamp", ""),
-                    "is_read": check_if_system_notification_read(note_id)
-                })
-    except Exception as e:
-        st.error(f"❌ Erro ao buscar notificações do sistema: {e}")
-    
-    # Ordenar por timestamp (mais recente primeiro)
-    try:
-        all_notifications.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
-    except:
-        pass
-    
-    # Contar notificações não lidas
-    unread_count = sum(1 for note in all_notifications if not note.get("is_read", False))
-    
-    if unread_count > 0:
-        st.success(f"📬 Você tem {unread_count} notificação(ões) não lida(s)")
-        st.markdown("---")
-    
-    if not all_notifications:
-        st.info("📝 Não há notificações no momento.")
-        if st.button("Voltar para o Início", key="back_from_notifications_empty"):
-            st.session_state.current_page = "home"
-        st.stop()
-    
-    # Exibir todas as notificações
-    for notification in all_notifications:
-        is_unread = not notification.get("is_read", False)
+        # Contar notificações não lidas
+        unread_count = sum(1 for note in all_notifications if not note.get("is_read", False))
         
-        # Estilo diferente para notificações não lidas
-        border_color = "#1DB954" if is_unread else "#555"
-        background_color = "#1f2937" if is_unread else "#2d3748"
-        
-        with st.container():
-            if notification["type"] == "global":
-                # Notificação global
-                timestamp_display = ""
-                if notification.get("timestamp"):
-                    try:
-                        dt = datetime.datetime.fromisoformat(notification["timestamp"].replace('Z', '+00:00'))
-                        timestamp_display = dt.strftime("%d/%m/%Y %H:%M")
-                    except:
-                        timestamp_display = notification["timestamp"][:10] if len(notification["timestamp"]) > 10 else notification["timestamp"]
-                
-                st.markdown(f"""
-                <div style='
-                    background-color: {background_color};
-                    padding: 15px;
-                    border-radius: 10px;
-                    margin-bottom: 15px;
-                    border-left: 4px solid {border_color};
-                '>
-                    <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
-                        📢 <strong>{notification.get('admin', 'Admin')}</strong> • {timestamp_display}
-                        {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
-                    </p>
-                    <p style='color: white; font-size: 16px; margin: 8px 0 0 0;'>
-                        {notification['message']}
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-            else:
-                # Notificação de música
-                timestamp_display = ""
-                if notification.get("timestamp"):
-                    try:
-                        dt = datetime.datetime.fromisoformat(notification["timestamp"].replace('Z', '+00:00'))
-                        timestamp_display = dt.strftime("%d/%m/%Y %H:%M")
-                    except:
-                        timestamp_display = notification["timestamp"][:10] if len(notification["timestamp"]) > 10 else notification["timestamp"]
-                
-                st.markdown(f"""
-                <div style='
-                    background-color: {background_color};
-                    padding: 15px;
-                    border-radius: 10px;
-                    margin-bottom: 15px;
-                    border-left: 4px solid {border_color};
-                '>
-                    <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
-                        🎵 Nova Música • {timestamp_display}
-                        {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
-                    </p>
-                    <p style='color: white; font-size: 18px; font-weight: bold; margin: 8px 0 5px 0;'>
-                        {notification['title']}
-                    </p>
-                    <p style='color: #1DB954; font-size: 16px; margin: 0;'>
-                        {notification.get('artist', 'Artista desconhecido')}
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Botão para marcar como lida (apenas para não lidas)
-            if is_unread:
-                if st.button("✅ Marcar como lida", key=f"read_{notification['id']}_{notification['type']}"):
-                    if mark_notification_as_read(notification['id'], notification['type']):
-                        st.success("✅ Notificação marcada como lida!")
-                        st.session_state.unread_notifications_cache = None
-                        time.sleep(0.5)
-                        st.rerun()
-            
+        if unread_count > 0:
+            st.success(f"📬 Você tem {unread_count} notificação(ões) não lida(s)")
             st.markdown("---")
-    
-    if st.button("Voltar para o Início", key="back_from_notifications"):
-        st.session_state.current_page = "home"
-
+        
+        # Exibir notificações
+        for i, notification in enumerate(all_notifications):
+            is_unread = not notification.get("is_read", False)
+            
+            # Estilo diferente para notificações não lidas
+            border_color = "#1DB954" if is_unread else "#555"
+            background_color = "#1f2937" if is_unread else "#2d3748"
+            
+            with st.container():
+                if notification.get("type") == "global":
+                    # Notificação global
+                    timestamp_display = notification.get("timestamp", "")[:10] if notification.get("timestamp") else "Data não disponível"
+                    
+                    st.markdown(f"""
+                    <div style='
+                        background-color: {background_color};
+                        padding: 15px;
+                        border-radius: 10px;
+                        margin-bottom: 15px;
+                        border-left: 4px solid {border_color};
+                    '>
+                        <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
+                            📢 <strong>{notification.get('admin', 'Admin')}</strong> • {timestamp_display}
+                            {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
+                        </p>
+                        <p style='color: white; font-size: 16px; margin: 8px 0 0 0;'>
+                            {notification.get('message', '')}
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                else:
+                    # Notificação de música
+                    timestamp_display = notification.get("timestamp", "")[:10] if notification.get("timestamp") else "Data não disponível"
+                    
+                    st.markdown(f"""
+                    <div style='
+                        background-color: {background_color};
+                        padding: 15px;
+                        border-radius: 10px;
+                        margin-bottom: 15px;
+                        border-left: 4px solid {border_color};
+                    '>
+                        <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
+                            🎵 Nova Música • {timestamp_display}
+                            {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
+                        </p>
+                        <p style='color: white; font-size: 18px; font-weight: bold; margin: 8px 0 5px 0;'>
+                            {notification.get('title', 'Sem título')}
+                        </p>
+                        <p style='color: #1DB954; font-size: 16px; margin: 0;'>
+                            {notification.get('artist', 'Artista desconhecido')}
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Botão para marcar como lida (apenas para não lidas)
+                if is_unread:
+                    if st.button("✅ Marcar como lida", key=f"read_{i}_{notification.get('id', 'unknown')}"):
+                        if mark_notification_as_read(notification.get('id'), notification.get('type', 'global')):
+                            st.success("✅ Notificação marcada como lida!")
+                            time.sleep(1)
+                            st.rerun()
+                
+                st.markdown("---")
+        
+        if st.button("Voltar para o Início", key="back_from_notifications"):
+            st.session_state.current_page = "home"
+            
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar notificações: {e}")
+        if st.button("Voltar para o Início", key="back_from_notifications_error"):
+            st.session_state.current_page = "home"
 
 # ==============================
 # FOOTER + CSS
