@@ -165,7 +165,7 @@ def get_all_songs():
     except Exception as e:
         return []
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=30) # 10 minutos 
 def get_all_songs_cached():
     return get_all_songs()
 
