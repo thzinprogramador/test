@@ -235,6 +235,24 @@ def check_if_system_notification_read(note_id):
     except:
         return False
 
+def mark_notification_as_read(notification_id, notification_type):
+    """Marca uma notificação como lida"""
+    if not st.session_state.firebase_connected:
+        return False
+    
+    try:
+        user_key = "anonymous"
+        if notification_type == "global":
+            ref = db.reference(f"/global_notifications/{notification_id}/read_by/{user_key}")
+        else:
+            ref = db.reference(f"/system_notifications/{notification_id}/read_by/{user_key}")
+        
+        ref.set(True)
+        return True
+    except Exception as e:
+        st.error(f"❌ Erro ao marcar notificação como lida: {e}")
+        return False
+
 
 # função para verificar o status do Telegram
 def check_telegram_bot_status():
@@ -551,9 +569,27 @@ def check_unread_notifications():
         return 0
     
     try:
-        all_notifications = get_all_notifications()
-        unread_count = sum(1 for note in all_notifications if not note.get("is_read", False))
-        return unread_count
+        all_notifications = []
+        
+        # Verificar notificações globais
+        global_ref = db.reference("/global_notifications")
+        global_notifications = global_ref.get()
+        if global_notifications:
+            for note_id, note_data in global_notifications.items():
+                read_by = note_data.get("read_by", {})
+                if "anonymous" not in read_by or not read_by["anonymous"]:
+                    all_notifications.append(note_id)
+        
+        # Verificar notificações do sistema
+        system_ref = db.reference("/system_notifications")
+        system_notifications = system_ref.get()
+        if system_notifications:
+            for note_id, note_data in system_notifications.items():
+                read_by = note_data.get("read_by", {})
+                if "anonymous" not in read_by or not read_by["anonymous"]:
+                    all_notifications.append(note_id)
+        
+        return len(all_notifications)
     except Exception as e:
         st.error(f"❌ Erro ao verificar notificações: {e}")
         return 0
@@ -1220,8 +1256,54 @@ elif st.session_state.current_page == "notifications":
     st.markdown(f"<h1 style='text-align:center;'>🔔 Notificações</h1>", unsafe_allow_html=True)
     st.markdown("---")
     
-    # Buscar todas as notificações
-    all_notifications = get_all_notifications()
+    # Buscar todas as notificações (globais e de sistema)
+    all_notifications = []
+    
+    # Buscar notificações globais
+    try:
+        global_ref = db.reference("/global_notifications")
+        global_notifications = global_ref.get()
+        
+        if global_notifications:
+            for note_id, note_data in global_notifications.items():
+                all_notifications.append({
+                    "id": note_id,
+                    "type": "global",
+                    "title": "Notificação Global",
+                    "message": note_data.get("message", ""),
+                    "admin": note_data.get("admin", "Admin"),
+                    "timestamp": note_data.get("timestamp", ""),
+                    "is_read": check_if_global_notification_read(note_id)
+                })
+    except Exception as e:
+        st.error(f"❌ Erro ao buscar notificações globais: {e}")
+    
+    # Buscar notificações do sistema (músicas)
+    try:
+        system_ref = db.reference("/system_notifications")
+        system_notifications = system_ref.get()
+        
+        if system_notifications:
+            for note_id, note_data in system_notifications.items():
+                all_notifications.append({
+                    "id": note_id,
+                    "type": "music",
+                    "title": note_data.get("title", "Nova Música"),
+                    "message": note_data.get("formatted_message", ""),
+                    "artist": note_data.get("artist", ""),
+                    "timestamp": note_data.get("timestamp", ""),
+                    "is_read": check_if_system_notification_read(note_id)
+                })
+    except Exception as e:
+        st.error(f"❌ Erro ao buscar notificações do sistema: {e}")
+    
+    # Ordenar por timestamp (mais recente primeiro)
+    try:
+        all_notifications.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    except:
+        pass
+    
+    # Contar notificações não lidas
     unread_count = sum(1 for note in all_notifications if not note.get("is_read", False))
     
     if unread_count > 0:
@@ -1234,105 +1316,84 @@ elif st.session_state.current_page == "notifications":
             st.session_state.current_page = "home"
         st.stop()
     
-    # CSS para estilização
-    st.markdown("""
-    <style>
-    .notification-container {
-        background-color: #1f2937;
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 15px;
-        border-left: 4px solid #555;
-    }
-    .notification-container.unread {
-        border-left-color: #1DB954;
-        background-color: #2d3748;
-    }
-    .notification-header {
-        color: #9ca3af;
-        font-size: 12px;
-        margin: 0;
-    }
-    .notification-title {
-        color: white;
-        font-size: 18px;
-        font-weight: bold;
-        margin: 8px 0 5px 0;
-    }
-    .notification-artist {
-        color: #1DB954;
-        font-size: 16px;
-        margin: 0;
-    }
-    .notification-message {
-        color: white;
-        font-size: 16px;
-        margin: 8px 0 0 0;
-    }
-    .new-badge {
-        color: #1DB954;
-        margin-left: 10px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
     # Exibir todas as notificações
     for notification in all_notifications:
         is_unread = not notification.get("is_read", False)
         
-        # Determinar timestamp
-        timestamp_display = ""
-        if notification.get("timestamp"):
-            try:
-                dt = datetime.datetime.fromisoformat(notification["timestamp"].replace('Z', '+00:00'))
-                timestamp_display = dt.strftime("%d/%m/%Y %H:%M")
-            except:
-                timestamp_display = notification["timestamp"][:10] if len(notification["timestamp"]) > 10 else notification["timestamp"]
+        # Estilo diferente para notificações não lidas
+        border_color = "#1DB954" if is_unread else "#555"
+        background_color = "#1f2937" if is_unread else "#2d3748"
         
-        # Renderizar a notificação com HTML
-        if notification["type"] == "global":
-            html_content = f"""
-            <div class="notification-container {'unread' if is_unread else ''}">
-                <div class="notification-header">
-                    📢 <strong>{notification.get('admin', 'Admin')}</strong> • {timestamp_display}
-                    {'<span class="new-badge">● NOVA</span>' if is_unread else ''}
+        with st.container():
+            if notification["type"] == "global":
+                # Notificação global
+                timestamp_display = ""
+                if notification.get("timestamp"):
+                    try:
+                        dt = datetime.datetime.fromisoformat(notification["timestamp"].replace('Z', '+00:00'))
+                        timestamp_display = dt.strftime("%d/%m/%Y %H:%M")
+                    except:
+                        timestamp_display = notification["timestamp"][:10] if len(notification["timestamp"]) > 10 else notification["timestamp"]
+                
+                st.markdown(f"""
+                <div style='
+                    background-color: {background_color};
+                    padding: 15px;
+                    border-radius: 10px;
+                    margin-bottom: 15px;
+                    border-left: 4px solid {border_color};
+                '>
+                    <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
+                        📢 <strong>{notification.get('admin', 'Admin')}</strong> • {timestamp_display}
+                        {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
+                    </p>
+                    <p style='color: white; font-size: 16px; margin: 8px 0 0 0;'>
+                        {notification['message']}
+                    </p>
                 </div>
-                <div class="notification-message">
-                    {notification['message']}
+                """, unsafe_allow_html=True)
+                
+            else:
+                # Notificação de música
+                timestamp_display = ""
+                if notification.get("timestamp"):
+                    try:
+                        dt = datetime.datetime.fromisoformat(notification["timestamp"].replace('Z', '+00:00'))
+                        timestamp_display = dt.strftime("%d/%m/%Y %H:%M")
+                    except:
+                        timestamp_display = notification["timestamp"][:10] if len(notification["timestamp"]) > 10 else notification["timestamp"]
+                
+                st.markdown(f"""
+                <div style='
+                    background-color: {background_color};
+                    padding: 15px;
+                    border-radius: 10px;
+                    margin-bottom: 15px;
+                    border-left: 4px solid {border_color};
+                '>
+                    <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
+                        🎵 Nova Música • {timestamp_display}
+                        {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
+                    </p>
+                    <p style='color: white; font-size: 18px; font-weight: bold; margin: 8px 0 5px 0;'>
+                        {notification['title']}
+                    </p>
+                    <p style='color: #1DB954; font-size: 16px; margin: 0;'>
+                        {notification.get('artist', 'Artista desconhecido')}
+                    </p>
                 </div>
-            </div>
-            """
-        else:
-            html_content = f"""
-            <div class="notification-container {'unread' if is_unread else ''}">
-                <div class="notification-header">
-                    🎵 Nova Música • {timestamp_display}
-                    {'<span class="new-badge">● NOVA</span>' if is_unread else ''}
-                </div>
-                <div class="notification-title">
-                    {notification['title']}
-                </div>
-                <div class="notification-artist">
-                    {notification.get('artist', 'Artista desconhecido')}
-                </div>
-            </div>
-            """
-        
-        # Renderizar o HTML
-        st.markdown(html_content, unsafe_allow_html=True)
-        
-        # Botão para marcar como lida (apenas para não lidas) - separado do HTML
-        if is_unread:
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                if st.button("✅ Marcar como lida", key=f"read_{notification['id']}", use_container_width=True):
+                """, unsafe_allow_html=True)
+            
+            # Botão para marcar como lida (apenas para não lidas)
+            if is_unread:
+                if st.button("✅ Marcar como lida", key=f"read_{notification['id']}_{notification['type']}"):
                     if mark_notification_as_read(notification['id'], notification['type']):
                         st.success("✅ Notificação marcada como lida!")
                         st.session_state.unread_notifications_cache = None
                         time.sleep(0.5)
                         st.rerun()
-        
-        st.markdown("---")
+            
+            st.markdown("---")
     
     if st.button("Voltar para o Início", key="back_from_notifications"):
         st.session_state.current_page = "home"
