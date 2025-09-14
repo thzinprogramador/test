@@ -1238,14 +1238,19 @@ elif st.session_state.current_page == "notifications":
     for notification in all_notifications:
         is_unread = not notification.get("is_read", False)
         
-        # Estilo diferente para notificações não lidas
-        border_color = "#1DB954" if is_unread else "#555"
-        background_color = "#1f2937" if is_unread else "#2d3748"
+        # Estilo visual para notificações não lidas
+        if is_unread:
+            st.markdown("""<style> .unread-notification { border-left: 4px solid #1DB954; padding-left: 10px; } </style>""", unsafe_allow_html=True)
+            container_style = "unread-notification"
+        else:
+            container_style = ""
         
-        # Usar columns para criar um layout mais controlado
-        col1, col2 = st.columns([0.9, 0.1])
-        
-        with col1:
+        # Usar container do Streamlit
+        with st.container():
+            # Adicionar classe CSS se for não lida
+            if is_unread:
+                st.markdown(f'<div class="{container_style}">', unsafe_allow_html=True)
+            
             if notification["type"] == "global":
                 # Notificação global
                 timestamp_display = ""
@@ -1256,26 +1261,12 @@ elif st.session_state.current_page == "notifications":
                     except:
                         timestamp_display = notification["timestamp"][:10] if len(notification["timestamp"]) > 10 else notification["timestamp"]
                 
-                st.markdown(f"""
-                <div style='
-                    background-color: {background_color};
-                    padding: 15px;
-                    border-radius: 10px;
-                    margin-bottom: 15px;
-                    border-left: 4px solid {border_color};
-                '>
-                    <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
-                        📢 <strong>{notification.get('admin', 'Admin')}</strong> • {timestamp_display}
-                        {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
-                    </p>
-                    <p style='color: white; font-size: 16px; margin: 8px 0 0 0;'>
-                        {notification['message']}
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown("📢 **Notificação Global**")
+                st.markdown(f"*De: {notification.get('admin', 'Admin')} • {timestamp_display}*")
+                st.markdown(f"{notification['message']}")
                 
             else:
-                # Notificação de música - CORREÇÃO AQUI
+                # Notificação de música - USANDO COMPONENTES NATIVOS
                 timestamp_display = ""
                 if notification.get("timestamp"):
                     try:
@@ -1284,39 +1275,27 @@ elif st.session_state.current_page == "notifications":
                     except:
                         timestamp_display = notification["timestamp"][:10] if len(notification["timestamp"]) > 10 else notification["timestamp"]
                 
-                # CORREÇÃO: Remover as tags <p> problemáticas e usar divs
-                st.markdown(f"""
-                <div style='
-                    background-color: {background_color};
-                    padding: 15px;
-                    border-radius: 10px;
-                    margin-bottom: 15px;
-                    border-left: 4px solid {border_color};
-                '>
-                    <div style='color: #9ca3af; font-size: 12px; margin: 0;'>
-                        🎵 Nova Música • {timestamp_display}
-                        {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
-                    </div>
-                    <div style='color: white; font-size: 18px; font-weight: bold; margin: 8px 0 5px 0;'>
-                        {notification['title']}
-                    </div>
-                    <div style='color: #1DB954; font-size: 16px; margin: 0;'>
-                        {notification.get('artist', 'Artista desconhecido')}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        with col2:
+                # Componentes nativos do Streamlit
+                st.markdown(f"🎵 **{notification['title']}**")
+                st.markdown(f"*{notification.get('artist', 'Artista desconhecido')}*")
+                st.caption(f"Nova música adicionada • {timestamp_display}")
+            
             # Botão para marcar como lida (apenas para não lidas)
             if is_unread:
-                if st.button("✅ Lida", key=f"read_{notification['id']}"):
-                    if mark_notification_as_read(notification['id'], notification['type']):
-                        st.success("✅ Notificação marcada como lida!")
-                        st.session_state.unread_notifications_cache = None
-                        time.sleep(0.5)
-                        st.rerun()
+                col1, col2 = st.columns([3, 1])
+                with col2:
+                    if st.button("✅ Marcar como lida", key=f"read_{notification['id']}"):
+                        if mark_notification_as_read(notification['id'], notification['type']):
+                            st.success("✅ Notificação marcada como lida!")
+                            st.session_state.unread_notifications_cache = None
+                            time.sleep(0.5)
+                            st.rerun()
             
-        st.markdown("---")
+            # Fechar div se for não lida
+            if is_unread:
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            st.markdown("---")
     
     if st.button("Voltar para o Início", key="back_from_notifications"):
         st.session_state.current_page = "home"
