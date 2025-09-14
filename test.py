@@ -1461,7 +1461,7 @@ def show_notification_panel():
                     st.error(f"❌ Erro: {e}")
 
     with tab4:
-    send_specific_user_notification()
+        send_specific_user_notification()
     
     if st.button("🔒 Sair do Painel de Notificações"):
         st.session_state.admin_authenticated = False
