@@ -607,7 +607,7 @@ def show_add_music_page():
                 st.success("✅ Acesso concedido!")
             else:
                 st.error("❌ Senha incorreta!")
-        return
+        st.stop()
     
     if st.session_state.show_add_form:
         with st.form("add_music_form", clear_on_submit=True):
