@@ -208,7 +208,7 @@ def add_song_request(request_data):
             # Mensagem formatada como solicitado
             notification_message = f"""Novo pedido de música:
             
-{title} - {artist} - {album}
+{artist} - {title} - {album}
 
 Música: {title}
 Artista: {artist}
