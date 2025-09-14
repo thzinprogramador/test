@@ -533,7 +533,7 @@ def get_all_songs(limit=100):
         return []
 
 
-@st.cache_data(ttl=30) # 10 minutos 
+@st.cache_data(ttl=600) # 10 minutos 
 def get_all_songs_cached():
     return get_all_songs()
 
