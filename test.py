@@ -64,6 +64,8 @@ if "unread_notifications_cache" not in st.session_state:
     st.session_state.unread_notifications_cache = None
 if "admin_mode" not in st.session_state:
     st.session_state.admin_mode = False
+if "show_login" not in st.session_state:
+    st.session_state.show_login = False
 
 
 # ==============================
@@ -71,9 +73,6 @@ if "admin_mode" not in st.session_state:
 # ==============================
 SUPABASE_URL = "https://wvouegbuvuairukkupit.supabase.co" 
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2b3VlZ2J1dnVhaXJ1a2t1cGl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0NzM3NjAsImV4cCI6MjA3MzA0OTc2MH0.baLFbRTaMM8FCFG2a-Yb80Sg7JqhdQ6EMld8h7BABiE"
-
-# Cliente Supabase simplificado usando requests
-import requests
 
 class SimpleSupabaseClient:
     def __init__(self, url, key):
@@ -97,14 +96,14 @@ class SimpleSupabaseClient:
             elif method == "DELETE":
                 response = requests.delete(url, headers=self.headers)
             
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 return response.json()
             else:
                 print(f"Erro Supabase: {response.status_code} - {response.text}")
-                return []
+                return None
         except Exception as e:
             print(f"Erro ao conectar com Supabase: {e}")
-            return []
+            return None
     
     def table(self, table_name):
         return SupabaseTable(self, table_name)
@@ -130,7 +129,8 @@ class SupabaseTable:
         if hasattr(self, 'filter_column') and hasattr(self, 'filter_value'):
             params[self.filter_column] = f"eq.{self.filter_value}"
         
-        return {"data": self.client.execute_query(endpoint, "GET", params)}
+        result = self.client.execute_query(endpoint, "GET", params)
+        return {"data": result} if result else {"data": []}
     
     def insert(self, data):
         endpoint = self.table_name
@@ -146,6 +146,22 @@ class SupabaseTable:
 
 # Inicializar cliente Supabase simplificado
 supabase_client = SimpleSupabaseClient(SUPABASE_URL, SUPABASE_KEY)
+
+
+# teste 
+def check_supabase_connection():
+    """Verifica a conexão com Supabase"""
+    try:
+        response = supabase_client.table("users").select("count").execute()
+        st.info(f"Resposta do Supabase: {response}")
+        return True
+    except Exception as e:
+        st.error(f"Erro ao conectar com Supabase: {e}")
+        return False
+
+# Chame esta função em algum lugar para testar
+check_supabase_connection()
+
 
 
 # ==============================
@@ -176,7 +192,7 @@ def username_exists(username):
     """Verifica se o username já existe"""
     try:
         response = supabase_client.table("users").select("username").eq("username", username).execute()
-        return len(response.data) > 0
+        return len(response.get("data", [])) > 0  # Corrigido aqui
     except Exception as e:
         st.error(f"Erro ao verificar usuário: {e}")
         return False
@@ -195,7 +211,11 @@ def sign_up(username, password):
             "created_at": datetime.datetime.now().isoformat()
         }).execute()
         
-        if response.data:
+        if response.get("data"):  # Corrigido aqui
+            # ENVIAR NOTIFICAÇÃO PARA TELEGRAM
+            telegram_message = f"👤 Nova conta criada!\n\nUsuário: {username}\nData: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            send_telegram_notification(telegram_message)
+            
             return True, "Conta criada com sucesso!"
         return False, "Erro ao criar conta"
     except Exception as e:
@@ -207,10 +227,10 @@ def sign_in(username, password):
         # Buscar usuário no banco
         response = supabase_client.table("users").select("*").eq("username", username).execute()
         
-        if not response.data or len(response.data) == 0:
+        if not response.get("data") or len(response.get("data", [])) == 0:  # Corrigido aqui
             return False, "Usuário não encontrado!"
         
-        user_data = response.data[0]
+        user_data = response["data"][0]  # Corrigido aqui
         
         # Verificar senha
         if check_password(password, user_data["password_hash"]):
@@ -1464,7 +1484,11 @@ with st.sidebar:
                 st.rerun()
     else:
         # Usuário não logado
-        if st.expander("🔐 Login/Cadastro", expanded=False):
+        if st.button("🔐 Login/Cadastro", key="login_btn"):
+        st.session_state.show_login = not st.session_state.get('show_login', False)
+            st.rerun()
+            
+        if st.session_state.get('show_login', False):
             show_auth_ui()
 
     if st.session_state.current_track:
