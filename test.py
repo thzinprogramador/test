@@ -9,6 +9,7 @@ import base64
 import threading
 import traceback
 import bcrypt
+import gc
 from firebase_admin import credentials, db
 from io import BytesIO
 from PIL import Image
@@ -17,6 +18,30 @@ def get_current_timestamp():
     """Retorna timestamp formatado corretamente para Firebase"""
     return datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
+@st.cache_data
+def load_image_from_url(url):
+    response = requests.get(url)
+    return Image.open(BytesIO(response.content))
+
+def resize_image(img, max_size=300):
+    img.thumbnail((max_size, max_size))
+    return img
+
+def load_image(url):
+    try:
+        if "drive.google.com" in url:
+            url = convert_google_drive_url(url)
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            img = Image.open(BytesIO(response.content))
+            return resize_image(img)  # 🔧 reduz tamanho
+        return None
+    except:
+        return None
+
+
+def clear_memory():
+    gc.collect()
 
 # ==============================
 # CONFIGURAÇÃO DA PÁGINA
@@ -487,29 +512,21 @@ def initialize_database():
     except Exception as e:
         return False
 
-def get_all_songs():
+def get_all_songs(limit=100):
     try:
         if st.session_state.firebase_connected:
             ref = db.reference("/songs")
-            songs_data = ref.get()
+            songs_data = ref.order_by_key().limit_to_first(limit).get()
             songs = []
             if songs_data:
                 for song_id, song_data in songs_data.items():
                     song_data["id"] = song_id
                     songs.append(song_data)
             return songs
-        return [{
-            "id": "1",
-            "title": "ESTAMOS OFFLINE",
-            "artist": "!",
-            "duration": "3:45",
-            "audio_url": "www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-            "platform": "wave",
-            "album": "!",
-            "genre": "!"
-        }]
-    except Exception as e:
         return []
+    except:
+        return []
+
 
 @st.cache_data(ttl=30) # 10 minutos 
 def get_all_songs_cached():
