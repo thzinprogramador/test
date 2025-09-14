@@ -1052,10 +1052,6 @@ with st.sidebar:
     st.title("🌊 Wave Song")
     st.success("✅ Online" if st.session_state.firebase_connected else "⚠️ Offline")
 
-    # Modo Admin/Usuário
-    admin_mode = st.toggle("Modo Administrador", value=st.session_state.admin_mode)
-    st.session_state.admin_mode = admin_mode
-
     if st.session_state.current_track:
         song = st.session_state.current_track
         st.subheader("🎧 Tocando agora")
@@ -1094,22 +1090,6 @@ with st.sidebar:
             
         if st.button("Buscar Músicas", key="btn_search", use_container_width=True):
             st.session_state.current_page = "search"
-            st.session_state.show_request_form = False
-            
-    # Menu para administradores
-    else:
-        st.subheader("🛡️ Painel Administrativo")
-        
-        if st.button("📊 Gerenciar Músicas", use_container_width=True):
-            st.session_state.current_page = "add_music"
-            st.session_state.show_request_form = False
-            
-        if st.button("📢 Painel de Notificações", use_container_width=True):
-            st.session_state.current_page = "notification_panel"
-            st.session_state.show_request_form = False
-            
-        if st.button("📋 Estatísticas", use_container_width=True):
-            st.session_state.current_page = "stats"
             st.session_state.show_request_form = False
 
 # ==============================
