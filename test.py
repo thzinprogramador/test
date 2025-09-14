@@ -11,7 +11,6 @@ from firebase_admin import credentials, db
 from io import BytesIO
 from PIL import Image
 
-
 # ==============================
 # CONFIGURAÇÃO DA PÁGINA
 # ==============================
@@ -59,10 +58,10 @@ if "popup_closed" not in st.session_state:
     st.session_state.popup_closed = False
 if "popup_shown" not in st.session_state:
     st.session_state.popup_shown = False
-    
 if "unread_notifications_cache" not in st.session_state:
     st.session_state.unread_notifications_cache = None
-
+if "admin_mode" not in st.session_state:
+    st.session_state.admin_mode = False
 
 # ==============================
 # CONFIGURAÇÕES DE SEGURANÇA
@@ -73,20 +72,18 @@ ADMIN_PASSWORD = "wavesong9090"
 # ==============================
 # CONFIGURAÇÕES DO TELEGRAM
 # ==============================
-TELEGRAM_BOT_TOKEN = "7680456440:AAFRmCOdehS13VjYY5qKttBbm-hDZRDFjP4"  # Obtenha com @BotFather
-TELEGRAM_ADMIN_CHAT_ID = "5919571280"  # Obtenha com @userinfobot
-TELEGRAM_NOTIFICATIONS_ENABLED = False  # Inicialmente desativado
+TELEGRAM_BOT_TOKEN = "7680456440:AAFRmCOdehS13VjYY5qKttBbm-hDZRDFjP4"
+TELEGRAM_ADMIN_CHAT_ID = "5919571280"
+TELEGRAM_NOTIFICATIONS_ENABLED = True
 
-# Inicializar bot do Telegram - MODIFICADO
+# Inicializar bot do Telegram
 telegram_bot = None
 try:
     telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
-    TELEGRAM_NOTIFICATIONS_ENABLED = True
     print("✅ Bot do Telegram inicializado com sucesso!")
 except Exception as e:
     st.error(f"❌ Erro ao conectar com Telegram: {e}")
     TELEGRAM_NOTIFICATIONS_ENABLED = False
-
 
 # ==============================
 # FIREBASE CONFIG (JSON DIRETO)
@@ -132,8 +129,6 @@ wrmWQJLtjkvYZN9JQUrobttHnhsL+9qKCUQu/T3/ZI3eJ54LLgZJrbbBr29SVsQo
   "universe_domain": "googleapis.com"
 }
 
-
-
 # ==============================
 # FUNÇÕES FIREBASE
 # ==============================
@@ -170,7 +165,7 @@ def get_all_songs():
     except Exception as e:
         return []
 
-@st.cache_data(ttl=600)  # cache por 10 minutos
+@st.cache_data(ttl=600)
 def get_all_songs_cached():
     return get_all_songs()
 
@@ -178,7 +173,6 @@ def add_song_to_db(song_data):
     try:
         if st.session_state.firebase_connected:
             ref = db.reference("/songs")
-            # Verificar se a música já existe no banco
             existing_songs = ref.order_by_child('title').equal_to(song_data['title']).get()
             if existing_songs:
                 st.warning("⚠️ Música já existente no banco de dados!")
@@ -186,7 +180,7 @@ def add_song_to_db(song_data):
             song_data["created_at"] = datetime.datetime.now().isoformat()
             ref.push(song_data)
             
-            # ENVIAR NOTIFICAÇÃO TELEGRAM - ADICIONE ESTA PARTE
+            # Enviar notificação para Telegram
             title = song_data.get("title", "Sem título")
             artist = song_data.get("artist", "Artista desconhecido")
             send_telegram_notification(f"🎵 Nova música adicionada:\n{title} - {artist}")
@@ -204,13 +198,18 @@ def add_song_request(request_data):
             request_data["created_at"] = datetime.datetime.now().isoformat()
             request_data["status"] = "pending"
             ref.push(request_data)
+            
+            # Enviar notificação para Telegram - CORRIGIDO
+            title = request_data.get("title", "Sem título")
+            artist = request_data.get("artist", "Artista desconhecido")
+            req_username = request_data.get("requested_by", "Anônimo")
+            send_telegram_notification(f"🎵 Novo pedido de música:\n{title} - {artist}\nSolicitado por: {req_username}")
+            
             return True
         return False
     except Exception as e:
         st.error(f"❌ Erro ao enviar pedido: {e}")
         return False
-    if success:
-        send_telegram_notification(f"🎵 Novo pedido de música:\n{title} - {artist}\nSolicitado por: {req_username or 'Anônimo'}")
 
 def search_songs(query, songs=None):
     if songs is None:
@@ -226,7 +225,6 @@ def search_songs(query, songs=None):
         query in s.get("genre", "").lower()
     ]
 
-
 # Função para converter URL do Google Drive
 def convert_google_drive_url(url):
     if "drive.google.com" in url and "/file/d/" in url:
@@ -237,11 +235,9 @@ def convert_google_drive_url(url):
 # Função para carregar imagem com tratamento de erro
 def load_image(url):
     try:
-        # Para URLs do Google Drive, use a conversão
         if "drive.google.com" in url:
             url = convert_google_drive_url(url)
         
-        # Tenta carregar a imagem
         response = requests.get(url, timeout=10)
         if response.status_code == 200:
             img = Image.open(BytesIO(response.content))
@@ -251,26 +247,21 @@ def load_image(url):
     except Exception as e:
         return None
 
-
 @st.cache_data
 def load_image_cached(url):
     return load_image(url)
 
-
 def get_top6_songs():
     songs = st.session_state.all_songs
-    # Define play_count 0 se não existir
     for s in songs:
         if "play_count" not in s:
             s["play_count"] = 0
-    # Ordena decrescente
     sorted_songs = sorted(songs, key=lambda x: x["play_count"], reverse=True)
     return sorted_songs[:6]
 
 def get_daily_random_songs(all_songs, top6_songs):
     now = datetime.datetime.now()
     
-    # Se não existe ou passou mais de 24h, gerar nova lista
     if (st.session_state.random_songs_timestamp is None or 
         (now - st.session_state.random_songs_timestamp).total_seconds() > 24*3600 or
         not st.session_state.random_songs):
@@ -281,17 +272,14 @@ def get_daily_random_songs(all_songs, top6_songs):
     
     return st.session_state.random_songs
 
-
 # ==============================
-# FUNÇÕES DE NOTIFICAÇÃO TELEGRAM
+# FUNÇÕES DE NOTIFICAÇÃO TELEGRAM (CORRIGIDAS)
 # ==============================
 def check_telegram_connection():
-    """Verifica se o bot do Telegram está conectado"""
     if not TELEGRAM_NOTIFICATIONS_ENABLED:
         return False
     
     try:
-        # Tentativa simples de verificar conexão
         bot_info = telegram_bot.get_me()
         return True
     except Exception as e:
@@ -299,7 +287,6 @@ def check_telegram_connection():
         return False
 
 def setup_telegram_commands():
-    """Configura os comandos do Telegram para funcionar em background"""
     if not TELEGRAM_NOTIFICATIONS_ENABLED:
         return
     
@@ -338,7 +325,6 @@ def setup_telegram_commands():
             telegram_bot.send_message(message.chat.id, "❌ Apenas administradores podem enviar notificações.")
             return
         
-        # Extrair a mensagem do comando
         parts = message.text.split(' ', 1)
         if len(parts) < 2:
             telegram_bot.send_message(message.chat.id, "❌ Uso: /notify [mensagem]")
@@ -365,10 +351,8 @@ def setup_telegram_commands():
 🛡️ Admin: {admin_name}"""
         telegram_bot.send_message(message.chat.id, response, parse_mode='Markdown')
 
-
 def check_and_display_telegram_status():
-    """Verifica e exibe o status do Telegram de forma amigável"""
-    global telegram_bot, TELEGRAM_NOTIFICATIONS_ENABLED  # Adicione esta linha
+    global telegram_bot, TELEGRAM_NOTIFICATIONS_ENABLED
     
     if not TELEGRAM_NOTIFICATIONS_ENABLED:
         st.error("❌ Telegram desativado")
@@ -385,12 +369,10 @@ def check_and_display_telegram_status():
     except Exception as e:
         st.error(f"❌ Telegram desconectado: {str(e)}")
         
-        # Tentar reconectar
         try:
-            telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)  # Remova o global daqui
+            telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
             TELEGRAM_NOTIFICATIONS_ENABLED = True
             st.success("✅ Reconectado ao Telegram!")
-            # Reconfigurar comandos após reconexão
             setup_telegram_commands()
             return True
         except Exception as e2:
@@ -398,9 +380,7 @@ def check_and_display_telegram_status():
             TELEGRAM_NOTIFICATIONS_ENABLED = False
             return False
 
-
 def send_telegram_notification(message, retry_count=2):
-    """Envia notificação para o administrador via Telegram com retry"""
     if not TELEGRAM_NOTIFICATIONS_ENABLED:
         return False
     
@@ -409,13 +389,12 @@ def send_telegram_notification(message, retry_count=2):
             telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, message)
             return True
         except Exception as e:
-            if attempt == retry_count - 1:  # Última tentativa
+            if attempt == retry_count - 1:
                 st.error(f"❌ Erro ao enviar notificação para Telegram: {e}")
             time.sleep(1)
     return False
 
 def send_global_notification(message):
-    """Envia notificação para todos os usuários (via banco de dados)"""
     if not st.session_state.firebase_connected:
         return False
     
@@ -425,11 +404,10 @@ def send_global_notification(message):
             "message": message,
             "admin": "Schutz",
             "timestamp": datetime.datetime.now().isoformat(),
-            "read_by": {}  # Dicionário para controlar quem leu
+            "read_by": {}
         }
         ref.push(notification_data)
         
-        # Também enviar para o admin via Telegram
         send_telegram_notification(f"📢 Nova notificação global:\n{message}")
         return True
     except Exception as e:
@@ -437,11 +415,9 @@ def send_global_notification(message):
         return False
 
 def check_unread_notifications():
-    """Verifica se há notificações não lidas pelo usuário atual"""
     if not st.session_state.firebase_connected:
         return []
     
-    # Usar cache para evitar múltiplas chamadas
     if st.session_state.unread_notifications_cache is not None:
         return st.session_state.unread_notifications_cache
     
@@ -452,9 +428,8 @@ def check_unread_notifications():
         
         if notifications:
             for note_id, note_data in notifications.items():
-                # Verificar se o usuário atual já leu esta notificação
                 read_by = note_data.get("read_by", {})
-                user_key = "anonymous"  # Simplificado para usuários anônimos
+                user_key = "anonymous"
                 
                 if user_key not in read_by or not read_by[user_key]:
                     unread.append({
@@ -464,22 +439,18 @@ def check_unread_notifications():
                         "admin": note_data.get("admin", "Admin")
                     })
         
-        # Armazenar em cache
         st.session_state.unread_notifications_cache = unread
         return unread
     except Exception as e:
         st.error(f"❌ Erro ao verificar notificações: {e}")
         return []
 
-
-
 def mark_notification_as_read(notification_id):
-    """Marca uma notificação como lida pelo usuário atual"""
     if not st.session_state.firebase_connected:
         return False
     
     try:
-        user_key = "anonymous"  # Simplificado para usuários anônimos
+        user_key = "anonymous"
         ref = db.reference(f"/global_notifications/{notification_id}/read_by/{user_key}")
         ref.set(True)
         return True
@@ -487,18 +458,13 @@ def mark_notification_as_read(notification_id):
         st.error(f"❌ Erro ao marcar notificação como lida: {e}")
         return False
 
-
-
 def setup_telegram_webhook():
-    """Configura o bot do Telegram para receber comandos"""
     if not TELEGRAM_NOTIFICATIONS_ENABLED:
         return False
     
     try:
-        # Configurar os comandos
         setup_telegram_commands()
         
-        # Tentar iniciar polling em thread separada
         def start_polling():
             try:
                 print("🤖 Iniciando bot do Telegram...")
@@ -506,7 +472,6 @@ def setup_telegram_webhook():
             except Exception as e:
                 print(f"❌ Erro no polling do Telegram: {e}")
         
-        # Iniciar em thread separada
         polling_thread = threading.Thread(target=start_polling, daemon=True)
         polling_thread.start()
         
@@ -518,19 +483,12 @@ def setup_telegram_webhook():
         return False
 
 def handle_telegram_commands():
-    """Função para processar comandos do Telegram manualmente"""
-    if not TELEGRAM_NOTIFICATIONS_ENABLED:
-        return
-    
-    # Esta é uma implementação simplificada para demonstração
-    # Em produção, você precisaria de um servidor web separado
     pass
 
 # Configurar Telegram para receber comandos
 if TELEGRAM_NOTIFICATIONS_ENABLED:
     try:
         setup_telegram_commands()
-        # Iniciar polling em thread separada
         def start_bot():
             try:
                 telegram_bot.infinity_polling()
@@ -543,15 +501,12 @@ if TELEGRAM_NOTIFICATIONS_ENABLED:
     except Exception as e:
         st.error(f"❌ Erro ao iniciar bot: {e}")
 
-
 def send_telegram_command_response(command, message=""):
-    """Envia resposta para comandos do Telegram manualmente - SIMPLIFICADA"""
     if not TELEGRAM_NOTIFICATIONS_ENABLED:
         st.error("❌ Telegram não está habilitado")
         return False
     
     try:
-        # Comandos simples que não precisam de resposta complexa
         if command == "/status":
             telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, "✅ Comando de status recebido via painel")
             return True
@@ -576,25 +531,16 @@ def send_telegram_command_response(command, message=""):
 # FUNÇÃO DE CONVERSÃO DE URL CORRIGIDA
 # ==============================
 def convert_github_to_jsdelivr(url):
-    """
-    Converte URLs do github.com para cdn.jsdelivr.net
-    Suporta dois formatos:
-    1. https://github.com/usuario/repo/raw/ramo/caminho/arquivo
-    2. https://raw.githubusercontent.com/usuario/repo/ramo/caminho/arquivo
-    """
     if not url:
         return url
     
     try:
-        # Formato 1: https://github.com/usuario/repo/raw/ramo/caminho/arquivo
         if "github.com" in url and "/raw/" in url:
             parts = url.split("/")
-            # Encontra a posição do domínio github.com
             github_index = parts.index("github.com")
             usuario = parts[github_index + 1]
             repo = parts[github_index + 2]
             
-            # Encontra a posição do "raw"
             raw_index = parts.index("raw")
             ramo = parts[raw_index + 1]
             caminho_arquivo = "/".join(parts[raw_index + 2:])
@@ -602,10 +548,8 @@ def convert_github_to_jsdelivr(url):
             nova_url = f"https://cdn.jsdelivr.net/gh/{usuario}/{repo}@{ramo}/{caminho_arquivo}"
             return nova_url
         
-        # Formato 2: https://raw.githubusercontent.com/usuario/repo/ramo/caminho/arquivo
         elif "raw.githubusercontent.com" in url:
             parts = url.split("/")
-            # Encontra a posição do domínio raw.githubusercontent.com
             raw_index = parts.index("raw.githubusercontent.com")
             usuario = parts[raw_index + 1]
             repo = parts[raw_index + 2]
@@ -615,7 +559,6 @@ def convert_github_to_jsdelivr(url):
             nova_url = f"https://cdn.jsdelivr.net/gh/{usuario}/{repo}@{ramo}/{caminho_arquivo}"
             return nova_url
         
-        # Se não for nenhum dos formatos suportados, retorna original
         else:
             return url
             
@@ -624,29 +567,22 @@ def convert_github_to_jsdelivr(url):
         return url
 
 def get_converted_audio_url(song):
-    """Retorna a URL do áudio convertida se for do GitHub"""
     audio_url = song.get("audio_url", "")
     if "github.com" in audio_url or "raw.githubusercontent.com" in audio_url:
         return convert_github_to_jsdelivr(audio_url)
     return audio_url
 
-
 def play_song(song):
-    # Verificar se é uma música diferente
     current_id = st.session_state.current_track["id"] if st.session_state.current_track else None
     new_id = song["id"]
     
-    # Converter URL do GitHub para jsDelivr se necessário
     if "audio_url" in song and ("github.com" in song["audio_url"] or "raw.githubusercontent.com" in song["audio_url"]):
-        song_copy = song.copy()  # Criar uma cópia para não modificar o original
+        song_copy = song.copy()
         song_copy["audio_url"] = convert_github_to_jsdelivr(song["audio_url"])
         song = song_copy
     
-    # Sempre forçar rerun quando uma nova música é selecionada
     st.session_state.current_track = song
     st.session_state.is_playing = True
-    
-    # Adicionar timestamp único para forçar reconstrução
     st.session_state.player_timestamp = time.time()
     
     if st.session_state.firebase_connected:
@@ -657,23 +593,18 @@ def play_song(song):
         except Exception as e:
             st.error(f"Erro ao atualizar play_count: {e}")
     
-    # Forçar rerun apenas se for música diferente
     if current_id != new_id:
         st.rerun()
-    
-
 
 def show_add_music_page():
     st.header("Adicionar Nova Música")
     
-    # Verificar autenticação
     if not st.session_state.admin_authenticated:
         password = st.text_input("Senha de Administrador", type="password")
         if st.button("Acessar"):
             if password == ADMIN_PASSWORD: 
                 st.session_state.admin_authenticated = True
                 st.success("✅ Acesso concedido!")
-                #st.rerun()
             else:
                 st.error("❌ Senha incorreta!")
         return
@@ -722,22 +653,18 @@ def show_add_music_page():
             st.rerun()
 
 def show_notification_panel():
-    """Painel para enviar notificações globais"""
     st.header("🔔 Painel de Notificações")
     
-    # Verificar autenticação
     if not st.session_state.admin_authenticated:
         password = st.text_input("Senha de Administrador", type="password", key="notif_auth")
         if st.button("Acessar", key="notif_btn"):
             if password == ADMIN_PASSWORD: 
                 st.session_state.admin_authenticated = True
-                st.success("✅ Acesso concedido!")
                 st.rerun()
             else:
                 st.error("❌ Senha incorreta!")
         return
     
-    # Formulário para enviar notificação (MANTENHA APENAS ESTE)
     with st.form("notification_form"):
         notification_message = st.text_area("Mensagem da notificação:", 
                                           placeholder="Digite a mensagem que será enviada para todos os usuários...",
@@ -762,14 +689,12 @@ def show_notification_panel():
             else:
                 st.error("❌ Falha ao enviar notificação global!")
     
-    # Histórico de notificações
     st.subheader("Histórico de Notificações")
     try:
         ref = db.reference("/global_notifications")
         notifications = ref.get()
         
         if notifications:
-            # Converter para lista e reverter para mostrar as mais recentes primeiro
             notifications_list = []
             for note_id, note_data in notifications.items():
                 notifications_list.append({
@@ -779,7 +704,6 @@ def show_notification_panel():
                     "timestamp": note_data.get("timestamp", "")
                 })
 
-            # Ordenar por timestamp se disponível
             try:
                 notifications_list.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
             except:
@@ -807,7 +731,6 @@ def show_notification_panel():
     except Exception as e:
         st.error(f"❌ Erro ao carregar histórico: {e}")
 
-    # Status do Telegram
     st.subheader("🤖 Status do Telegram")
     
     if check_and_display_telegram_status():
@@ -842,16 +765,9 @@ def show_notification_panel():
             except Exception as e:
                 st.error(f"❌ Erro: {e}")
     
-    # REMOVA ESTA SEÇÃO COMPLETA (segundo formulário duplicado)
-    # st.markdown("---")
-    # st.subheader("📢 Enviar Notificação Global")
-    # with st.form("telegram_notify_form"):
-    #     ... (todo o código do segundo formulário)
-    
     if st.button("🔒 Sair do Painel de Notificações"):
         st.session_state.admin_authenticated = False
         st.rerun()
-
 
 def show_request_music_section():
     st.markdown("---")
@@ -890,112 +806,6 @@ def show_request_music_section():
                 else:
                     st.error("❌ Erro ao enviar pedido. Tente novamente.")
 
-
-# ==============================
-# FUNÇÕES DE TESTE
-# ==============================
-def test_github_conversion():
-    """Testa a conversão de URLs do GitHub para JS Delivr com seu formato específico"""
-    st.header("🔍 Teste de Conversão de URLs - Formato GitHub")
-    
-    # URLs nos formatos suportados
-    test_urls = [
-        # Formato antigo
-        "https://github.com/thzinprogramador/songs/raw/refs/heads/main/albuns/matue/4TAL.mp3",
-        "https://github.com/thzinprogramador/songs/raw/refs/heads/main/God's%20Plan%20-%20drake.mp3",
-        
-        # Formato novo
-        "https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/Matu%C3%AA%20-%20Maria%20-%20333.mp3",
-        "https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/album/nova_musica.mp3",
-        
-        # URL não GitHub (não deve ser convertida)
-        "https://example.com/regular-audio.mp3",
-    ]
-    
-    for i, url in enumerate(test_urls):
-        original = url
-        converted = convert_github_to_jsdelivr(url)
-        
-        st.subheader(f"Teste {i+1}")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("**URL Original:**")
-            st.code(original, language="url")
-        with col2:
-            st.write("**URL Convertida:**")
-            st.code(converted, language="url")
-        
-        # Verificar se a conversão foi bem-sucedida
-        if "github.com" in original and "cdn.jsdelivr.net" in converted:
-            st.success("✅ Conversão bem-sucedida")
-            
-            # Mostrar diferença
-            st.write("**Diferença:**")
-            st.info(f"Original: `{original}`")
-            st.info(f"Convertido: `{converted}`")
-        elif "github.com" not in original and original == converted:
-            st.info("ℹ️ URL não GitHub - mantida original")
-        else:
-            st.error("❌ Erro na conversão")
-        
-        st.markdown("---")
-
-
-
-def test_audio_playback():
-    """Testa a reprodução de áudio com URLs convertidas"""
-    st.header("🎵 Teste de Reprodução de Áudio")
-    
-    # URLs de áudio de exemplo
-    test_audios = [
-        {
-            "title": "Música Formato Antigo",
-            "original_url": "https://github.com/thzinprogramador/songs/raw/refs/heads/main/Congratulations%20-%20post%20malone.mp3",
-            "converted_url": convert_github_to_jsdelivr("https://github.com/thzinprogramador/songs/raw/refs/heads/main/Congratulations%20-%20post%20malone.mp3")
-        },
-        {
-            "title": "Música Formato Novo", 
-            "original_url": "https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/Matu%C3%AA%20-%20Maria%20-%20333.mp3",
-            "converted_url": convert_github_to_jsdelivr("https://raw.githubusercontent.com/thzinprogramador/songUpdate/main/Matu%C3%AA%20-%20Maria%20-%20333.mp3")
-        }
-    ]
-    
-    for audio in test_audios:
-        st.subheader(audio["title"])
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("**URL Original:**")
-            st.code(audio["original_url"], language="url")
-        with col2:
-            st.write("**URL Convertida:**")
-            st.code(audio["converted_url"], language="url")
-        
-        # Tentar reproduzir o áudio com a URL convertida
-        st.write("**Teste de reprodução:**")
-        
-        # Verificar se a URL foi convertida corretamente
-        if "cdn.jsdelivr.net" in audio["converted_url"]:
-            st.success("✅ URL convertida com sucesso")
-            
-            # Tentar reproduzir o áudio
-            try:
-                st.audio(audio["converted_url"], format="audio/mp3")
-                st.success("🎵 Áudio carregado com sucesso!")
-            except Exception as e:
-                st.warning(f"⚠️ Não foi possível carregar o áudio: {str(e)}")
-                st.info("Isso pode ser normal se a URL for apenas um exemplo")
-        else:
-            st.error("❌ Falha na conversão da URL")
-        
-        st.markdown("---")
-
-
-
-# ==============================
-# RENDER PLAYER COM AUTOPLAY
-# ==============================
 def image_to_base64(img):
     buffered = BytesIO()
     img.save(buffered, format="PNG")
@@ -1008,7 +818,6 @@ def render_player():
         st.info("🔍 Escolha uma música para tocar.")
         return
 
-    # Converter URL do áudio se for do GitHub
     audio_src = get_converted_audio_url(track)
     
     cover = load_image_cached(track.get("image_url"))
@@ -1020,7 +829,6 @@ def render_player():
     title = track.get("title", "Sem título")
     artist = track.get("artist", "Sem artista")
     
-    # Criar HTML para o iframe com melhor estilização
     audio_html = f'''
     <!DOCTYPE html>
     <html>
@@ -1057,16 +865,13 @@ def render_player():
             <source src="{audio_src}" type="audio/mpeg">
         </audio>
         <script>
-            // Tentar forçar autoplay com interação simulada
             document.addEventListener('DOMContentLoaded', function() {{
                 const audio = document.querySelector('audio');
                 if (audio && {str(st.session_state.is_playing).lower()}) {{
-                    // Tentar play com tratamento de erro
                     const playPromise = audio.play();
                     if (playPromise !== undefined) {{
                         playPromise.catch(error => {{
                             console.log('Autoplay prevented:', error);
-                            // Mostrar botão de play se autoplay falhar
                             audio.controls = true;
                         }});
                     }}
@@ -1077,7 +882,6 @@ def render_player():
     </html>
     '''
     
-    # Codificar para data URL
     audio_html_encoded = base64.b64encode(audio_html.encode()).decode()
     
     player_html = f"""
@@ -1098,7 +902,7 @@ def render_player():
     """
     
     st.markdown(player_html, unsafe_allow_html=True)
-    
+
 # ==============================
 # CONEXÃO FIREBASE
 # ==============================
@@ -1115,13 +919,16 @@ except Exception as e:
     st.session_state.firebase_connected = False
     st.session_state.all_songs = get_all_songs_cached()
 
-
 # ==============================
-# SIDEBAR
+# SIDEBAR (MODIFICADA PARA SEPARAR USUÁRIO/ADMIN)
 # ==============================
 with st.sidebar:
     st.title("🌊 Wave Song")
     st.success("✅ Online" if st.session_state.firebase_connected else "⚠️ Offline")
+
+    # Modo Admin/Usuário
+    admin_mode = st.toggle("Modo Administrador", value=st.session_state.admin_mode)
+    st.session_state.admin_mode = admin_mode
 
     if st.session_state.current_track:
         song = st.session_state.current_track
@@ -1138,7 +945,6 @@ with st.sidebar:
         st.write(f"*{song['artist']}*")
         st.caption(f"Duração: {song.get('duration', 'N/A')}")
 
-
         if song.get("audio_url"):
             render_player()
 
@@ -1147,58 +953,41 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Ícone de notificações com badge - MOVER PARA DENTRO DA SIDEBAR
-    unread_notifications = check_unread_notifications()
-    notification_text = f"🔔 Notificações ({len(unread_notifications)})" if unread_notifications else "🔔 Notificações"
+    # Menu para usuários normais
+    if not st.session_state.admin_mode:
+        unread_notifications = check_unread_notifications()
+        notification_text = f"🔔 Notificações ({len(unread_notifications)})" if unread_notifications else "🔔 Notificações"
 
-    if st.button(notification_text, use_container_width=True, key="btn_notifications"):
-        st.session_state.current_page = "notifications"
-        st.session_state.show_request_form = False
+        if st.button(notification_text, use_container_width=True, key="btn_notifications"):
+            st.session_state.current_page = "notifications"
+            st.session_state.show_request_form = False
 
-    if st.button("📢 Painel de Notificações (Admin)", use_container_width=True, key="btn_notification_panel"):
-        st.session_state.current_page = "notification_panel"
-        st.session_state.show_request_form = False
-    
-    if st.button("Página Inicial", key="btn_home", use_container_width=True):
-        st.session_state.current_page = "home"
-        st.session_state.show_request_form = False
-    if st.button("Buscar Músicas", key="btn_search", use_container_width=True):
-        st.session_state.current_page = "search"
-        st.session_state.show_request_form = False
-    #if st.sidebar.button("🧪 Testar Conversão de URLs"):
-        #st.session_state.current_page = "test_github_conversion"
+        if st.button("Página Inicial", key="btn_home", use_container_width=True):
+            st.session_state.current_page = "home"
+            st.session_state.show_request_form = False
+            
+        if st.button("Buscar Músicas", key="btn_search", use_container_width=True):
+            st.session_state.current_page = "search"
+            st.session_state.show_request_form = False
+            
+    # Menu para administradores
+    else:
+        st.subheader("🛡️ Painel Administrativo")
         
-    # Verificação de conversão em tempo real
-    if st.checkbox("🔍 Verificar conversões em tempo real"):
-        st.header("Status de Conversão das URLs")
-        
-        github_count = 0
-        converted_count = 0
-        problematic_urls = []
-        
-        for song in st.session_state.all_songs:
-            audio_url = song.get("audio_url", "")
-            if "github.com" in audio_url or "raw.githubusercontent.com" in audio_url:
-                github_count += 1
-                converted_url = convert_github_to_jsdelivr(audio_url)
-                if "cdn.jsdelivr.net" in converted_url:
-                    converted_count += 1
-                else:
-                    problematic_urls.append(audio_url)
-        
-        st.write(f"**Total de URLs do GitHub:** {github_count}")
-        st.write(f"**URLs convertíveis:** {converted_count}")
-        
-        if github_count > 0 and converted_count == github_count:
-            st.success("✅ Todas as URLs do GitHub podem be converted!")
-        elif github_count > 0:
-            st.warning(f"⚠️ Apenas {converted_count}/{github_count} URLs podem ser convertidas")
-            st.write("**URLs com problemas:**")
-            for url in problematic_urls:
-                st.code(url)
+        if st.button("📊 Gerenciar Músicas", use_container_width=True):
+            st.session_state.current_page = "add_music"
+            st.session_state.show_request_form = False
+            
+        if st.button("📢 Painel de Notificações", use_container_width=True):
+            st.session_state.current_page = "notification_panel"
+            st.session_state.show_request_form = False
+            
+        if st.button("📋 Estatísticas", use_container_width=True):
+            st.session_state.current_page = "stats"
+            st.session_state.show_request_form = False
 
 # ==============================
-# PÁGINAS
+# PÁGINAS PRINCIPAIS
 # ==============================
 if st.session_state.current_page == "home":
     st.header("🌊 Bem-vindo ao Wave")
@@ -1206,7 +995,6 @@ if st.session_state.current_page == "home":
     if not st.session_state.all_songs:
         st.session_state.all_songs = get_all_songs_cached()
 
-    # Caixa de busca
     new_query = st.text_input("Buscar música:", placeholder="Digite o nome da música ou artista...")
     if new_query.strip():
         st.session_state.search_input = new_query.strip()
@@ -1218,12 +1006,8 @@ if st.session_state.current_page == "home":
     st.markdown("### Músicas em destaque:")
     
     if st.session_state.all_songs:
-        # 6 músicas mais ouvidas
         top6_songs = get_top6_songs()
-
-        # 6 aleatórias fixas por 24h
         random6 = get_daily_random_songs(st.session_state.all_songs, top6_songs)
-
         songs_to_show = top6_songs + random6
 
         for row in range(2):
@@ -1250,7 +1034,6 @@ if st.session_state.current_page == "home":
                     if st.button("Tocar", key=f"play_{song_key}", use_container_width=True):
                         play_song(song)
                         
-        # Mostrar seção de pedidos de música
         show_request_music_section()
     else:
         st.info("Nenhuma música encontrada.")
@@ -1279,9 +1062,7 @@ elif st.session_state.current_page == "search":
                     st.write(f"*{song['artist']}*")
                     if st.button("Tocar", key=f"search_{i}", use_container_width=True):
                         play_song(song)
-                        #st.rerun()
                         
-            # Mostrar seção de pedidos de música
             show_request_music_section()
             
         else:
@@ -1291,17 +1072,40 @@ elif st.session_state.current_page == "search":
         st.info("Nenhuma música cadastrada.")
         show_request_music_section()
 
-elif st.session_state.current_page == "test_github_conversion":
-    st.header("🧪 Testes de Conversão URL")
-    tab1, tab2 = st.tabs(["Teste de Conversão", "Teste de Reprodução"])
+elif st.session_state.current_page == "add_music":
+    show_add_music_page()
 
-    with tab1:
-        test_github_conversion()
+elif st.session_state.current_page == "notification_panel":
+    show_notification_panel()
 
-    with tab2:
-        test_audio_playback()
-
-    if st.button("Voltar para o Player"):
+elif st.session_state.current_page == "stats":
+    st.header("📊 Estatísticas do Sistema")
+    
+    if not st.session_state.admin_authenticated:
+        password = st.text_input("Senha de Administrador", type="password", key="stats_auth")
+        if st.button("Acessar", key="stats_btn"):
+            if password == ADMIN_PASSWORD: 
+                st.session_state.admin_authenticated = True
+                st.rerun()
+            else:
+                st.error("❌ Senha incorreta!")
+        return
+    
+    st.metric("Total de Músicas", len(st.session_state.all_songs))
+    
+    top_songs = get_top6_songs()
+    st.subheader("🎵 Músicas Mais Tocadas")
+    for i, song in enumerate(top_songs):
+        st.write(f"{i+1}. **{song['title']}** - {song['artist']} ({song.get('play_count', 0)} plays)")
+    
+    st.subheader("🔗 Status das Conexões")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Firebase", "✅ Conectado" if st.session_state.firebase_connected else "❌ Desconectado")
+    with col2:
+        st.metric("Telegram", "✅ Conectado" if TELEGRAM_NOTIFICATIONS_ENABLED else "❌ Desconectado")
+    
+    if st.button("Voltar"):
         st.session_state.current_page = "home"
 
 elif st.session_state.current_page == "notifications":
@@ -1335,17 +1139,13 @@ elif st.session_state.current_page == "notifications":
                     unsafe_allow_html=True
                 )
 
-
                 short_key = f"read_{hash(notification['id']) % 10000}"
                 if st.button("✅ Marcar como lida", key=short_key):
                     if mark_notification_as_read(notification['id']):
-                        # Usar uma abordagem mais simples sem session_state complexo
                         st.success("✅ Notificação marcada como lida!")
-        
-                        # Forçar atualização da lista de não lidas
                         st.session_state.unread_notifications_cache = None
-                        time.sleep(0.5)  # Pequeno delay para visualização
-                        st.rerun()  # Recarregar a página para atualizar a lista
+                        time.sleep(0.5)
+                        st.rerun()
 
             st.markdown("---")
     else:
@@ -1354,12 +1154,6 @@ elif st.session_state.current_page == "notifications":
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("Voltar para o Início", key="back_from_notifications"):
         st.session_state.current_page = "home"
-        
-
-# PAINEL DE NOTIFICAÇÕES ADMIN
-elif st.session_state.current_page == "notification_panel":
-    show_notification_panel()
-
 
 # ==============================
 # FOOTER + CSS
@@ -1403,5 +1197,4 @@ h1, h2, h3, h4, h5, h6 {
     color: white;
 }
 </style>
-
 """, unsafe_allow_html=True)
