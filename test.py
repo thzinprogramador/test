@@ -543,7 +543,7 @@ def get_user_notifications():
         return []
 
 def get_all_notifications():
-    """Busca todas as notificações (globais, de sistema e pessoais) de forma unificada"""
+    """Busca todas as notificações NÃO LIDAS do usuário"""
     all_notifications = []
     
     if not st.session_state.firebase_connected or not st.session_state.user_id:
@@ -551,72 +551,72 @@ def get_all_notifications():
     
     user_id = st.session_state.user_id
     
+    # DEBUG: Verificar se está conectado
+    print(f"DEBUG: Buscando notificações para usuário {user_id}")
+    
     # Buscar notificações globais
     try:
         global_ref = db.reference("/global_notifications")
-        global_notifications = global_ref.get()
+        global_notifications = global_ref.get() or {}
         
-        if global_notifications:
-            for note_id, note_data in global_notifications.items():
-                read_by = note_data.get("read_by", {})
-                is_read = user_id in read_by and read_by[user_id]
-                
-                if not is_read:  # Só adiciona se NÃO foi lida
-                    all_notifications.append({
-                        "id": note_id,
-                        "type": "global",
-                        "title": "Notificação Global",
-                        "message": note_data.get("message", ""),
-                        "admin": note_data.get("admin", "Admin"),
-                        "timestamp": note_data.get("timestamp", ""),
-                        "is_read": is_read
-                    })
+        for note_id, note_data in global_notifications.items():
+            read_by = note_data.get("read_by", {})
+            is_read = user_id in read_by and read_by[user_id]
+            
+            if not is_read:
+                all_notifications.append({
+                    "id": note_id,
+                    "type": "global",
+                    "title": "Notificação Global",
+                    "message": note_data.get("message", ""),
+                    "admin": note_data.get("admin", "Admin"),
+                    "timestamp": note_data.get("timestamp", ""),
+                    "is_read": is_read
+                })
     except Exception as e:
-        st.error(f"❌ Erro ao buscar notificações globais: {e}")
+        print(f"DEBUG: Erro em notificações globais: {e}")
     
-    # Buscar notificações do sistema (músicas)
+    # Buscar notificações do sistema
     try:
         system_ref = db.reference("/system_notifications")
-        system_notifications = system_ref.get()
+        system_notifications = system_ref.get() or {}
         
-        if system_notifications:
-            for note_id, note_data in system_notifications.items():
-                read_by = note_data.get("read_by", {})
-                is_read = user_id in read_by and read_by[user_id]
-                
-                if not is_read:  # Só adiciona se NÃO foi lida
-                    all_notifications.append({
-                        "id": note_id,
-                        "type": "music",
-                        "title": note_data.get("title", "Nova Música"),
-                        "message": note_data.get("formatted_message", ""),
-                        "artist": note_data.get("artist", ""),
-                        "timestamp": note_data.get("timestamp", ""),
-                        "is_read": is_read
-                    })
+        for note_id, note_data in system_notifications.items():
+            read_by = note_data.get("read_by", {})
+            is_read = user_id in read_by and read_by[user_id]
+            
+            if not is_read:
+                all_notifications.append({
+                    "id": note_id,
+                    "type": "music",
+                    "title": note_data.get("title", "Nova Música"),
+                    "message": note_data.get("formatted_message", ""),
+                    "artist": note_data.get("artist", ""),
+                    "timestamp": note_data.get("timestamp", ""),
+                    "is_read": is_read
+                })
     except Exception as e:
-        st.error(f"❌ Erro ao buscar notificações do sistema: {e}")
+        print(f"DEBUG: Erro em notificações do sistema: {e}")
     
-    # Buscar notificações pessoais do usuário
+    # Buscar notificações pessoais
     try:
         personal_ref = db.reference(f"/user_notifications/{user_id}")
-        personal_notifications = personal_ref.get()
+        personal_notifications = personal_ref.get() or {}
         
-        if personal_notifications:
-            for note_id, note_data in personal_notifications.items():
-                is_read = note_data.get("read", False)
-                
-                if not is_read:  # Só adiciona se NÃO foi lida
-                    all_notifications.append({
-                        "id": note_id,
-                        "type": "personal",
-                        "title": f"Notificação Pessoal - {note_data.get('sent_by', 'Sistema')}",
-                        "message": note_data.get("message", ""),
-                        "timestamp": note_data.get("timestamp", ""),
-                        "is_read": is_read
-                    })
+        for note_id, note_data in personal_notifications.items():
+            is_read = note_data.get("read", False)
+            
+            if not is_read:
+                all_notifications.append({
+                    "id": note_id,
+                    "type": "personal",
+                    "title": f"Notificação Pessoal - {note_data.get('sent_by', 'Sistema')}",
+                    "message": note_data.get("message", ""),
+                    "timestamp": note_data.get("timestamp", ""),
+                    "is_read": is_read
+                })
     except Exception as e:
-        st.error(f"❌ Erro ao buscar notificações pessoais: {e}")
+        print(f"DEBUG: Erro em notificações pessoais: {e}")
     
     # Ordenar por timestamp (mais recente primeiro)
     try:
@@ -624,7 +624,8 @@ def get_all_notifications():
     except:
         pass
     
-    return all_notifications[:20]  # Limitar a 20 notificações
+    print(f"DEBUG: Encontradas {len(all_notifications)} notificações não lidas")
+    return all_notifications[:20]
 
 def send_user_notification(user_id, message, notification_type="info"):
     """Envia uma notificação para um usuário específico"""
@@ -710,20 +711,18 @@ def mark_notification_as_read(notification_id, notification_type):
         # Marcar como lida para este usuário
         ref.set(True)
         
-        # Atualizar o cache de notificações não lidas
-        if "unread_notifications_cache" in st.session_state:
-            st.session_state.unread_notifications_cache = None
-        
-        # Limpar o cache de notificações para forçar recarregamento
-        if "notifications_cache" in st.session_state:
-            st.session_state.notifications_cache = None
+        # Forçar atualização imediata dos caches
+        st.session_state.unread_notifications_cache = None
+        st.session_state.notifications_cache = None
         st.session_state.notifications_cache_timestamp = 0
-            
+        
         return True
         
     except Exception as e:
         st.error(f"❌ Erro ao marcar notificação como lida: {e}")
         return False
+
+
 def show_admin_management():
     """Interface simplificada para admin"""
     if not st.session_state.is_admin:
@@ -1873,29 +1872,31 @@ elif st.session_state.current_page == "notifications":
             st.rerun()
         st.stop()
     
-    # Botão para recarregar notificações
-    if st.button("🔄 Atualizar Notificações", key="refresh_notifications"):
-        # Limpar cache para forçar recarregamento
-        if "notifications_cache" in st.session_state:
-            st.session_state.notifications_cache = None
-        st.session_state.notifications_cache_timestamp = 0
-        st.rerun()
+    # Estado para controlar quais notificações foram marcadas como lidas DURANTE ESTA SESSÃO
+    if "read_notifications" not in st.session_state:
+        st.session_state.read_notifications = set()
     
-    # Buscar notificações (já filtradas para mostrar apenas não lidas)
+    # Buscar notificações
     try:
         all_notifications = get_all_notifications()
         
-        if not all_notifications:
+        # Filtrar notificações que não foram marcadas como lidas durante esta sessão
+        notifications_to_show = [
+            note for note in all_notifications 
+            if note['id'] not in st.session_state.read_notifications
+        ]
+        
+        if not notifications_to_show:
             st.info("🎉 Não há notificações não lidas!")
             if st.button("Voltar para o Início", key="back_from_notifications_empty"):
                 st.session_state.current_page = "home"
             st.stop()
         
-        st.success(f"📬 Você tem {len(all_notifications)} notificação(ões) não lida(s)")
+        st.success(f"📬 Você tem {len(notifications_to_show)} notificação(ões) não lida(s)")
         st.markdown("---")
         
         # Exibir notificações
-        for i, notification in enumerate(all_notifications):
+        for i, notification in enumerate(notifications_to_show):
             # Estilo para notificações não lidas
             border_color = "#1DB954"
             background_color = "#1f2937"
@@ -1970,11 +1971,13 @@ elif st.session_state.current_page == "notifications":
                 # Botão para marcar como lida
                 col1, col2 = st.columns([3, 1])
                 with col2:
-                    if st.button("✅ Marcar como Lida", key=f"read_{notification['id']}_{int(time.time())}"):
+                    if st.button("✅ Lida", key=f"read_{notification['id']}"):
                         if mark_notification_as_read(notification.get('id'), notification.get('type', 'global')):
+                            # Adicionar à lista de notificações lidas durante esta sessão
+                            st.session_state.read_notifications.add(notification['id'])
                             st.success("Notificação marcada como lida!")
-                            time.sleep(0.5)
-                            st.rerun()  # Recarrega a página para atualizar a lista
+                            # Usar callback para recarregar
+                            st.rerun()
                 
                 st.markdown("---")
         
