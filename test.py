@@ -13,6 +13,11 @@ from firebase_admin import credentials, db
 from io import BytesIO
 from PIL import Image
 
+def get_current_timestamp():
+    """Retorna timestamp formatado corretamente para Firebase"""
+    return datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
 # ==============================
 # CONFIGURAÇÃO DA PÁGINA
 # ==============================
@@ -160,6 +165,7 @@ def clear_dismissed_notifications():
     if "dismissed_notifications" in st.session_state:
         st.session_state.dismissed_notifications = set()
 
+
 # ==============================
 # SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO (SEM EMAIL)
 # ==============================
@@ -207,7 +213,7 @@ def sign_up(username, password):
         user_data = {
             "username": username,
             "password_hash": hash_password(password),
-            "created_at": datetime.datetime.now().isoformat(),
+            "created_at": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             "is_admin": False
         }
         
@@ -363,7 +369,7 @@ def promote_to_admin(target_username):
         # Atualizar o campo is_admin para True
         update_response = supabase_client.table("users").update({
             "is_admin": True,
-            "updated_at": datetime.datetime.now().isoformat()
+            "updated_at": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         }).eq("id", user_id).execute()
         
         st.info(f"Resposta da atualização: {update_response}")
@@ -475,7 +481,7 @@ wrmWQJLtjkvYZN9JQUrobttHnhsL+9qKCUQu/T3/ZI3eJ54LLgZJrbbBr29SVsQo
 def initialize_database():
     try:
         ref = db.reference('/')
-        ref.child("test").set({"test": True, "timestamp": datetime.datetime.now().isoformat()})
+        ref.child("test").set({"test": True, "timestamp": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")})
         ref.child("test").delete()
         return True
     except Exception as e:
@@ -647,7 +653,7 @@ def send_user_notification(user_id, message, notification_type="info"):
             notification_data = {
                 "message": message,
                 "type": notification_type,
-                "timestamp": datetime.datetime.now().isoformat(),
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
                 "read": False,
                 "sent_by": st.session_state.username if st.session_state.username else "Sistema"
             }
@@ -831,7 +837,7 @@ def add_system_notification(title, artist, image_url, song_id):
                 "artist": artist,
                 "image_url": image_url,
                 "song_id": song_id,
-                "timestamp": datetime.datetime.now().isoformat(),
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
                 "read_by": {},
                 "formatted_message": telegram_message
             }
@@ -864,7 +870,7 @@ def add_song_request(request_data):
     try:
         if st.session_state.firebase_connected:
             ref = db.reference("/song_requests")
-            request_data["created_at"] = datetime.datetime.now().isoformat()
+            request_data["created_at"] = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
             request_data["status"] = "pending"
             # Garantir que o requested_by seja o username do usuário logado
             if "requested_by" not in request_data or not request_data["requested_by"]:
@@ -1096,7 +1102,7 @@ def send_global_notification(message):
             notification_data = {
                 "message": message,
                 "admin": st.session_state.username if st.session_state.username else "Admin",
-                "timestamp": datetime.datetime.now().isoformat(),
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
                 "read_by": {}
             }
             ref.push(notification_data)
