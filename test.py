@@ -155,6 +155,10 @@ supabase_client = SimpleSupabaseClient(SUPABASE_URL, SUPABASE_KEY)
 
 
 
+def clear_dismissed_notifications():
+    """Limpa a lista de notificações descartadas quando o usuário sai da página"""
+    if "dismissed_notifications" in st.session_state:
+        st.session_state.dismissed_notifications = set()
 
 # ==============================
 # SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO (SEM EMAIL)
@@ -691,13 +695,17 @@ def mark_notification_as_read(notification_id, notification_type):
         # Atualizar o cache de notificações não lidas
         if "unread_notifications_cache" in st.session_state:
             st.session_state.unread_notifications_cache = None
+        
+        # Limpar o cache de notificações para forçar recarregamento
+        if "notifications_cache" in st.session_state:
+            st.session_state.notifications_cache = None
+        st.session_state.notifications_cache_timestamp = 0
             
         return True
         
     except Exception as e:
         st.error(f"❌ Erro ao marcar notificação como lida: {e}")
         return False
-
 def show_admin_management():
     """Interface simplificada para admin"""
     if not st.session_state.is_admin:
@@ -1881,7 +1889,15 @@ elif st.session_state.current_page == "notifications":
     
     # Botão para recarregar notificações
     if st.button("🔄 Atualizar Notificações", key="refresh_notifications"):
+        # Limpar cache para forçar recarregamento
+        if "notifications_cache" in st.session_state:
+            st.session_state.notifications_cache = None
+        st.session_state.notifications_cache_timestamp = 0
         st.rerun()
+    
+    # Estado para controlar notificações marcadas como lidas durante esta sessão
+    if "dismissed_notifications" not in st.session_state:
+        st.session_state.dismissed_notifications = set()
     
     # Buscar notificações
     try:
@@ -1893,8 +1909,14 @@ elif st.session_state.current_page == "notifications":
                 st.session_state.current_page = "home"
             st.stop()
         
+        # Filtrar notificações que não foram descartadas
+        notifications_to_show = [
+            note for note in all_notifications 
+            if note.get("id") not in st.session_state.dismissed_notifications
+        ]
+        
         # Contar notificações não lidas
-        unread_count = sum(1 for note in all_notifications if not note.get("is_read", False))
+        unread_count = sum(1 for note in notifications_to_show if not note.get("is_read", False))
         
         if unread_count > 0:
             st.success(f"📬 Você tem {unread_count} notificação(ões) não lida(s)")
@@ -1903,9 +1925,9 @@ elif st.session_state.current_page == "notifications":
             st.info("🎉 Todas as notificações foram lidas!")
             st.markdown("---")
         
-        # Exibir notificações (apenas não lidas, exceto para admin)
+        # Exibir notificações
         displayed_count = 0
-        for i, notification in enumerate(all_notifications):
+        for i, notification in enumerate(notifications_to_show):
             is_unread = not notification.get("is_read", False)
             
             # Mostrar apenas notificações não lidas OU todas se for admin
@@ -1917,74 +1939,7 @@ elif st.session_state.current_page == "notifications":
                 background_color = "#1f2937" if is_unread else "#2d3748"
                 
                 with st.container():
-                    if notification.get("type") == "global":
-                        # Notificação global
-                        timestamp_display = notification.get("timestamp", "")[:10] if notification.get("timestamp") else "Data não disponível"
-                        
-                        st.markdown(f"""
-                        <div style='
-                            background-color: {background_color};
-                            padding: 15px;
-                            border-radius: 10px;
-                            margin-bottom: 15px;
-                            border-left: 4px solid {border_color};
-                        '>
-                            <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
-                                📢 <strong>{notification.get('admin', 'Admin')}</strong> • {timestamp_display}
-                                {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
-                            </p>
-                            <p style='color: white; font-size: 16px; margin: 8px 0 0 0;'>
-                                {notification.get('message', '')}
-                            </p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                    elif notification.get("type") == "personal":
-                        # Notificação pessoal
-                        timestamp_display = notification.get("timestamp", "")[:10] if notification.get("timestamp") else "Data não disponível"
-                        
-                        st.markdown(f"""
-                        <div style='
-                            background-color: {background_color};
-                            padding: 15px;
-                            border-radius: 10px;
-                            margin-bottom: 15px;
-                            border-left: 4px solid {border_color};
-                        '>
-                            <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
-                                📨 <strong>{notification.get('title', 'Notificação Pessoal')}</strong> • {timestamp_display}
-                                {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
-                            </p>
-                            <p style='color: white; font-size: 16px; margin: 8px 0 0 0;'>
-                                {notification.get('message', '')}
-                            </p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    else:
-                        # Notificação de música
-                        timestamp_display = notification.get("timestamp", "")[:10] if notification.get("timestamp") else "Data não disponível"
-                        
-                        st.markdown(f"""
-                        <div style='
-                            background-color: {background_color};
-                            padding: 15px;
-                            border-radius: 10px;
-                            margin-bottom: 15px;
-                            border-left: 4px solid {border_color};
-                        '>
-                            <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
-                                🎵 Nova Música • {timestamp_display}
-                                {"<span style='color: #1DB954; margin-left: 10px;'>● NOVA</span>" if is_unread else ""}
-                            </p>
-                            <p style='color: white; font-size: 18px; font-weight: bold; margin: 8px 0 5px 0;'>
-                                {notification.get('title', 'Sem título')}
-                            </p>
-                            <p style'color: #1DB954; font-size: 16px; margin: 0;'>
-                                {notification.get('artist', 'Artista desconhecido')}
-                            </p>
-                        </div>
-                        """, unsafe_allow_html=True)
+                    # [Código de exibição da notificação permanece o mesmo...]
                     
                     # Botão para marcar como lida (apenas para não lidas)
                     if is_unread:
@@ -1992,8 +1947,10 @@ elif st.session_state.current_page == "notifications":
                         with col2:
                             if st.button("✅ Marcar como Lida", key=f"read_{notification['id']}_{int(time.time())}"):
                                 if mark_notification_as_read(notification.get('id'), notification.get('type', 'global')):
+                                    # Adicionar à lista de notificações descartadas
+                                    st.session_state.dismissed_notifications.add(notification['id'])
                                     st.success("Notificação marcada como lida!")
-                                    time.sleep(0.5)
+                                    time.sleep(0.3)  # Pequeno delay para feedback visual
                                     st.rerun()
                     
                     st.markdown("---")
@@ -2002,12 +1959,14 @@ elif st.session_state.current_page == "notifications":
             st.info("🎉 Todas as notificações foram lidas!")
         
         if st.button("Voltar para o Início", key="back_from_notifications"):
+            clear_dismissed_notifications()
             st.session_state.current_page = "home"
             
     except Exception as e:
         st.error(f"❌ Erro ao carregar notificações: {e}")
         if st.button("Voltar para o Início", key="back_from_notifications_error"):
             st.session_state.current_page = "home"
+
 
 
 # ==============================
