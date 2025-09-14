@@ -206,7 +206,7 @@ def add_song_to_db(song_data):
 *{title}*
 {artist}
 
-#NovaMusica #WaveSong"""
+"""
             
             # Tentar enviar para Telegram
             telegram_success = False
@@ -407,19 +407,9 @@ def display_system_notifications():
             except:
                 pass
             
-            for note in notifications_list[:10]:  # Limitar a 10 notificações
+            for note in notifications_list[:20]:  # Limitar a 10 notificações
                 with st.container():
                     col1, col2 = st.columns([1, 3])
-                    
-                    with col1:
-                        if note["image_url"]:
-                            img = load_image_cached(note["image_url"])
-                            if img:
-                                st.image(img, width=100)
-                            else:
-                                st.image("https://via.placeholder.com/100x100/1DB954/FFFFFF?text=🎵", width=100)
-                        else:
-                            st.image("https://via.placeholder.com/100x100/1DB954/FFFFFF?text=🎵", width=100)
                     
                     with col2:
                         # Formatar a data se disponível
@@ -440,7 +430,7 @@ def display_system_notifications():
                             border-left: 4px solid #1DB954;
                         '>
                             <p style='color: #9ca3af; font-size: 12px; margin: 0;'>
-                                🆕 Nova música • {timestamp_display}
+                                Nova música • {timestamp_display}
                             </p>
                             <p style='color: white; font-size: 18px; font-weight: bold; margin: 5px 0; text-align: center;'>
                                 {note['title']}
