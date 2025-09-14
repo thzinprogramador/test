@@ -131,15 +131,6 @@ wrmWQJLtjkvYZN9JQUrobttHnhsL+9qKCUQu/T3/ZI3eJ54LLgZJrbbBr29SVsQo
 }
 
 
-# Verificar conexão Telegram periodicamente
-if TELEGRAM_NOTIFICATIONS_ENABLED and "last_telegram_check" not in st.session_state:
-    st.session_state.last_telegram_check = time.time()
-
-if (TELEGRAM_NOTIFICATIONS_ENABLED and 
-    time.time() - st.session_state.get("last_telegram_check", 0) > 300):  # A cada 5 minutos
-    check_telegram_connection()
-    st.session_state.last_telegram_check = time.time()
-
 
 # ==============================
 # FUNÇÕES FIREBASE
@@ -303,14 +294,7 @@ def check_telegram_connection():
         return True
     except Exception as e:
         st.error(f"❌ Bot do Telegram desconectado: {e}")
-        # Tentar reconectar
-        try:
-            global telegram_bot
-            telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
-            return True
-        except Exception as e2:
-            st.error(f"❌ Falha ao reconectar Telegram: {e2}")
-            return False
+        return False
 
 
 def send_telegram_notification(message, retry_count=2):
@@ -325,12 +309,6 @@ def send_telegram_notification(message, retry_count=2):
         except Exception as e:
             if attempt == retry_count - 1:  # Última tentativa
                 st.error(f"❌ Erro ao enviar notificação para Telegram: {e}")
-                # Tentar reconectar
-                try:
-                    global telegram_bot
-                    telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
-                except:
-                    pass
             time.sleep(1)
     return False
 
@@ -704,6 +682,13 @@ def show_notification_panel():
 
         # Comandos do Telegram manuais
     st.subheader("🤖 Comandos do Telegram")
+
+    # Botão para verificar conexão
+    if st.button("📡 Verificar Conexão Telegram", use_container_width=True):
+        if check_telegram_connection():
+            st.success("✅ Conexão com Telegram está ativa!")
+        else:
+            st.error("❌ Sem conexão com Telegram")
     
     col1, col2, col3 = st.columns(3)
     
