@@ -68,6 +68,23 @@ if "show_login" not in st.session_state:
     st.session_state.show_login = False
 
 
+# Prevenir loops infinitos
+if "last_rerun" not in st.session_state:
+    st.session_state.last_rerun = 0
+
+# Verificar se estamos em loop
+current_time = time.time()
+if current_time - st.session_state.last_rerun < 1:  # Menos de 1 segundo entre reruns
+    st.error("⚠️ Loop detectado! Recarregando a página...")
+    st.session_state.show_login = False
+    st.session_state.last_rerun = current_time
+    st.stop()
+else:
+    st.session_state.last_rerun = current_time
+
+
+
+
 # ==============================
 # CONFIGURAÇÕES DO SUPABASE (SIMPLIFICADO)
 # ==============================
@@ -162,6 +179,47 @@ def check_supabase_connection():
 # Chame esta função em algum lugar para testar
 check_supabase_connection()
 
+def debug_supabase_users():
+    """Debug da tabela users"""
+    try:
+        response = supabase_client.table("users").select("*").execute()
+        st.info(f"Estrutura completa da tabela users: {response}")
+        
+        if response.get("data"):
+            for user in response["data"]:
+                st.info(f"Usuário encontrado: {user}")
+                # Verificar se tem as colunas necessárias
+                if "password_hash" not in user:
+                    st.error("❌ A coluna 'password_hash' não existe na tabela users!")
+                if "username" not in user:
+                    st.error("❌ A coluna 'username' não existe na tabela users!")
+                    
+        return True
+    except Exception as e:
+        st.error(f"Erro ao debuggar tabela users: {e}")
+        return False
+
+# Chame esta função em algum lugar para verificar
+debug_supabase_users()
+
+
+# Verificação da estrutura da tabela
+st.sidebar.markdown("---")
+if st.sidebar.button("🔍 Verificar estrutura da tabela"):
+    debug_response = supabase_client.table("users").select("*").execute()
+    st.sidebar.write("Estrutura da tabela users:", debug_response)
+    
+    # Verificar se as colunas necessárias existem
+    if debug_response.get("data") and len(debug_response["data"]) > 0:
+        first_user = debug_response["data"][0]
+        required_columns = ["id", "username", "password_hash", "created_at"]
+        missing_columns = [col for col in required_columns if col not in first_user]
+        
+        if missing_columns:
+            st.sidebar.error(f"❌ Colunas faltando: {missing_columns}")
+        else:
+            st.sidebar.success("✅ Estrutura da tabela OK!")
+
 
 
 # ==============================
@@ -227,17 +285,27 @@ def sign_in(username, password):
         # Buscar usuário no banco
         response = supabase_client.table("users").select("*").eq("username", username).execute()
         
-        if not response.get("data") or len(response.get("data", [])) == 0:  # Corrigido aqui
+        st.info(f"Resposta do login: {response}")  # Debug
+        
+        if not response.get("data") or len(response.get("data", [])) == 0:
             return False, "Usuário não encontrado!"
         
-        user_data = response["data"][0]  # Corrigido aqui
+        user_data = response["data"][0]
+        
+        # Debug: verificar estrutura do usuário
+        st.info(f"Dados do usuário: {user_data}")
+        
+        # Verificar se a senha hash existe
+        if "password_hash" not in user_data:
+            return False, "Erro: estrutura de usuário inválida!"
         
         # Verificar senha
         if check_password(password, user_data["password_hash"]):
             st.session_state.user = user_data
-            st.session_state.user_id = user_data["id"]
-            st.session_state.username = user_data["username"]
+            st.session_state.user_id = user_data.get("id")
+            st.session_state.username = user_data.get("username")
             st.session_state.is_admin = user_data.get("is_admin", False)
+            st.session_state.show_login = False  # Fechar o formulário após login
             return True, "Login realizado com sucesso!"
         else:
             return False, "Senha incorreta!"
@@ -1481,16 +1549,39 @@ with st.sidebar:
         if st.button("🚪 Sair", key="logout_btn"):
             if sign_out():
                 st.success("Logout realizado!")
+                st.session_state.show_login = False  # Resetar o estado de login
                 st.rerun()
     else:
-        # Usuário não logado
-        if st.button("🔐 Login/Cadastro", key="login_btn"):
-            st.session_state.show_login = not st.session_state.get('show_login', False)
-            st.rerun()
+        # Usuário não logado - usar approach diferente para evitar loops
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            login_clicked = st.button(
+                "🔐 Login/Cadastro", 
+                key="login_btn",
+                use_container_width=True
+            )
+        with col2:
+            if st.session_state.show_login:
+                close_clicked = st.button("✕", key="close_login")
+            else:
+                close_clicked = False
+        
+        # Gerenciar o estado de show_login
+        if login_clicked:
+            st.session_state.show_login = True
+        if close_clicked:
+            st.session_state.show_login = False
+        
+        # Mostrar formulário de autenticação se necessário
+        if st.session_state.show_login:
+            # Adicionar botão de fechar dentro do formulário
+            st.markdown("<div style='text-align: right;'>", unsafe_allow_html=True)
+            if st.button("Fechar ✕", key="close_inside"):
+                st.session_state.show_login = False
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
             
-        if st.session_state.get('show_login', False):
             show_auth_ui()
-
     if st.session_state.current_track:
         song = st.session_state.current_track
         st.subheader("🎧 Tocando agora")
