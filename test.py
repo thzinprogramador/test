@@ -372,7 +372,6 @@ def username_exists(username):
     """Verifica se o username já existe"""
     try:
         response = supabase_client.table("users").select("id, username").eq("username", username).execute()
-        st.write(f"🔍 DEBUG username_exists: {response}")  # Para debug
         
         # Correção: verificar se há dados na resposta e se algum usuário tem o username exato
         if response.get("data"):
@@ -388,13 +387,11 @@ def username_exists(username):
 def sign_up(username, password):
     """Registra um novo usuário apenas com username e senha"""
     try:
-        st.write("🔍 DEBUG: Iniciando cadastro para:", username)
         
         # Verificar se usuário já existe (com a função corrigida)
         if username_exists(username):
             return False, "Usuário já existe!"
         
-        # Resto do código permanece o mesmo...
         # Criar novo usuário
         user_data = {
             "username": username,
