@@ -539,6 +539,9 @@ def debug_all_users_hashes():
     except Exception as e:
         print(f"DEBUG: Erro ao buscar usuários: {e}")
 
+
+debug_all_users_hashes()
+
 def sign_out():
     """Desconecta o usuário"""
     st.session_state.user = None
@@ -2403,4 +2406,3 @@ div[data-testid="stVerticalBlock"] > div:has(button:contains("Pedir Música +"))
 </style>
 """, unsafe_allow_html=True)
 
-debug_all_users_hashes()
