@@ -559,34 +559,87 @@ def repair_corrupted_hashes():
     except Exception as e:
         print(f"Erro ao reparar hashes: {e}")
 
-def send_welcome_notification():
+def send_welcome_notification(custom_message=None):
     """Envia uma mensagem de saudação global para todos os usuários"""
     try:
         # Obter hora atual para personalizar a saudação
         hora_atual = datetime.datetime.now().hour
         
-        if 5 <= hora_atual < 12:
-            saudacao = "Bom dia"
-            emoji = "☀️"
-        elif 12 <= hora_atual < 18:
-            saudacao = "Boa tarde" 
-            emoji = "🌞"
-        else:
-            saudacao = "Boa noite"
-            emoji = "🌙"
-        
-        # Mensagem de saudação personalizada
-        mensagem = f"""{emoji} {saudacao}, comunidade Wave! 
-
-🎵 Esperamos que encontrem as músicas perfeitas para esse momento!
-        
-🌟 Lembrem-se de explorar novas descobertas e compartilhar suas experiências.
-
-📱 Qualquer dúvida ou sugestão, estamos à disposição!
+        if custom_message:
+            # Usar mensagem personalizada se fornecida
+            mensagem = f"""👋 {custom_message}
 
 Com carinho,
-Equipe Wave {emoji}"""
+Equipe Wave 🌊"""
+        else:
+            # Modelos pré-definidos baseados no horário
+            if 5 <= hora_atual < 12:
+                modelos = [
+                    f"""☀️ Bom dia, comunidade Wave! 
 
+Que seu dia comece com as melhores vibrações musicais! 🎵
+
+🌟 Explore novas descobertas e compartilhe suas experiências.
+📱 Estamos aqui para tornar seu dia ainda mais especial!
+
+Com carinho,
+Equipe Wave 🌊""",
+
+                    f"""🌅 Bom dia, amantes da música!
+
+Que as primeiras notas do dia tragam alegria e inspiração! 🎶
+
+🎵 Descubra novas músicas para começar o dia com energia positiva.
+💫 Seu momento musical perfeito está a um play de distância.
+
+Equipe Wave 🌊"""
+                ]
+            elif 12 <= hora_atual < 18:
+                modelos = [
+                    f"""🌞 Boa tarde, comunidade Wave! 
+
+Que a música seja a trilha sonora perfeita para sua tarde! 🎧
+
+🎶 Encontre aquela música que combina com seu momento atual.
+☕ Aproveite para relaxar e descobrir novos sons incríveis.
+
+Com carinho,
+Equipe Wave 🌊""",
+
+                    f"""😊 Boa tarde, pessoal!
+
+Que sua tarde seja repleta de boas descobertas musicais! 🎵
+
+🌟 Não deixe de explorar as novidades e recomendações do dia.
+📱 Qualquer dúvida, estamos à disposição!
+
+Equipe Wave 🌊"""
+                ]
+            else:
+                modelos = [
+                    f"""🌙 Boa noite, comunidade Wave! 
+
+Que a música acompanhe seu relaxamento nesta noite! 🎶
+
+🎵 Encontre as melhores músicas para encerrar o dia com tranquilidade.
+✨ Que seus momentos sejam especiais com a trilha sonora perfeita.
+
+Com carinho,
+Equipe Wave 🌊""",
+
+                    f"""🌌 Boa noite, amantes da música!
+
+Que a noite traça melodias suaves para seu descanso! 🎧
+
+🌟 Perfeito momento para descobrir aquela música relaxante.
+💫 Deixe-se levar pelas vibrações sonoras do Wave.
+
+Equipe Wave 🌊"""
+                ]
+            
+            # Escolher um modelo aleatório
+            mensagem = random.choice(modelos)
+        
         # Enviar notificação global
         if send_global_notification(mensagem):
             # Também enviar para Telegram
@@ -2023,7 +2076,7 @@ def show_notification_panel():
     with tab5:
         st.subheader("👋 Enviar Saudação")
         st.info("Envie uma mensagem de boas-vindas para todos os usuários!")
-        
+    
         # Preview da saudação baseada na hora atual
         hora_atual = datetime.datetime.now().hour
         if 5 <= hora_atual < 12:
@@ -2032,36 +2085,74 @@ def show_notification_panel():
             preview = "🌞 Boa tarde, comunidade Wave!"
         else:
             preview = "🌙 Boa noite, comunidade Wave!"
-        
-        st.write(f"**Preview:** {preview}")
-        
-        # Opção de personalizar a mensagem
-        mensagem_personalizada = st.text_area(
-            "Personalizar mensagem (opcional):",
-            placeholder="Deixe em branco para usar a mensagem padrão...",
-            height=100
+    
+        st.write(f"**Preview automático:** {preview}")
+    
+        # Opções de envio
+        opcao = st.radio(
+            "Escolha como enviar:",
+            ["Automático (baseado no horário)", "Manual (personalizada)"],
+            key="saudacao_opcao"
         )
+    
+        if opcao == "Manual (personalizada)":
+            mensagem_personalizada = st.text_area(
+                "Digite sua mensagem personalizada:",
+                placeholder="Escreva uma mensagem especial para a comunidade...",
+                height=120,
+                key="mensagem_personalizada"
+            )
         
-        if st.button("🚀 Enviar Saudação para Todos", key="send_welcome_btn"):
-            with st.spinner("Enviando saudação..."):
+            if st.button("🚀 Enviar Saudação Personalizada", key="send_custom_btn"):
                 if mensagem_personalizada.strip():
-                    # Usar mensagem personalizada
-                    mensagem_completa = f"👋 {mensagem_personalizada}\n\nCom carinho,\nEquipe Wave 🌊"
-                    if send_global_notification(mensagem_completa):
-                        st.success("✅ Saudação personalizada enviada!")
-                    else:
-                        st.error("❌ Erro ao enviar saudação")
-                else:
-                    # Usar mensagem padrão
-                    success, message = send_welcome_notification()
+                    success, message = send_welcome_notification(mensagem_personalizada)
                     if success:
                         st.success(message)
                     else:
                         st.error(message)
+                else:
+                    st.error("❌ Digite uma mensagem para enviar!")
+    
+        else:
+            # Mostrar os modelos disponíveis
+            st.write("**Modelos disponíveis:**")
         
-    if st.button("🔒 Sair do Painel de Notificações"):
-        st.session_state.admin_authenticated = False
-        st.rerun()
+            if 5 <= hora_atual < 12:
+                modelos = [
+                    "☀️ Bom dia com energias positivas e novas descobertas",
+                    "🌅 Bom dia cheio de melodias inspiradoras"
+                ]
+            elif 12 <= hora_atual < 18:
+                modelos = [
+                    "🌞 Boa tarde com a trilha sonora perfeita",
+                    "😊 Boa tarde de descobertas musicais"
+                ]
+            else:
+                modelos = [
+                    "🌙 Boa noite com músicas relaxantes",
+                    "🌌 Boa noite de melodias suaves"
+                ]
+        
+            modelo_escolhido = st.selectbox(
+                "Selecione um modelo:",
+                modelos,
+                key="modelo_saudacao"
+            )
+        
+            if st.button("🚀 Enviar Saudação Automática", key="send_auto_btn"):
+                success, message = send_welcome_notification()
+                if success:
+                    st.success(message)
+                else:
+                    st.error(message)
+    
+        # Estatísticas de envio
+        st.markdown("---")
+        st.caption("💡 Dica: As saudações automáticas escolhem aleatoriamente entre modelos pré-definidos para cada horário.")
+        
+        if st.button("🔒 Sair do Painel de Notificações"):
+            st.session_state.admin_authenticated = False
+            st.rerun()
 
 
 def get_system_notifications_fallback():
