@@ -1877,11 +1877,13 @@ def send_telegram_command_response(command, message=""):
 🔗 Firebase: {'✅ Conectado' if st.session_state.firebase_connected else '❌ Desconectado'}
 🤖 Telegram: {'✅ Conectado' if TELEGRAM_NOTIFICATIONS_ENABLED else '❌ Desconectado'}
 🛡️ Admin: {admin_name}"""
+                
             telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, response, parse_mode='Markdown')
             return True
             
             except Exception as e:
                 st.error(f"❌ Erro ao enviar comando: {e}")
+                telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, error_msg)
                 return False
 
 
