@@ -358,18 +358,31 @@ def init_auth():
     if "is_admin" not in st.session_state:
         st.session_state.is_admin = False
 
-def hash_password(password):
-    """Gera hash da senha usando bcrypt"""
-    salt = bcrypt.gensalt()
-    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-    return hashed.decode('utf-8')
-
-def hash_password(password):
-    """Gera hash da senha usando bcrypt - versão corrigida"""
-    # Usa o algoritmo mais recente (2b)
-    salt = bcrypt.gensalt(rounds=12)
-    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-    return hashed.decode('utf-8')
+def check_password(password, hashed_password):
+    """Verifica se a senha corresponde ao hash - versão corrigida"""
+    try:
+        # Primeiro, tenta verificar normalmente
+        if bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8')):
+            return True
+        
+        # Se falhar, tenta normalizar o hash para versão 2a (mais compatível)
+        if hashed_password.startswith('$2b$'):
+            # Converte hash 2b para 2a (mais compatível)
+            normalized_hash = '$2a$' + hashed_password[4:]
+            if bcrypt.checkpw(password.encode('utf-8'), normalized_hash.encode('utf-8')):
+                return True
+                
+        # Se ainda falhar, tenta o contrário (2a para 2b)
+        if hashed_password.startswith('$2a$'):
+            normalized_hash = '$2b$' + hashed_password[4:]
+            if bcrypt.checkpw(password.encode('utf-8'), normalized_hash.encode('utf-8')):
+                return True
+                
+        return False
+        
+    except Exception as e:
+        print(f"Erro na verificação de senha: {e}")
+        return False
 
 def username_exists(username):
     """Verifica se o username já existe"""
