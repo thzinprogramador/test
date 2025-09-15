@@ -18,6 +18,28 @@ from firebase_admin import credentials, db
 from io import BytesIO
 from PIL import Image
 
+
+def diagnose_all_users():
+    """Função para diagnosticar todos os usuários e seus hashes"""
+    try:
+        users = supabase_client.table("users").select("id, username, password_hash, created_at, is_admin").execute()
+        
+        if users.get("data"):
+            print("=== DIAGNÓSTICO COMPLETO DOS USUÁRIOS ===")
+            for user in users["data"]:
+                print(f"\n--- Usuário: {user['username']} ---")
+                print(f"ID: {user['id']}")
+                print(f"Hash: '{user.get('password_hash', 'NONE')}'")
+                print(f"Tipo hash: {user.get('password_hash', '')[:4] if user.get('password_hash') else 'NONE'}")
+                print(f"Comprimento hash: {len(user.get('password_hash', '')) if user.get('password_hash') else 0}")
+                print(f"Admin: {user.get('is_admin', False)}")
+                print(f"Criado em: {user.get('created_at', 'N/A')}")
+        else:
+            print("DEBUG: Nenhum usuário encontrado")
+    except Exception as e:
+        print(f"DEBUG: Erro ao buscar usuários: {e}")
+
+
 # ==============================
 # SISTEMA DE PERSISTÊNCIA DE LOGIN MELHORADO
 # ==============================
@@ -343,6 +365,19 @@ def clear_dismissed_notifications():
     if "dismissed_notifications" in st.session_state:
         st.session_state.dismissed_notifications = set()
 
+print("=== INICIANDO DIAGNÓSTICO DO SISTEMA ===")
+diagnose_all_users()
+
+
+if st.sidebar.button("🔧 Testar Autenticação (DEBUG)"):
+    test_username = "schutz"  # Altere para um usuário existente
+    test_password = "wavesong9090"  # Altere para a senha correta
+    
+    success, message = sign_in(test_username, test_password)
+    if success:
+        st.sidebar.success("✅ Login bem-sucedido!")
+    else:
+        st.sidebar.error(f"❌ Falha: {message}")
 
 # ==============================
 # SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO
@@ -379,13 +414,13 @@ def hash_password(password):
         raise
 
 def check_password(password, hashed_password):
-    """Verifica se a senha corresponde ao hash - versão Supabase compatível"""
+    """Verifica se a senha corresponde ao hash - versão melhorada"""
     try:
         if not hashed_password or not password:
             print("DEBUG: Senha ou hash vazio")
             return False
         
-        # Limpa possíveis espaços ou caracteres extras
+        # Limpar espaços e caracteres extras
         password = password.strip()
         hashed_password = hashed_password.strip()
         
@@ -394,41 +429,97 @@ def check_password(password, hashed_password):
         print(f"DEBUG: Tipo hash: {hashed_password[:4]}")
         print(f"DEBUG: Comprimento hash: {len(hashed_password)}")
         
-        # Verifica se o hash está no formato bcrypt
-        if not hashed_password.startswith('$2'):
-            print("DEBUG: Hash não está no formato bcrypt")
-            return False
-        
-        # Tenta verificar com diferentes versões se necessário
+        # Verificação normal do bcrypt
         try:
-            # Primeira tentativa: verificação normal
             result = bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
             print(f"DEBUG: Resultado verificação normal: {result}")
-            
             if result:
                 return True
-                
-            # Segunda tentativa: se falhar, tenta normalizar versão
-            if hashed_password.startswith('$2b$'):
-                normalized_hash = '$2a$' + hashed_password[4:]
-                result = bcrypt.checkpw(password.encode('utf-8'), normalized_hash.encode('utf-8'))
-                print(f"DEBUG: Resultado verificação 2a: {result}")
-                
-            elif hashed_password.startswith('$2a$'):
-                normalized_hash = '$2b$' + hashed_password[4:]
-                result = bcrypt.checkpw(password.encode('utf-8'), normalized_hash.encode('utf-8'))
-                print(f"DEBUG: Resultado verificação 2b: {result}")
-                
-            return result
-            
-        except Exception as inner_e:
-            print(f"DEBUG: Erro interno na verificação: {inner_e}")
-            return False
+        except Exception as e:
+            print(f"DEBUG: Erro na verificação normal: {e}")
+        
+        # Se falhar, tentar diferentes variações do bcrypt
+        variations = [
+            hashed_password,
+            hashed_password.replace('$2y$', '$2b$'),
+            hashed_password.replace('$2a$', '$2b$'),
+            hashed_password.replace('$2x$', '$2b$')
+        ]
+        
+        for variation in variations:
+            if variation != hashed_password:
+                try:
+                    result = bcrypt.checkpw(password.encode('utf-8'), variation.encode('utf-8'))
+                    print(f"DEBUG: Tentativa com {variation[:4]}: {result}")
+                    if result:
+                        return True
+                except:
+                    pass
+        
+        return False
             
     except Exception as e:
         print(f"DEBUG: Erro geral na verificação: {e}")
         print(f"DEBUG: Traceback: {traceback.format_exc()}")
         return False
+
+def reset_user_password(username, new_password):
+    """Reseta a senha de um usuário"""
+    try:
+        # Buscar usuário
+        response = supabase_client.table("users").select("id").eq("username", username).execute()
+        
+        if not response.get("data") or len(response.get("data", [])) == 0:
+            return False, "Usuário não encontrado"
+        
+        user_id = response["data"][0]["id"]
+        hashed_password = hash_password(new_password)
+        
+        # Atualizar senha
+        update_response = supabase_client.table("users").update({
+            "password_hash": hashed_password,
+            "updated_at": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        }).eq("id", user_id).execute()
+        
+        if update_response.get("data"):
+            return True, "Senha resetada com sucesso"
+        else:
+            return False, "Erro ao resetar senha"
+            
+    except Exception as e:
+        return False, f"Erro: {str(e)}"
+
+def show_password_reset_tool():
+    """Ferramenta para resetar senhas de usuários"""
+    st.subheader("🔧 Ferramenta de Reset de Senha")
+    
+    # Buscar todos os usuários
+    try:
+        users_response = supabase_client.table("users").select("id, username").execute()
+        
+        if users_response.get("data"):
+            users = [user["username"] for user in users_response["data"]]
+            
+            selected_user = st.selectbox("Selecionar usuário:", users)
+            new_password = st.text_input("Nova senha:", type="password")
+            confirm_password = st.text_input("Confirmar nova senha:", type="password")
+            
+            if st.button("Resetar Senha"):
+                if not new_password:
+                    st.error("Digite a nova senha!")
+                elif new_password != confirm_password:
+                    st.error("As senhas não coincidem!")
+                else:
+                    success, message = reset_user_password(selected_user, new_password)
+                    if success:
+                        st.success(f"✅ Senha resetada para {selected_user}!")
+                    else:
+                        st.error(f"❌ {message}")
+        else:
+            st.info("Nenhum usuário encontrado")
+            
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar usuários: {e}")
 
 def diagnose_password_issue():
     """Diagnostica o problema de senha"""
