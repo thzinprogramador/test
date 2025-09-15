@@ -2106,8 +2106,8 @@ elif st.session_state.current_page == "stats":
     with col3:
         st.metric("Regras Firebase", check_firebase_rules())
     
-    if st.button("Voltar"):
-        st.session_state.current_page = "home"
+    #if st.button("Voltar"):
+        #st.session_state.current_page = "home"
 
 
 elif st.session_state.current_page == "notifications":
@@ -2122,9 +2122,9 @@ elif st.session_state.current_page == "notifications":
         st.stop()
     
     # Botão para recarregar
-    if st.button("🔄 Atualizar Notificações", key="refresh_notifications"):
-        st.session_state.notifications_cache = None
-        st.rerun()
+    #if st.button("🔄 Atualizar Notificações", key="refresh_notifications"):
+        #st.session_state.notifications_cache = None
+        #st.rerun()
     
     try:
         # Buscar TODAS as notificações (sem filtrar por lidas)
@@ -2184,8 +2184,8 @@ elif st.session_state.current_page == "notifications":
         
         if not all_notifications:
             st.info("📝 Não há notificações no momento.")
-            if st.button("Voltar para o Início", key="back_from_notifications_empty"):
-                st.session_state.current_page = "home"
+            #if st.button("Voltar para o Início", key="back_from_notifications_empty"):
+                #st.session_state.current_page = "home"
             st.stop()
         
         # Exibir notificações
@@ -2217,13 +2217,13 @@ elif st.session_state.current_page == "notifications":
             </div>
             """, unsafe_allow_html=True)
         
-        if st.button("Voltar para o Início", key="back_from_notifications"):
-            st.session_state.current_page = "home"
+        #if st.button("Voltar para o Início", key="back_from_notifications"):
+            #st.session_state.current_page = "home"
             
     except Exception as e:
         st.error(f"❌ Erro ao carregar notificações: {e}")
-        if st.button("Voltar para o Início", key="back_from_notifications_error"):
-            st.session_state.current_page = "home"
+        #if st.button("Voltar para o Início", key="back_from_notifications_error"):
+            #st.session_state.current_page = "home"
 
 
 # ==============================
