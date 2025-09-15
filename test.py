@@ -559,6 +559,47 @@ def repair_corrupted_hashes():
     except Exception as e:
         print(f"Erro ao reparar hashes: {e}")
 
+def send_welcome_notification():
+    """Envia uma mensagem de saudação global para todos os usuários"""
+    try:
+        # Obter hora atual para personalizar a saudação
+        hora_atual = datetime.datetime.now().hour
+        
+        if 5 <= hora_atual < 12:
+            saudacao = "Bom dia"
+            emoji = "☀️"
+        elif 12 <= hora_atual < 18:
+            saudacao = "Boa tarde" 
+            emoji = "🌞"
+        else:
+            saudacao = "Boa noite"
+            emoji = "🌙"
+        
+        # Mensagem de saudação personalizada
+        mensagem = f"""{emoji} {saudacao}, comunidade Wave! 
+
+🎵 Esperamos que encontrem as músicas perfeitas para esse momento!
+        
+🌟 Lembrem-se de explorar novas descobertas e compartilhar suas experiências.
+
+📱 Qualquer dúvida ou sugestão, estamos à disposição!
+
+Com carinho,
+Equipe Wave {emoji}"""
+
+        # Enviar notificação global
+        if send_global_notification(mensagem):
+            # Também enviar para Telegram
+            telegram_msg = f"🌊 Nova saudação enviada:\n\n{mensagem}"
+            send_telegram_notification(telegram_msg)
+            
+            return True, "✅ Saudação enviada com sucesso!"
+        else:
+            return False, "❌ Erro ao enviar saudação"
+            
+    except Exception as e:
+        return False, f"❌ Erro: {str(e)}"
+
 def username_exists(username):
     """Verifica se o username já existe"""
     try:
@@ -1872,7 +1913,7 @@ def show_notification_panel():
         return
     
     # Abas para diferentes tipos de notificações
-    tab1, tab2, tab3, tab4 = st.tabs(["📢 Notificações Globais", "🎵 Notificações de Músicas", "🤖 Status do Telegram", "📨 Notificações para Usuários"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📢 Notificações Globais", "🎵 Notificações de Músicas", "🤖 Status do Telegram", "📨 Notificações para Usuários", "👋 Saudação"])
     
     with tab1:
         with st.form("notification_form"):
@@ -1978,7 +2019,46 @@ def show_notification_panel():
 
     with tab4:
         send_specific_user_notification()
-    
+
+    with tab5:
+        st.subheader("👋 Enviar Saudação")
+        st.info("Envie uma mensagem de boas-vindas para todos os usuários!")
+        
+        # Preview da saudação baseada na hora atual
+        hora_atual = datetime.datetime.now().hour
+        if 5 <= hora_atual < 12:
+            preview = "☀️ Bom dia, comunidade Wave!"
+        elif 12 <= hora_atual < 18:
+            preview = "🌞 Boa tarde, comunidade Wave!"
+        else:
+            preview = "🌙 Boa noite, comunidade Wave!"
+        
+        st.write(f"**Preview:** {preview}")
+        
+        # Opção de personalizar a mensagem
+        mensagem_personalizada = st.text_area(
+            "Personalizar mensagem (opcional):",
+            placeholder="Deixe em branco para usar a mensagem padrão...",
+            height=100
+        )
+        
+        if st.button("🚀 Enviar Saudação para Todos", key="send_welcome_btn"):
+            with st.spinner("Enviando saudação..."):
+                if mensagem_personalizada.strip():
+                    # Usar mensagem personalizada
+                    mensagem_completa = f"👋 {mensagem_personalizada}\n\nCom carinho,\nEquipe Wave 🌊"
+                    if send_global_notification(mensagem_completa):
+                        st.success("✅ Saudação personalizada enviada!")
+                    else:
+                        st.error("❌ Erro ao enviar saudação")
+                else:
+                    # Usar mensagem padrão
+                    success, message = send_welcome_notification()
+                    if success:
+                        st.success(message)
+                    else:
+                        st.error(message)
+        
     if st.button("🔒 Sair do Painel de Notificações"):
         st.session_state.admin_authenticated = False
         st.rerun()
