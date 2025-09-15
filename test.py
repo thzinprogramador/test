@@ -364,9 +364,12 @@ def hash_password(password):
     hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
     return hashed.decode('utf-8')
 
-def check_password(password, hashed_password):
-    """Verifica se a senha corresponde ao hash"""
-    return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+def hash_password(password):
+    """Gera hash da senha usando bcrypt - versão corrigida"""
+    # Usa o algoritmo mais recente (2b)
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
 def username_exists(username):
     """Verifica se o username já existe"""
