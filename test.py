@@ -344,6 +344,8 @@ def clear_dismissed_notifications():
         st.session_state.dismissed_notifications = set()
 
 
+debug_all_users_hashes()
+
 # ==============================
 # SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO
 # ==============================
@@ -368,27 +370,29 @@ def hash_password(password):
 def check_password(password, hashed_password):
     """Verifica se a senha corresponde ao hash - versão corrigida"""
     try:
-        # Primeiro, tenta verificar normalmente
-        if bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8')):
-            return True
+        # Remove quaisquer espaços em branco acidentais
+        password = password.strip()
+        hashed_password = hashed_password.strip()
         
-        # Se falhar, tenta normalizar o hash para versão 2a (mais compatível)
-        if hashed_password.startswith('$2b$'):
-            # Converte hash 2b para 2a (mais compatível)
-            normalized_hash = '$2a$' + hashed_password[4:]
-            if bcrypt.checkpw(password.encode('utf-8'), normalized_hash.encode('utf-8')):
-                return True
-                
-        # Se ainda falhar, tenta o contrário (2a para 2b)
-        if hashed_password.startswith('$2a$'):
-            normalized_hash = '$2b$' + hashed_password[4:]
-            if bcrypt.checkpw(password.encode('utf-8'), normalized_hash.encode('utf-8')):
-                return True
-                
-        return False
+        # DEBUG: Mostrar informações para diagnóstico
+        print(f"DEBUG: Senha fornecida: '{password}'")
+        print(f"DEBUG: Hash armazenado: '{hashed_password}'")
+        print(f"DEBUG: Tipo do hash: {hashed_password[:4] if hashed_password else 'None'}")
+        
+        # Verifica se o hash está no formato correto
+        if not hashed_password or not hashed_password.startswith('$2'):
+            print("DEBUG: Hash não está no formato bcrypt")
+            return False
+        
+        # Tenta verificar a senha
+        result = bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+        print(f"DEBUG: Resultado da verificação: {result}")
+        
+        return result
         
     except Exception as e:
-        print(f"Erro na verificação de senha: {e}")
+        print(f"DEBUG: Erro na verificação de senha: {e}")
+        print(f"DEBUG: Traceback: {traceback.format_exc()}")
         return False
 
 
@@ -420,7 +424,9 @@ def sign_up(username, password):
         
         # Criar hash da senha
         hashed_password = hash_password(password)
-        print(f"DEBUG: Senha hash gerada: {hashed_password}")
+        print(f"DEBUG: Senha hash gerada: '{hashed_password}'")
+        print(f"DEBUG: Tipo do hash gerado: {type(hashed_password)}")
+        print(f"DEBUG: Comprimento do hash: {len(hashed_password)}")
         
         # Criar novo usuário
         user_data = {
@@ -462,7 +468,6 @@ def sign_up(username, password):
         print(f"DEBUG: {error_msg}")
         return False, f"Erro: {str(e)}"
 
-
 def sign_in(username, password):
     """Autentica um usuário usando username e senha"""
     try:
@@ -473,22 +478,26 @@ def sign_in(username, password):
         print(f"DEBUG: Resposta do Supabase: {response}")
         
         if not response.get("data") or len(response.get("data", [])) == 0:
+            print(f"DEBUG: Usuário '{username}' não encontrado")
             return False, "Usuário não encontrado!"
         else:
             user_data = response["data"][0]
-            print(f"DEBUG: Dados do usuário: {user_data}")
+            print(f"DEBUG: Dados do usuário encontrado: {user_data}")
         
         # Verificar se a senha existe no user_data
         if "password_hash" not in user_data:
+            print("DEBUG: Usuário não tem password_hash")
             return False, "Erro: usuário não tem senha configurada"
         
-        # DEBUG: Mostrar informações da senha
-        print(f"DEBUG: Senha fornecida: {password}")
-        print(f"DEBUG: Hash armazenado: {user_data['password_hash']}")
-        print(f"DEBUG: Tipo do hash: {user_data['password_hash'][:4]}")
+        # DEBUG adicional
+        stored_hash = user_data["password_hash"]
+        print(f"DEBUG: Hash armazenado no DB: '{stored_hash}'")
+        print(f"DEBUG: Tipo do hash armazenado: {type(stored_hash)}")
+        print(f"DEBUG: Comprimento do hash: {len(stored_hash) if stored_hash else 0}")
         
-        # Verificar senha - CORREÇÃO AQUI
-        if check_password(password, user_data["password_hash"]):
+        # Verificar senha
+        if check_password(password, stored_hash):
+            print("DEBUG: Senha verificada com sucesso!")
             st.session_state.user = user_data
             st.session_state.user_id = user_data.get("id")
             st.session_state.username = user_data.get("username")
@@ -504,7 +513,7 @@ def sign_in(username, password):
             
             return True, "Login realizado com sucesso!"
         else:
-            print(f"DEBUG: Falha na verificação da senha")
+            print(f"DEBUG: Falha na verificação da senha para usuário: {username}")
             return False, "Senha incorreta!"
             
     except Exception as e:
@@ -512,6 +521,25 @@ def sign_in(username, password):
         print(f"DEBUG: {error_msg}")
         print(f"DEBUG: Traceback: {traceback.format_exc()}")
         return False, error_msg
+
+
+def debug_all_users_hashes():
+    """Função de debug para verificar todos os hashes de usuários"""
+    try:
+        users = supabase_client.table("users").select("id, username, password_hash").execute()
+        
+        if users.get("data"):
+            print("=== DEBUG: TODOS OS USUÁRIOS E SEUS HASHES ===")
+            for user in users["data"]:
+                print(f"Usuário: {user['username']}")
+                print(f"Hash: '{user.get('password_hash', 'NONE')}'")
+                print(f"Tipo: {user.get('password_hash', '')[:4] if user.get('password_hash') else 'NONE'}")
+                print(f"Comprimento: {len(user.get('password_hash', '')) if user.get('password_hash') else 0}")
+                print("---")
+        else:
+            print("DEBUG: Nenhum usuário encontrado")
+    except Exception as e:
+        print(f"DEBUG: Erro ao buscar usuários: {e}")
 
 def sign_out():
     """Desconecta o usuário"""
