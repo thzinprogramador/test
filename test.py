@@ -396,14 +396,18 @@ def sign_in(username, password):
         
         # Verificar senha
         if check_password(password, user_data["password_hash"]):
+            # 🔹 Limpar qualquer sessão antiga
+            clear_auth_session()
+
+            # 🔹 Definir sessão atual
             st.session_state.user = user_data
             st.session_state.user_id = user_data.get("id")
             st.session_state.username = user_data.get("username")
             st.session_state.is_admin = user_data.get("is_admin", False)
             st.session_state.show_login = False
-            st.session_state.force_login = False  # 🚩 libera persistência de novo
-            
-            # SALVAR A SESSÃO - USANDO O NOVO MÉTODO
+            st.session_state.force_login = False
+
+            # 🔹 Salvar a nova sessão
             save_auth_session(
                 st.session_state.username, 
                 st.session_state.user_id, 
@@ -417,6 +421,7 @@ def sign_in(username, password):
     except Exception as e:
         st.error(f"Erro no login: {str(e)}")
         return False, f"Erro: {str(e)}"
+
 
 def sign_out():
     """Desconecta o usuário"""
