@@ -2394,10 +2394,10 @@ elif st.session_state.current_page == "notifications":
         st.stop()
     
     # Botão para recarregar e forçar atualização
-    if st.button("🔄 Atualizar Notificações", key="refresh_notifications"):
-        st.session_state.unread_notifications_cache = None  # Força recálculo
-        st.session_state.unread_cache_timestamp = 0
-        st.rerun()
+    #if st.button("🔄 Atualizar Notificações", key="refresh_notifications"):
+        #st.session_state.unread_notifications_cache = None  # Força recálculo
+        #st.session_state.unread_cache_timestamp = 0
+        #st.rerun()
     
     try:
         # Buscar TODAS as notificações (não lidas e lidas)
@@ -2510,7 +2510,7 @@ elif st.session_state.current_page == "notifications":
             
             with col2:
                 if not notification["is_read"]:
-                    if st.button("Marcar como lida", key=f"read_{notification['id']}"):
+                    if st.button("Lida", key=f"read_{notification['id']}"):
                         if mark_notification_as_read(notification["id"], notification["type"]):
                             st.success("✅ Notificação marcada como lida!")
                             # Atualizar cache imediatamente
