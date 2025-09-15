@@ -2241,6 +2241,11 @@ with st.sidebar:
 
         # Usar chaves únicas baseadas no estado do usuário para evitar duplicação
         user_suffix = st.session_state.user_id if st.session_state.user_id else "guest"
+
+        if st.button(notification_text, key=f"btn_notifications_{user_suffix}", use_container_width=True):
+            st.session_state.current_page = "notifications"
+            st.session_state.show_request_form = False
+            st.rerun()
     
         if st.button("Página Inicial", key=f"btn_home_{user_suffix}", use_container_width=True):
             st.session_state.current_page = "home"
@@ -2249,11 +2254,6 @@ with st.sidebar:
 
         if st.button("Buscar Músicas", key=f"btn_search_{user_suffix}", use_container_width=True):
             st.session_state.current_page = "search"
-            st.session_state.show_request_form = False
-            st.rerun()
-
-        if st.button(notification_text, key=f"btn_notifications_{user_suffix}", use_container_width=True):
-            st.session_state.current_page = "notifications"
             st.session_state.show_request_form = False
             st.rerun()
 
