@@ -287,30 +287,30 @@ class SimpleSupabaseClient:
         }
     
     def execute_query(self, endpoint, method="GET", data=None, params=None):
-    try:
-        url = f"{self.url}/rest/v1/{endpoint}"
-        request_params = params or {}
+        try:
+            url = f"{self.url}/rest/v1/{endpoint}"
+            request_params = params or {}
         
-        if method == "GET":
-            response = requests.get(url, headers=self.headers, params=request_params)
-        elif method == "POST":
-            response = requests.post(url, headers=self.headers, json=data, params=request_params)
-        elif method == "PUT":
-            response = requests.put(url, headers=self.headers, json=data, params=request_params)
-        elif method == "DELETE":
-            response = requests.delete(url, headers=self.headers, params=request_params)
+            if method == "GET":
+                response = requests.get(url, headers=self.headers, params=request_params)
+            elif method == "POST":
+                response = requests.post(url, headers=self.headers, json=data, params=request_params)
+            elif method == "PUT":
+                response = requests.put(url, headers=self.headers, json=data, params=request_params)
+            elif method == "DELETE":
+                response = requests.delete(url, headers=self.headers, params=request_params)
         
-        if response.status_code in [200, 201, 204]:
-            try:
-                return response.json()
-            except:
-                return response.text
-        else:
-            print(f"Erro Supabase: {response.status_code} - {response.text}")
+            if response.status_code in [200, 201, 204]:
+                try:
+                    return response.json()
+                except:
+                    return response.text
+            else:
+                print(f"Erro Supabase: {response.status_code} - {response.text}")
+                return None
+        except Exception as e:
+            print(f"Erro ao conectar com Supabase: {e}")
             return None
-    except Exception as e:
-        print(f"Erro ao conectar com Supabase: {e}")
-        return None
     
     def table(self, table_name):
         return SupabaseTable(self, table_name)
