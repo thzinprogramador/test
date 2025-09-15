@@ -359,40 +359,141 @@ def init_auth():
         st.session_state.is_admin = False
 
 def hash_password(password):
-    """Gera um hash seguro para a senha usando bcrypt"""
-    # Gera um salt e faz o hash da senha
-    salt = bcrypt.gensalt()
-    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-    return hashed.decode('utf-8')
+    """Gera um hash seguro para a senha usando bcrypt - versão Supabase compatível"""
+    try:
+        # Gera um salt e faz o hash da senha
+        salt = bcrypt.gensalt(rounds=12)
+        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+        
+        # Converte para string e garante que está limpo
+        hashed_str = hashed.decode('utf-8').strip()
+        
+        print(f"DEBUG: Hash gerado: '{hashed_str}'")
+        print(f"DEBUG: Comprimento: {len(hashed_str)}")
+        print(f"DEBUG: Tipo: {hashed_str[:4]}")
+        
+        return hashed_str
+        
+    except Exception as e:
+        print(f"DEBUG: Erro ao gerar hash: {e}")
+        raise
 
 def check_password(password, hashed_password):
-    """Verifica se a senha corresponde ao hash - versão corrigida"""
+    """Verifica se a senha corresponde ao hash - versão Supabase compatível"""
     try:
-        # Remove quaisquer espaços em branco acidentais
+        if not hashed_password or not password:
+            print("DEBUG: Senha ou hash vazio")
+            return False
+        
+        # Limpa possíveis espaços ou caracteres extras
         password = password.strip()
         hashed_password = hashed_password.strip()
         
-        # DEBUG: Mostrar informações para diagnóstico
-        print(f"DEBUG: Senha fornecida: '{password}'")
-        print(f"DEBUG: Hash armazenado: '{hashed_password}'")
-        print(f"DEBUG: Tipo do hash: {hashed_password[:4] if hashed_password else 'None'}")
+        print(f"DEBUG: Verificando senha: '{password}'")
+        print(f"DEBUG: Contra hash: '{hashed_password}'")
+        print(f"DEBUG: Tipo hash: {hashed_password[:4]}")
+        print(f"DEBUG: Comprimento hash: {len(hashed_password)}")
         
-        # Verifica se o hash está no formato correto
-        if not hashed_password or not hashed_password.startswith('$2'):
+        # Verifica se o hash está no formato bcrypt
+        if not hashed_password.startswith('$2'):
             print("DEBUG: Hash não está no formato bcrypt")
             return False
         
-        # Tenta verificar a senha
-        result = bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
-        print(f"DEBUG: Resultado da verificação: {result}")
-        
-        return result
-        
+        # Tenta verificar com diferentes versões se necessário
+        try:
+            # Primeira tentativa: verificação normal
+            result = bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+            print(f"DEBUG: Resultado verificação normal: {result}")
+            
+            if result:
+                return True
+                
+            # Segunda tentativa: se falhar, tenta normalizar versão
+            if hashed_password.startswith('$2b$'):
+                normalized_hash = '$2a$' + hashed_password[4:]
+                result = bcrypt.checkpw(password.encode('utf-8'), normalized_hash.encode('utf-8'))
+                print(f"DEBUG: Resultado verificação 2a: {result}")
+                
+            elif hashed_password.startswith('$2a$'):
+                normalized_hash = '$2b$' + hashed_password[4:]
+                result = bcrypt.checkpw(password.encode('utf-8'), normalized_hash.encode('utf-8'))
+                print(f"DEBUG: Resultado verificação 2b: {result}")
+                
+            return result
+            
+        except Exception as inner_e:
+            print(f"DEBUG: Erro interno na verificação: {inner_e}")
+            return False
+            
     except Exception as e:
-        print(f"DEBUG: Erro na verificação de senha: {e}")
+        print(f"DEBUG: Erro geral na verificação: {e}")
         print(f"DEBUG: Traceback: {traceback.format_exc()}")
         return False
 
+def diagnose_password_issue():
+    """Diagnostica o problema de senha"""
+    try:
+        users = supabase_client.table("users").select("id, username, password_hash").execute()
+        
+        if users.get("data"):
+            print("=== DIAGNÓSTICO DO PROBLEMA DE SENHA ===")
+            
+            for user in users["data"]:
+                username = user['username']
+                stored_hash = user.get('password_hash', '')
+                
+                print(f"\n--- Usuário: {username} ---")
+                print(f"Hash armazenado: '{stored_hash}'")
+                print(f"Comprimento: {len(stored_hash)}")
+                print(f"Tipo: {stored_hash[:4] if stored_hash else 'NONE'}")
+                
+                # Verifica se o hash parece válido
+                if stored_hash and stored_hash.startswith('$2') and len(stored_hash) == 60:
+                    print("✅ Hash parece válido")
+                else:
+                    print("❌ Hash parece inválido ou corrompido")
+                    
+                    # Tenta reparar hash corrompido
+                    if stored_hash and len(stored_hash) > 60:
+                        print(f"⚠️ Hash muito longo ({len(stored_hash)}), possivelmente corrompido")
+                        repaired_hash = stored_hash[:60]  # bcrypt hashes devem ter 60 caracteres
+                        print(f"Hash reparado: '{repaired_hash}'")
+                        
+        else:
+            print("Nenhum usuário encontrado para diagnóstico")
+            
+    except Exception as e:
+        print(f"Erro no diagnóstico: {e}")
+
+def repair_corrupted_hashes():
+    """Repara hashes bcrypt que podem estar corrompidos no Supabase"""
+    try:
+        users = supabase_client.table("users").select("id, username, password_hash").execute()
+        
+        if users.get("data"):
+            print("=== REPARANDO HASHES CORROMPIDOS ===")
+            
+            for user in users["data"]:
+                user_id = user['id']
+                username = user['username']
+                stored_hash = user.get('password_hash', '')
+                
+                # Verifica se o hash precisa ser reparado
+                if stored_hash and len(stored_hash) != 60:
+                    print(f"Reparando hash para {username} (comprimento: {len(stored_hash)})")
+                    
+                    # Pede ao usuário para digitar a senha novamente
+                    print(f"Por favor, digite a senha para o usuário {username}:")
+                    # Em produção, você precisaria de uma interface para isso
+                    
+                    # Para agora, apenas registra o problema
+                    print(f"❌ Hash corrompido para {username}, precisa ser resetado")
+                    
+        else:
+            print("Nenhum usuário encontrado")
+            
+    except Exception as e:
+        print(f"Erro ao reparar hashes: {e}")
 
 def username_exists(username):
     """Verifica se o username já existe"""
@@ -2405,4 +2506,8 @@ div[data-testid="stVerticalBlock"] > div:has(button:contains("Pedir Música +"))
 }
 </style>
 """, unsafe_allow_html=True)
+
+
+print("=== INICIANDO DIAGNÓSTICO ===")
+diagnose_password_issue()
 
