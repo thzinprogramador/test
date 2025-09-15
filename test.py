@@ -176,10 +176,6 @@ st.set_page_config(
 # ==============================
 # ESTADO DA SESSÃO
 # ==============================
-if "show_login_tab" not in st.session_state:
-    st.session_state.show_login_tab = None
-if "signup_success_username" not in st.session_state:
-    st.session_state.signup_success_username = ""
 if "user" not in st.session_state:
     st.session_state.user = None
 if "user_id" not in st.session_state:
@@ -582,18 +578,12 @@ def username_exists(username):
 def sign_up(username, password):
     """Registra um novo usuário apenas com username e senha"""
     try:
-        # Debug: verificar se usuário já existe
-        print(f"DEBUG: Tentando criar usuário: {username}")
-        
         # Verificar se usuário já existe
         if username_exists(username):
             return False, "Usuário já existe!"
         
         # Criar hash da senha
         hashed_password = hash_password(password)
-        print(f"DEBUG: Senha hash gerada: '{hashed_password}'")
-        print(f"DEBUG: Tipo do hash gerado: {type(hashed_password)}")
-        print(f"DEBUG: Comprimento do hash: {len(hashed_password)}")
         
         # Criar novo usuário
         user_data = {
@@ -603,13 +593,9 @@ def sign_up(username, password):
             "is_admin": False
         }
         
-        print(f"DEBUG: Dados do usuário: {user_data}")
-        
         # Inserir usuário
         response_obj = supabase_client.table("users").insert(user_data)
         response = response_obj.execute()
-        
-        print(f"DEBUG: Resposta do insert: {response}")
         
         # Verificação da resposta
         user_created = False
@@ -628,8 +614,6 @@ def sign_up(username, password):
                 user_created = True
         
         if user_created:
-            print(f"DEBUG: Conta criada com sucesso para: {username}")
-            
             # ENVIAR NOTIFICAÇÃO PARA TELEGRAM
             current_time = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
             telegram_message = f"""👤 Nova conta criada!
@@ -639,18 +623,11 @@ def sign_up(username, password):
 
             send_telegram_notification(telegram_message)
             
-            # REDIRECIONAR PARA LOGIN (NÃO FAZER LOGIN AUTOMÁTICO)
-            # Limpa os campos de cadastro e abre a aba de login
-            st.session_state.show_login_tab = "login"  # Nova variável para controlar a aba
-            st.session_state.signup_success_username = username  # Guarda o username para facilitar
-            
-            return True, "✅ Conta criada com sucesso! Faça login para continuar."
+            return True, "✅ Conta criada com sucesso! Agora faça login."
         else:
             return False, "Erro ao criar conta - usuário não encontrado após tentativa"
             
     except Exception as e:
-        error_msg = f"Erro completo: {traceback.format_exc()}"
-        print(f"DEBUG: {error_msg}")
         return False, f"Erro: {str(e)}"
 
 
@@ -740,105 +717,49 @@ def get_current_user():
 
 def show_auth_ui():
     """Interface de autenticação simplificada"""
-    # Verificar se precisa mostrar a aba de login após cadastro bem-sucedido
-    default_tab = "login" if st.session_state.get('show_login_tab') == "login" else None
-    
     tab1, tab2 = st.tabs(["Login", "Cadastro"])
     
-    # Se houve cadastro bem-sucedido, focar na aba de login
-    if st.session_state.get('show_login_tab') == "login":
-        # Pré-preencher o username no login se disponível
-        prefilled_username = st.session_state.get('signup_success_username', '')
-        
-        with tab1:
-            with st.form("login_form"):
-                username = st.text_input("Nome de usuário", value=prefilled_username, key="login_username")
-                password = st.text_input("Senha", type="password", key="login_password")
-                submitted = st.form_submit_button("Entrar")
-                
-                if submitted:
-                    if not username or not password:
-                        st.error("Preencha todos os campos!")
+    with tab1:
+        with st.form("login_form", clear_on_submit=True):
+            username = st.text_input("Nome de usuário", key="login_username")
+            password = st.text_input("Senha", type="password", key="login_password")
+            submitted = st.form_submit_button("Entrar")
+            
+            if submitted:
+                if not username or not password:
+                    st.error("Preencha todos os campos!")
+                else:
+                    success, message = sign_in(username, password)
+                    if success:
+                        st.success(message)
+                        st.rerun()
                     else:
-                        success, message = sign_in(username, password)
-                        if success:
-                            st.success(message)
-                            # Limpar o estado de redirecionamento
-                            if 'show_login_tab' in st.session_state:
-                                del st.session_state.show_login_tab
-                            if 'signup_success_username' in st.session_state:
-                                del st.session_state.signup_success_username
-                            st.rerun()
-                        else:
-                            st.error(message)
+                        st.error(message)
     
-        with tab2:
-            with st.form("signup_form"):
-                username = st.text_input("Nome de usuário", key="signup_username")
-                password = st.text_input("Senha", type="password", key="signup_password")
-                confirm_password = st.text_input("Confirmar senha", type="password", key="signup_confirm")
-                
-                submitted = st.form_submit_button("Criar conta")
-                
-                if submitted:
-                    if not username or not password:
-                        st.error("Preencha todos os campos!")
-                    elif password != confirm_password:
-                        st.error("As senhas não coincidem")
-                    elif len(password) < 6:
-                        st.error("A senha deve ter pelo menos 6 caracteres")
-                    elif len(username) < 3:
-                        st.error("O nome de usuário deve ter pelo menos 3 caracteres")
+    with tab2:
+        with st.form("signup_form", clear_on_submit=True):  # clear_on_submit limpa o form após enviar
+            username = st.text_input("Nome de usuário", key="signup_username")
+            password = st.text_input("Senha", type="password", key="signup_password")
+            confirm_password = st.text_input("Confirmar senha", type="password", key="signup_confirm")
+            
+            submitted = st.form_submit_button("Criar conta")
+            
+            if submitted:
+                if not username or not password:
+                    st.error("Preencha todos os campos!")
+                elif password != confirm_password:
+                    st.error("As senhas não coincidem")
+                elif len(password) < 6:
+                    st.error("A senha deve ter pelo menos 6 caracteres")
+                elif len(username) < 3:
+                    st.error("O nome de usuário deve ter pelo menos 3 caracteres")
+                else:
+                    success, message = sign_up(username, password)
+                    if success:
+                        st.success(message)
+                        # O formulário será limpo automaticamente pelo clear_on_submit=True
                     else:
-                        success, message = sign_up(username, password)
-                        if success:
-                            st.success(message)
-                            st.rerun()
-                        else:
-                            st.error(message)
-    else:
-        # Comportamento normal (sem redirecionamento)
-        with tab1:
-            with st.form("login_form"):
-                username = st.text_input("Nome de usuário", key="login_username")
-                password = st.text_input("Senha", type="password", key="login_password")
-                submitted = st.form_submit_button("Entrar")
-                
-                if submitted:
-                    if not username or not password:
-                        st.error("Preencha todos os campos!")
-                    else:
-                        success, message = sign_in(username, password)
-                        if success:
-                            st.success(message)
-                            st.rerun()
-                        else:
-                            st.error(message)
-    
-        with tab2:
-            with st.form("signup_form"):
-                username = st.text_input("Nome de usuário", key="signup_username")
-                password = st.text_input("Senha", type="password", key="signup_password")
-                confirm_password = st.text_input("Confirmar senha", type="password", key="signup_confirm")
-                
-                submitted = st.form_submit_button("Criar conta")
-                
-                if submitted:
-                    if not username or not password:
-                        st.error("Preencha todos os campos!")
-                    elif password != confirm_password:
-                        st.error("As senhas não coincidem")
-                    elif len(password) < 6:
-                        st.error("A senha deve ter pelo menos 6 caracteres")
-                    elif len(username) < 3:
-                        st.error("O nome de usuário deve ter pelo menos 3 caracteres")
-                    else:
-                        success, message = sign_up(username, password)
-                        if success:
-                            st.success(message)
-                            st.rerun()
-                        else:
-                            st.error(message)
+                        st.error(message)
 
 def is_admin():
     """Verifica se o usuário atual é administrador"""
