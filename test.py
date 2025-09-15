@@ -18,19 +18,11 @@ from firebase_admin import credentials, db
 from io import BytesIO
 from PIL import Image
 
-
-
 if "auth" not in st.session_state:
-    # tenta ler do localStorage via componente JS
-    auth_from_ls = local_storage_get("wave_auth")  # função que retorna valor do storage
-    if auth_from_ls:
-        try:
-            auth_obj = json.loads(auth_from_ls)
-            if validate_auth_data(auth_obj):
-                st.session_state["auth"] = auth_obj
-        except:
-            pass
-
+    # usa check_persistent_auth para tentar restaurar sessão
+    auth_data = check_persistent_auth()
+    if auth_data:
+        st.session_state["auth"] = auth_data
 
 
 # ==============================
