@@ -608,21 +608,55 @@ def sign_up(username, password):
         print(f"DEBUG: Resposta do insert: {response}")
         
         # Verificação da resposta
+        user_created = False
+        user_id = None
+        
         if response and isinstance(response, dict) and response.get("data"):
             if len(response["data"]) > 0:
                 user_data = response["data"][0]
                 user_id = user_data.get('id')
-                
                 if user_id:
-                    print(f"DEBUG: Conta criada com ID: {user_id}")
-                    telegram_message = f"👤 Nova conta: {username}"
-                    send_telegram_notification(telegram_message)
-                    return True, "✅ Login criado com sucesso!"
+                    user_created = True
         
-        # Verificação final
-        time.sleep(1)  # Dar tempo para o banco processar
-        if username_exists(username):
-            return True, "✅ Login criado com sucesso!"
+        # Se não conseguiu pegar do response, verificar no banco
+        if not user_created:
+            time.sleep(1)  # Dar tempo para o banco processar
+            if username_exists(username):
+                # Buscar os dados completos do usuário
+                response = supabase_client.table("users").select("*").eq("username", username).execute()
+                if response.get("data") and len(response.get("data", [])) > 0:
+                    user_data = response["data"][0]
+                    user_id = user_data.get('id')
+                    if user_id:
+                        user_created = True
+        
+        if user_created and user_id:
+            print(f"DEBUG: Conta criada com ID: {user_id}")
+            
+            # ENVIAR NOTIFICAÇÃO PARA TELEGRAM
+            current_time = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            telegram_message = f"""👤 Nova conta criada!
+
+📛 Usuário: {username}
+⏰ Hora: {current_time}"""
+
+            send_telegram_notification(telegram_message)
+            
+            # FAZER LOGIN AUTOMÁTICO
+            st.session_state.user = user_data
+            st.session_state.user_id = user_id
+            st.session_state.username = user_data.get("username")
+            st.session_state.is_admin = user_data.get("is_admin", False)
+            st.session_state.show_login = False
+            
+            # SALVAR A SESSÃO
+            save_auth_session(
+                st.session_state.username, 
+                st.session_state.user_id,
+                st.session_state.is_admin
+            )
+            
+            return True, "✅ Conta criada com sucesso! Login realizado automaticamente."
         else:
             return False, "Erro ao criar conta - usuário não encontrado após tentativa"
             
@@ -630,6 +664,7 @@ def sign_up(username, password):
         error_msg = f"Erro completo: {traceback.format_exc()}"
         print(f"DEBUG: {error_msg}")
         return False, f"Erro: {str(e)}"
+
 
 def sign_in(username, password):
     """Autentica um usuário usando username e senha"""
@@ -757,6 +792,7 @@ def show_auth_ui():
                     success, message = sign_up(username, password)
                     if success:
                         st.success(message)
+                        st.rerun()
                     else:
                         st.error(message)
 
