@@ -347,7 +347,7 @@ def username_exists(username):
     """Verifica se o username já existe"""
     try:
         response = supabase_client.table("users").select("username").eq("username", username).execute()
-        return len(response.get("data", [])) > 0  # Corrigido aqui
+        return len(response.get("data", [])) > 0
     except Exception as e:
         st.error(f"Erro ao verificar usuário: {e}")
         return False
@@ -356,11 +356,8 @@ def sign_up(username, password):
     """Registra um novo usuário apenas com username e senha"""
     try:
         # Verificar se usuário já existe
-        all_users = supabase_client.table("users").select("username").execute()
-        if all_users.get("data"):
-            for user in all_users["data"]:
-                if user.get("username") == username:
-                    return False, "Usuário já existe!"
+        if username_exists(username):
+            return False, "Usuário já existe!"
         
         # Criar novo usuário
         user_data = {
@@ -376,7 +373,7 @@ def sign_up(username, password):
             # Telegram notification
             telegram_message = f"👤 Nova conta: {username}"
             send_telegram_notification(telegram_message)
-            return True, "Conta criada com sucesso!"
+            return True, "✅ Login criado com sucesso!"  # Mensagem alterada aqui
         else:
             return False, "Erro ao criar conta"
             
