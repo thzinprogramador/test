@@ -345,7 +345,7 @@ def clear_dismissed_notifications():
 
 
 # ==============================
-# SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO (SEM EMAIL)
+# SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO
 # ==============================
 def init_auth():
     """Inicializa o sistema de autenticação"""
@@ -357,6 +357,13 @@ def init_auth():
         st.session_state.username = None
     if "is_admin" not in st.session_state:
         st.session_state.is_admin = False
+
+def hash_password(password):
+    """Gera um hash seguro para a senha usando bcrypt"""
+    # Gera um salt e faz o hash da senha
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
 def check_password(password, hashed_password):
     """Verifica se a senha corresponde ao hash - versão corrigida"""
