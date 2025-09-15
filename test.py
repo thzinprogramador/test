@@ -2228,40 +2228,34 @@ with st.sidebar:
     st.markdown("---")
 
 
-    # Menu para usuários normais - APENAS se não estiver no modo admin
+    # Menu para usuários normais
     if not st.session_state.get('admin_mode', False):
         # Atualizar cache de notificações não lidas a cada 10 segundos
-        current_time = time.time()
         if ("unread_notifications_cache" not in st.session_state or 
-            current_time - st.session_state.get("unread_cache_timestamp", 0) > 10):
+            time.time() - st.session_state.get("unread_cache_timestamp", 0) > 10):
             st.session_state.unread_notifications_cache = check_unread_notifications()
-            st.session_state.unread_cache_timestamp = current_time
+            st.session_state.unread_cache_timestamp = time.time()
     
         unread_notifications = st.session_state.unread_notifications_cache
         notification_text = f"🔔 Notificações ({unread_notifications})" if unread_notifications else "🔔 Notificações"
 
-        # Usar chaves únicas para os botões baseadas no estado do usuário
+        # Usar chaves únicas baseadas no estado do usuário para evitar duplicação
         user_suffix = st.session_state.user_id if st.session_state.user_id else "guest"
     
-        col1, col2, col3 = st.columns(3)
-    
-        with col1:
-            if st.button("🏠", help="Página Inicial", key=f"home_{user_suffix}"):
-                st.session_state.current_page = "home"
-                st.session_state.show_request_form = False
-                st.rerun()
-    
-        with col2:
-            if st.button("🔍", help="Buscar Músicas", key=f"search_{user_suffix}"):
-                st.session_state.current_page = "search"
-                st.session_state.show_request_form = False
-                st.rerun()
-    
-        with col3:
-            if st.button(notification_text, help="Notificações", key=f"notif_{user_suffix}"):
-                st.session_state.current_page = "notifications"
-                st.session_state.show_request_form = False
-                st.rerun()
+        if st.button("Página Inicial", key=f"btn_home_{user_suffix}", use_container_width=True):
+            st.session_state.current_page = "home"
+            st.session_state.show_request_form = False
+            st.rerun()
+
+        if st.button("Buscar Músicas", key=f"btn_search_{user_suffix}", use_container_width=True):
+            st.session_state.current_page = "search"
+            st.session_state.show_request_form = False
+            st.rerun()
+
+        if st.button(notification_text, key=f"btn_notifications_{user_suffix}", use_container_width=True):
+            st.session_state.current_page = "notifications"
+            st.session_state.show_request_form = False
+            st.rerun()
 
 
     # Menu para administradores
