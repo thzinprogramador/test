@@ -1639,17 +1639,26 @@ def setup_telegram_commands():
         if str(message.chat.id) != TELEGRAM_ADMIN_CHAT_ID:
             telegram_bot.send_message(message.chat.id, "❌ Apenas administradores podem ver estatísticas.")
             return
+    
+        try:
+            # Buscar total de usuários
+            users_response = supabase_client.table("users").select("id").execute()
+            total_users = len(users_response.get("data", [])) if users_response.get("data") else 0
+            total_songs = len(st.session_state.all_songs)
         
-        total_songs = len(st.session_state.all_songs)
-        response = f"""👥 *Estatísticas do Wave Song*
+            response = f"""👥 *Estatísticas do Wave Song*
 
 🎉 Usuários: {total_users}
 🎵 Músicas: {total_songs}
 🔗 Firebase: {'✅ Conectado' if st.session_state.firebase_connected else '❌ Desconectado'}
 🤖 Telegram: {'✅ Conectado' if TELEGRAM_NOTIFICATIONS_ENABLED else '❌ Desconectado'}
 🛡️ Admin: {admin_name}"""
-        telegram_bot.send_message(message.chat.id, response, parse_mode='Markdown')
-
+        
+            telegram_bot.send_message(message.chat.id, response, parse_mode='Markdown')
+        
+        except Exception as e:
+            telegram_bot.send_message(message.chat.id, f"❌ Erro ao buscar estatísticas: {str(e)[:100]}")
+    
 
 def check_and_display_telegram_status():
     global telegram_bot, TELEGRAM_NOTIFICATIONS_ENABLED
@@ -1869,7 +1878,9 @@ def send_telegram_command_response(command, message=""):
             try:
                 # Buscar total de usuários do Supabase
                 users_response = supabase_client.table("users").select("id").execute()
+                total_users = len(users_response.get("data", [])) if users_response.get("data") else 0
                 total_songs = len(st.session_state.all_songs)
+                
                 response = f"""👥 *Estatísticas do Wave Song*
 
 🎉 Usuários: {total_users}
@@ -1878,14 +1889,22 @@ def send_telegram_command_response(command, message=""):
 🤖 Telegram: {'✅ Conectado' if TELEGRAM_NOTIFICATIONS_ENABLED else '❌ Desconectado'}
 🛡️ Admin: {admin_name}"""
                 
-            telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, response, parse_mode='Markdown')
-            return True
-            
+                telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, response, parse_mode='Markdown')
+                return True
+                
             except Exception as e:
-                st.error(f"❌ Erro ao enviar comando: {e}")
+                error_msg = f"❌ Erro ao buscar estatísticas: {str(e)}"
+                st.error(error_msg)
                 telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, error_msg)
                 return False
-
+            
+        else:
+            st.error(f"❌ Comando desconhecido: {command}")
+            return False
+            
+    except Exception as e:
+        st.error(f"❌ Erro ao enviar comando: {e}")
+        return False
 
 # ==============================
 # FUNÇÃO DE CONVERSÃO DE URL CORRIGIDA
