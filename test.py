@@ -1643,6 +1643,7 @@ def setup_telegram_commands():
         total_songs = len(st.session_state.all_songs)
         response = f"""👥 *Estatísticas do Wave Song*
 
+🎉 Usuários: {total_users}
 🎵 Músicas: {total_songs}
 🔗 Firebase: {'✅ Conectado' if st.session_state.firebase_connected else '❌ Desconectado'}
 🤖 Telegram: {'✅ Conectado' if TELEGRAM_NOTIFICATIONS_ENABLED else '❌ Desconectado'}
