@@ -436,33 +436,45 @@ def sign_in(username, password):
         # Buscar usuário no banco
         response = supabase_client.table("users").select("*").eq("username", username).execute()
         
+        # Debug: verificar o que está retornando
+        print(f"DEBUG: Resposta do Supabase: {response}")
+        
         if not response.get("data") or len(response.get("data", [])) == 0:
             return False, "Usuário não encontrado!"
         else:
             user_data = response["data"][0]
+            print(f"DEBUG: Dados do usuário: {user_data}")
         
-        # Verificar senha
-        if check_password(password, user_data["password_hash"]):
+        # Verificar se a senha existe no user_data
+        if "password_hash" not in user_data:
+            return False, "Erro: usuário não tem senha configurada"
+        
+        # Verificar senha - CORREÇÃO AQUI
+        if bcrypt.checkpw(password.encode('utf-8'), user_data["password_hash"].encode('utf-8')):
             st.session_state.user = user_data
-            st.session_state.user_id = user_data.get("id")  # Isso será um UUID
+            st.session_state.user_id = user_data.get("id")
             st.session_state.username = user_data.get("username")
             st.session_state.is_admin = user_data.get("is_admin", False)
             st.session_state.show_login = False
             
-            # SALVAR A SESSÃO - USANDO O NOVO MÉTODO
+            # SALVAR A SESSÃO
             save_auth_session(
                 st.session_state.username, 
-                st.session_state.user_id,  # Agora é UUID
+                st.session_state.user_id,
                 st.session_state.is_admin
             )
             
             return True, "Login realizado com sucesso!"
         else:
+            print(f"DEBUG: Senha fornecida: {password}")
+            print(f"DEBUG: Hash armazenado: {user_data['password_hash']}")
             return False, "Senha incorreta!"
             
     except Exception as e:
-        st.error(f"Erro no login: {str(e)}")
-        return False, f"Erro: {str(e)}"
+        error_msg = f"Erro no login: {str(e)}"
+        print(f"DEBUG: {error_msg}")
+        print(f"DEBUG: Traceback: {traceback.format_exc()}")
+        return False, error_msg
 
 def sign_out():
     """Desconecta o usuário"""
