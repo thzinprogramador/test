@@ -344,8 +344,6 @@ def clear_dismissed_notifications():
         st.session_state.dismissed_notifications = set()
 
 
-debug_all_users_hashes()
-
 # ==============================
 # SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO
 # ==============================
@@ -2404,3 +2402,5 @@ div[data-testid="stVerticalBlock"] > div:has(button:contains("Pedir Música +"))
 }
 </style>
 """, unsafe_allow_html=True)
+
+debug_all_users_hashes()
