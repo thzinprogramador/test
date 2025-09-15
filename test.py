@@ -13,6 +13,7 @@ import json
 import gc
 import re
 import unicodedata
+import streamlit.components.v1 as components
 from firebase_admin import credentials, db
 from io import BytesIO
 from PIL import Image
@@ -62,7 +63,53 @@ def check_persistent_auth():
         st.session_state.is_admin = auth_data['is_admin']
         st.session_state.show_login = False
 
+def check_local_storage_auth():
+    """Verifica autenticação no localStorage usando JavaScript"""
+    auth_js = """
+    <script>
+    // Verificar se há dados de autenticação no localStorage
+    var authData = localStorage.getItem('wave_auth');
+    if (authData) {
+        window.parent.postMessage({
+            type: 'AUTH_DATA',
+            data: authData
+        }, '*');
+    }
+    </script>
+    """
+    
+    components.html(auth_js, height=0)
+    
+    # Ouvir mensagens do JavaScript
+    if 'auth_data' not in st.session_state:
+        st.session_state.auth_data = None
 
+def save_auth_to_local_storage(username, user_id, is_admin):
+    """Salva autenticação no localStorage"""
+    auth_data = {
+        'username': username,
+        'user_id': user_id,
+        'is_admin': is_admin,
+        'timestamp': datetime.datetime.now().isoformat()
+    }
+    
+    js_code = f"""
+    <script>
+    localStorage.setItem('wave_auth', '{json.dumps(auth_data)}');
+    </script>
+    """
+    
+    components.html(js_code, height=0)
+
+def clear_local_storage_auth():
+    """Limpa autenticação do localStorage"""
+    js_code = """
+    <script>
+    localStorage.removeItem('wave_auth');
+    </script>
+    """
+    
+    components.html(js_code, height=0)
 
 
 def get_current_timestamp():
