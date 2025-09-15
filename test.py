@@ -1964,9 +1964,9 @@ with st.sidebar:
                 st.rerun()
         else:
             # Botão para fechar o formulário
-            if st.button("✕ Fechar", key="close_login", use_container_width=True):
-                st.session_state.show_login = False
-                st.rerun()
+            #if st.button("✕ Fechar", key="close_login", use_container_width=True):
+                #st.session_state.show_login = False
+                #st.rerun()
         
             # Mostrar formulário de autenticação
             show_auth_ui()
