@@ -19,11 +19,9 @@ from io import BytesIO
 from PIL import Image
 
 if "auth" not in st.session_state:
-    # usa check_persistent_auth para tentar restaurar sessão
-    auth_data = check_persistent_auth()
+    auth_data = check_persistent_auth()  # Usa sua própria função para ler localStorage
     if auth_data:
         st.session_state["auth"] = auth_data
-
 
 # ==============================
 # PERSISTÊNCIA DE SESSÃO (atualizada)
