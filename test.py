@@ -140,7 +140,7 @@ def debug_table_structure():
     """Debug da estrutura da tabela users"""
     try:
         # Verificar estrutura da tabela
-        test_response = supabase_client.table("users").select("id, username, created_at").limit(1).execute()
+        test_response = supabase_client.table("users").select("id, username, created_at").execute()
         st.write("🔍 ESTRUTURA DA TABELA USERS:", test_response)
         
         # Verificar todos os usuários (apenas para debug)
@@ -149,7 +149,7 @@ def debug_table_structure():
         
     except Exception as e:
         st.write(f"❌ ERRO NO DEBUG DA TABELA: {e}")
-
+        
 # Chame esta função em algum lugar para debug
 # debug_table_structure()
 
@@ -286,26 +286,31 @@ class SimpleSupabaseClient:
             "Content-Type": "application/json"
         }
     
-    def execute_query(self, endpoint, method="GET", data=None):
-        try:
-            url = f"{self.url}/rest/v1/{endpoint}"
-            if method == "GET":
-                response = requests.get(url, headers=self.headers, params=data)
-            elif method == "POST":
-                response = requests.post(url, headers=self.headers, json=data)
-            elif method == "PUT":
-                response = requests.put(url, headers=self.headers, json=data)
-            elif method == "DELETE":
-                response = requests.delete(url, headers=self.headers)
-            
-            if response.status_code in [200, 201]:
+    def execute_query(self, endpoint, method="GET", data=None, params=None):
+    try:
+        url = f"{self.url}/rest/v1/{endpoint}"
+        request_params = params or {}
+        
+        if method == "GET":
+            response = requests.get(url, headers=self.headers, params=request_params)
+        elif method == "POST":
+            response = requests.post(url, headers=self.headers, json=data, params=request_params)
+        elif method == "PUT":
+            response = requests.put(url, headers=self.headers, json=data, params=request_params)
+        elif method == "DELETE":
+            response = requests.delete(url, headers=self.headers, params=request_params)
+        
+        if response.status_code in [200, 201, 204]:
+            try:
                 return response.json()
-            else:
-                print(f"Erro Supabase: {response.status_code} - {response.text}")
-                return None
-        except Exception as e:
-            print(f"Erro ao conectar com Supabase: {e}")
+            except:
+                return response.text
+        else:
+            print(f"Erro Supabase: {response.status_code} - {response.text}")
             return None
+    except Exception as e:
+        print(f"Erro ao conectar com Supabase: {e}")
+        return None
     
     def table(self, table_name):
         return SupabaseTable(self, table_name)
@@ -314,37 +319,50 @@ class SupabaseTable:
     def __init__(self, client, table_name):
         self.client = client
         self.table_name = table_name
+        self.params = {}
     
     def select(self, columns="*"):
-        self.columns = columns
+        self.params["select"] = columns
         return self
     
     def eq(self, column, value):
-        self.filter_column = column
-        self.filter_value = value
+        self.params[column] = f"eq.{value}"
+        return self
+    
+    def limit(self, count):
+        self.params["limit"] = str(count)
         return self
     
     def execute(self):
         endpoint = self.table_name
-        params = {"select": self.columns}
-        
-        if hasattr(self, 'filter_column') and hasattr(self, 'filter_value'):
-            params[self.filter_column] = f"eq.{self.filter_value}"
-        
-        result = self.client.execute_query(endpoint, "GET", params)
+        result = self.client.execute_query(endpoint, "GET", self.params)
         return {"data": result} if result else {"data": []}
     
     def insert(self, data):
         endpoint = self.table_name
         result = self.client.execute_query(endpoint, "POST", data)
-        return {"data": [result]} if result else {"data": []}
+        # Retorna um objeto que simula a resposta do Supabase
+        return InsertResponse(result)
     
     def update(self, data):
         endpoint = self.table_name
-        if hasattr(self, 'filter_column') and hasattr(self, 'filter_value'):
-            endpoint = f"{self.table_name}?{self.filter_column}=eq.{self.filter_value}"
-        result = self.client.execute_query(endpoint, "PUT", data)
+        # Preserva os filtros para atualização
+        result = self.client.execute_query(endpoint, "PUT", data, params=self.params)
         return {"data": [result]} if result else {"data": []}
+
+
+class InsertResponse:
+    def __init__(self, data):
+        self.data = data
+    
+    def execute(self):
+        # Simula o comportamento do Supabase
+        if self.data:
+            return {"data": [self.data]}
+        else:
+            return {"data": []}
+
+
 
 # Inicializar cliente Supabase simplificado
 supabase_client = SimpleSupabaseClient(SUPABASE_URL, SUPABASE_KEY)
@@ -356,7 +374,7 @@ def clear_dismissed_notifications():
     if "dismissed_notifications" in st.session_state:
         st.session_state.dismissed_notifications = set()
 
-
+# ------------ tirar dps
 debug_table_structure()
 
 # ==============================
@@ -411,7 +429,8 @@ def sign_up(username, password):
         }
         
         # Inserir usuário - CORREÇÃO AQUI
-        response = supabase_client.table("users").insert(user_data).execute()
+        response_obj = supabase_client.table("users").insert(user_data)
+        response = response_obj.execute()  # Agora chama execute() no objeto retornado
         
         st.write("🔍 DEBUG: Resposta completa do Supabase:")
         st.json(response)  # Isso mostrará a estrutura exata
@@ -443,6 +462,7 @@ def sign_up(username, password):
     except Exception as e:
         st.error(f"Erro completo: {traceback.format_exc()}")
         return False, f"Erro: {str(e)}"
+
 
 def sign_in(username, password):
     """Autentica um usuário usando username e senha"""
