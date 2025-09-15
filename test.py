@@ -60,6 +60,19 @@ def clear_auth_session():
     components.html(js_code, height=0)
 
 def check_persistent_auth():
+    if st.session_state.user is None and not st.session_state.get("force_login", False):
+    auth_data = check_persistent_auth()
+    if auth_data:
+        st.session_state.user = {
+            'username': auth_data['username'],
+            'id': auth_data['user_id'],
+            'is_admin': auth_data['is_admin']
+        }
+        st.session_state.user_id = auth_data['user_id']
+        st.session_state.username = auth_data['username']
+        st.session_state.is_admin = auth_data['is_admin']
+        st.session_state.show_login = False
+
     """Verifica se há autenticação salva em múltiplas fontes"""
     # 1. Verificar query parameters primeiro (mais rápido)
     query_params = st.experimental_get_query_params()
@@ -402,6 +415,7 @@ def sign_in(username, password):
             st.session_state.username = user_data.get("username")
             st.session_state.is_admin = user_data.get("is_admin", False)
             st.session_state.show_login = False
+            st.session_state.force_login = False  # 🚩 libera persistência de novo
             
             # SALVAR A SESSÃO - USANDO O NOVO MÉTODO
             save_auth_session(
@@ -424,11 +438,11 @@ def sign_out():
     st.session_state.user_id = None
     st.session_state.username = None
     st.session_state.is_admin = False
+    st.session_state.force_login = True  # 🚩 força pedir login na próxima vez
     
-    # LIMPAR SESSÃO - USANDO O NOVO MÉTODO
     clear_auth_session()
-    
     return True
+
 
 def get_current_user():
     """Retorna o usuário atual (simulado)"""
