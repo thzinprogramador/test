@@ -20,8 +20,6 @@ from PIL import Image
 
 
 
-
-
 # ==============================
 # SISTEMA DE PERSISTÊNCIA DE LOGIN MELHORADO
 # ==============================
@@ -180,6 +178,12 @@ st.set_page_config(
 # ==============================
 if "user" not in st.session_state:
     st.session_state.user = None
+if "user_id" not in st.session_state:
+    st.session_state.user_id = None
+if "username" not in st.session_state:
+    st.session_state.username = None
+if "is_admin" not in st.session_state:
+    st.session_state.is_admin = False
 if "current_track" not in st.session_state:
     st.session_state.current_track = None
 if "is_playing" not in st.session_state:
@@ -226,6 +230,7 @@ if "notifications_cache_timestamp" not in st.session_state:
     st.session_state.notifications_cache_timestamp = 0
 if "notifications_cache" not in st.session_state:
     st.session_state.notifications_cache = None
+
 
 # ==============================
 # VERIFICAÇÃO DE AUTENTICAÇÃO PERSISTENTE
@@ -346,17 +351,6 @@ def clear_dismissed_notifications():
     """Limpa a lista de notificações descartadas quando o usuário sai da página"""
     if "dismissed_notifications" in st.session_state:
         st.session_state.dismissed_notifications = set()
-
-
-if st.sidebar.button("🔧 Testar Autenticação (DEBUG)"):
-    test_username = "schutz"  # Altere para um usuário existente
-    test_password = "wavesong9090"  # Altere para a senha correta
-    
-    success, message = sign_in(test_username, test_password)
-    if success:
-        st.sidebar.success("✅ Login bem-sucedido!")
-    else:
-        st.sidebar.error(f"❌ Falha: {message}")
 
 # ==============================
 # SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO
@@ -701,10 +695,14 @@ def sign_in(username, password):
 
 def sign_out():
     """Desconecta o usuário"""
+    # Limpar todos os estados relacionados ao usuário
     st.session_state.user = None
     st.session_state.user_id = None
     st.session_state.username = None
     st.session_state.is_admin = False
+    st.session_state.show_login = False
+    st.session_state.current_page = "home"
+    st.session_state.show_request_form = False
     
     # LIMPAR SESSÃO - USANDO O NOVO MÉTODO
     clear_auth_session()
@@ -2189,7 +2187,6 @@ with st.sidebar:
         if st.button("🚪 Sair", key="logout_btn"):
             if sign_out():
                 st.success("Logout realizado!")
-                st.session_state.show_login = False  # Resetar o estado de login
                 st.rerun()
     else:
     # Usuário não logado - versão simplificada
@@ -2230,31 +2227,44 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Menu para usuários normais
-    if not st.session_state.admin_mode:
+
+    # Menu para usuários normais - APENAS se não estiver no modo admin
+    if not st.session_state.get('admin_mode', False):
         # Atualizar cache de notificações não lidas a cada 10 segundos
+        current_time = time.time()
         if ("unread_notifications_cache" not in st.session_state or 
-            time.time() - st.session_state.get("unread_cache_timestamp", 0) > 10):
+            current_time - st.session_state.get("unread_cache_timestamp", 0) > 10):
             st.session_state.unread_notifications_cache = check_unread_notifications()
-            st.session_state.unread_cache_timestamp = time.time()
+            st.session_state.unread_cache_timestamp = current_time
     
         unread_notifications = st.session_state.unread_notifications_cache
         notification_text = f"🔔 Notificações ({unread_notifications})" if unread_notifications else "🔔 Notificações"
 
-        if st.button(notification_text, use_container_width=True, key="btn_notifications"):
-            st.session_state.current_page = "notifications"
-            st.session_state.show_request_form = False
+        # Usar chaves únicas para os botões baseadas no estado do usuário
+        user_suffix = st.session_state.user_id if st.session_state.user_id else "guest"
+    
+        col1, col2, col3 = st.columns(3)
+    
+        with col1:
+            if st.button("🏠", help="Página Inicial", key=f"home_{user_suffix}"):
+                st.session_state.current_page = "home"
+                st.session_state.show_request_form = False
+                st.rerun()
+    
+        with col2:
+            if st.button("🔍", help="Buscar Músicas", key=f"search_{user_suffix}"):
+                st.session_state.current_page = "search"
+                st.session_state.show_request_form = False
+                st.rerun()
+    
+        with col3:
+            if st.button(notification_text, help="Notificações", key=f"notif_{user_suffix}"):
+                st.session_state.current_page = "notifications"
+                st.session_state.show_request_form = False
+                st.rerun()
 
-        if st.button("Página Inicial", key="btn_home", use_container_width=True):
-            st.session_state.current_page = "home"
-            st.session_state.show_request_form = False
-            
-        if st.button("Buscar Músicas", key="btn_search", use_container_width=True):
-            st.session_state.current_page = "search"
-            st.session_state.show_request_form = False
 
-
-        # Menu para administradores
+    # Menu para administradores
     if st.session_state.is_admin:
         st.markdown("---")
         st.subheader("🛡️ Painel de Administração")
