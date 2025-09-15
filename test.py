@@ -120,38 +120,7 @@ def validate_auth_data(auth_data):
 
 
 # ----------------teste-------------------------------------------
-def debug_supabase_response():
-    """Função para debug da estrutura de resposta"""
-    try:
-        # Teste simples para ver a estrutura
-        test_response = supabase_client.table("users").select("count").execute()
-        st.write("🔍 ESTRUTURA DA RESPOSTA:", test_response)
-        
-        # Teste de inserção
-        test_data = {"username": "test_user", "password_hash": "test_hash"}
-        insert_response = supabase_client.table("users").insert(test_data).execute()
-        st.write("🔍 RESPOSTA DE INSERÇÃO:", insert_response)
-        
-    except Exception as e:
-        st.write(f"❌ ERRO NO DEBUG: {e}")
 
-
-def debug_table_structure():
-    """Debug da estrutura da tabela users"""
-    try:
-        # Verificar estrutura da tabela
-        test_response = supabase_client.table("users").select("id, username, created_at").execute()
-        st.write("🔍 ESTRUTURA DA TABELA USERS:", test_response)
-        
-        # Verificar todos os usuários (apenas para debug)
-        all_users = supabase_client.table("users").select("id, username, created_at").execute()
-        st.write("🔍 TODOS OS USUÁRIOS:", all_users)
-        
-    except Exception as e:
-        st.write(f"❌ ERRO NO DEBUG DA TABELA: {e}")
-        
-# Chame esta função em algum lugar para debug
-# debug_table_structure()
 
 
 # -----------------------------------------------------------------
@@ -374,8 +343,6 @@ def clear_dismissed_notifications():
     if "dismissed_notifications" in st.session_state:
         st.session_state.dismissed_notifications = set()
 
-# ------------ tirar dps
-debug_table_structure()
 
 # ==============================
 # SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO (SEM EMAIL)
@@ -440,8 +407,6 @@ def sign_up(username, password):
         response_obj = supabase_client.table("users").insert(user_data)
         response = response_obj.execute()
         
-        st.write("🔍 DEBUG: Resposta completa do Supabase:")
-        st.json(response)
         
         # VERIFICAÇÃO CORRIGIDA - verificar se a inserção foi bem-sucedida
         if response and isinstance(response, dict) and response.get("data"):
@@ -456,10 +421,9 @@ def sign_up(username, password):
                     send_telegram_notification(telegram_message)
                     return True, "✅ Login criado com sucesso!"
             
-        st.write("❌ DEBUG: Nenhum dado retornado na resposta ou inserção falhou")
+
         # Verificação final no banco
         if username_exists(username):
-            st.write("✅ DEBUG: Usuário encontrado após criação (verificação direta)")
             return True, "✅ Login criado com sucesso!"
         else:
             return False, "Erro ao criar conta - usuário não encontrado após tentativa"
@@ -475,14 +439,10 @@ def sign_in(username, password):
         # Buscar usuário no banco
         response = supabase_client.table("users").select("*").eq("username", username).execute()
         
-        st.write("🔍 DEBUG - Resposta do login:", response)  # Para debug
-        
         if not response.get("data") or len(response.get("data", [])) == 0:
-            st.write(f"❌ DEBUG: Nenhum usuário encontrado para {username}")
             return False, "Usuário não encontrado!"
         else:
             user_data = response["data"][0]
-            st.write(f"✅ DEBUG: Usuário encontrado: {user_data}")
         
         # Verificar senha
         if check_password(password, user_data["password_hash"]):
