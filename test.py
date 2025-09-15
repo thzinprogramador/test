@@ -121,36 +121,7 @@ def validate_auth_data(auth_data):
 
 # ----------------teste-------------------------------------------
 
-def debug_password_check():
-    """Função temporária para debug da senha"""
-    st.subheader("🔍 Debug de Senha")
-    
-    test_password = st.text_input("Senha para testar:", type="password", key="debug_password")
-    if st.button("Testar Senha"):
-        # Hash do usuário thxhe
-        thxhe_hash = "$2b$12$0QHCSpAATQ4ZfB3P4FTYR./YwVXc/rXiujDmVf47EQdcz9pqswYX6"
-        
-        # Testar a senha fornecida
-        result = check_password(test_password, thxhe_hash)
-        
-        if result:
-            st.success("✅ Senha CORRETA!")
-        else:
-            st.error("❌ Senha INCORRETA!")
-            
-        # Mostrar informações de debug
-        st.write("Hash sendo testado:", thxhe_hash)
-        st.write("Senha testada:", test_password)
-        
-        # Testar também com a hash do schutz para comparação
-        schutz_hash = "$2a$06$axRQvLmWV/DNSQKG.XGobOSBrJu7ZXcPuaArYJ/JckGhlTsLw0sm2"
-        result_schutz = check_password(test_password, schutz_hash)
-        st.write("Resultado com hash do schutz:", result_schutz)
 
-# Adicione esta chamada em algum lugar apropriado, como na página de admin
-
-
-debug_password_check()
 
 # --------------------------------------------------------------------
 def get_current_timestamp():
