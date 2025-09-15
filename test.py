@@ -164,6 +164,8 @@ st.set_page_config(
 # ==============================
 # ESTADO DA SESSÃO
 # ==============================
+if "user" not in st.session_state:
+    st.session_state.user = None
 if "current_track" not in st.session_state:
     st.session_state.current_track = None
 if "is_playing" not in st.session_state:
@@ -214,7 +216,7 @@ if "notifications_cache" not in st.session_state:
 # ==============================
 # VERIFICAÇÃO DE AUTENTICAÇÃO PERSISTENTE
 # ==============================
-if not st.session_state.user:
+if st.session_state.user is None:
     auth_data = check_persistent_auth()
     if auth_data:
         st.session_state.user = {
