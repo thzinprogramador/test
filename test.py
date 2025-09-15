@@ -9,12 +9,60 @@ import base64
 import threading
 import traceback
 import bcrypt
+import json
 import gc
 import re
 import unicodedata
 from firebase_admin import credentials, db
 from io import BytesIO
 from PIL import Image
+
+def save_auth_to_cookies(username, user_id, is_admin):
+    """Salva as informações de autenticação nos cookies"""
+    auth_data = {
+        'username': username,
+        'user_id': user_id,
+        'is_admin': is_admin,
+        'timestamp': datetime.datetime.now().isoformat()
+    }
+    st.experimental_set_query_params(auth=json.dumps(auth_data))
+
+def load_auth_from_cookies():
+    """Carrega as informações de autenticação dos cookies"""
+    query_params = st.experimental_get_query_params()
+    if 'auth' in query_params:
+        try:
+            auth_data = json.loads(query_params['auth'][0])
+            # Verificar se a sessão não expirou (opcional)
+            return auth_data
+        except:
+            pass
+    return None
+
+def clear_auth_cookies():
+    """Limpa as informações de autenticação"""
+    st.experimental_set_query_params()
+
+
+# ==============================
+# VERIFICAÇÃO DE AUTENTICAÇÃO VIA COOKIES
+# ==============================
+def check_persistent_auth():
+    """Verifica se há autenticação salva nos cookies"""
+    auth_data = load_auth_from_cookies()
+    if auth_data and not st.session_state.user:
+        # Restaurar sessão a partir dos cookies
+        st.session_state.user = {
+            'username': auth_data['username'],
+            'id': auth_data['user_id'],
+            'is_admin': auth_data['is_admin']
+        }
+        st.session_state.user_id = auth_data['user_id']
+        st.session_state.username = auth_data['username']
+        st.session_state.is_admin = auth_data['is_admin']
+        st.session_state.show_login = False
+
+
 
 
 def get_current_timestamp():
@@ -50,6 +98,9 @@ def search_songs_in_firebase(query):
     ref = db.reference("/songs")
     songs = ref.order_by_child("title").start_at(query).end_at(query + "\uf8ff").get()
     return songs
+
+
+
 
 # ==============================
 # CONFIGURAÇÃO DA PÁGINA
@@ -110,6 +161,11 @@ if "notifications_cache_timestamp" not in st.session_state:
     st.session_state.notifications_cache_timestamp = 0
 if "notifications_cache" not in st.session_state:
     st.session_state.notifications_cache = None
+
+# ==============================
+# VERIFICAÇÃO DE AUTENTICAÇÃO PERSISTENTE
+# ==============================
+check_persistent_auth()
 
 
 # ==============================
@@ -269,11 +325,8 @@ def sign_up(username, password):
 def sign_in(username, password):
     """Autentica um usuário usando username e senha"""
     try:
-        # Buscar usuário no banco - método mais direto
+        # Buscar usuário no banco
         response = supabase_client.table("users").select("*").eq("username", username).execute()
-        
-        # REMOVER ESTA LINHA DE DEBUG:
-        # st.info(f"Resposta do login: {response}")
         
         if not response.get("data") or len(response.get("data", [])) == 0:
             return False, "Usuário não encontrado!"
@@ -288,6 +341,13 @@ def sign_in(username, password):
             st.session_state.is_admin = user_data.get("is_admin", False)
             st.session_state.show_login = False
             
+            # SALVAR NOS COOKIES
+            save_auth_to_cookies(
+                st.session_state.username, 
+                st.session_state.user_id, 
+                st.session_state.is_admin
+            )
+            
             return True, "Login realizado com sucesso!"
         else:
             return False, "Senha incorreta!"
@@ -296,13 +356,16 @@ def sign_in(username, password):
         st.error(f"Erro no login: {str(e)}")
         return False, f"Erro: {str(e)}"
 
-
 def sign_out():
     """Desconecta o usuário"""
     st.session_state.user = None
     st.session_state.user_id = None
     st.session_state.username = None
     st.session_state.is_admin = False
+    
+    # LIMPAR COOKIES
+    clear_auth_cookies()
+    
     return True
 
 def get_current_user():
