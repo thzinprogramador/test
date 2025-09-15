@@ -391,7 +391,8 @@ def sign_up(username, password):
             "is_admin": False
         }
         
-        response = supabase_client.table("users").insert(user_data).execute()
+        # AQUI: Remova o .execute() porque o insert já executa a operação
+        response = supabase_client.table("users").insert(user_data)
         
         st.write("🔍 DEBUG: Resposta completa do Supabase:")
         st.json(response)  # Isso mostrará a estrutura exata
