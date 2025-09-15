@@ -9,144 +9,14 @@ import base64
 import threading
 import traceback
 import bcrypt
-import json
 import gc
 import re
 import unicodedata
-import streamlit.components.v1 as components
 from firebase_admin import credentials, db
 from io import BytesIO
 from PIL import Image
 
-if "auth" not in st.session_state:
-    auth_data = check_persistent_auth()  # Usa sua própria função para ler localStorage
-    if auth_data:
-        st.session_state["auth"] = auth_data
 
-# ==============================
-# PERSISTÊNCIA DE SESSÃO (atualizada)
-# ==============================
-def save_auth_session(username, user_id, is_admin):
-    """Salva sessão de forma segura (sem deixar dados sensíveis na URL)"""
-    auth_data = {
-        'username': username,
-        'user_id': user_id,
-        'is_admin': is_admin,
-        'timestamp': datetime.datetime.now().isoformat()
-    }
-
-    # Salvar no session_state (backup seguro)
-    st.session_state["auth_backup"] = auth_data
-
-    # 🔴 Removido: NÃO atualizar query params com dados de autenticação
-    try:
-        st.experimental_set_query_params()  # limpa a URL
-    except:
-        pass
-
-    payload = json.dumps(auth_data).replace("'", "\\'")
-    js_code = f"""
-    <script>
-    try {{
-      localStorage.setItem('wave_auth', '{payload}');
-      sessionStorage.setItem('wave_auth', '{payload}');
-      localStorage.removeItem('wave_last_logout');
-    }} catch(e) {{
-      console.error("save_auth_session error:", e);
-    }}
-    </script>
-    """
-    components.html(js_code, height=0)
-
-
-def clear_auth_session():
-    """Remove dados de sessão de forma universal"""
-    st.session_state["auth_backup"] = None  # 🔑 limpa backup no servidor
-    try:
-        st.experimental_set_query_params()
-    except:
-        pass
-
-    logout_ts = datetime.datetime.now().isoformat()
-    js_code = f"""
-    <script>
-    try {{
-      localStorage.removeItem('wave_auth');
-      sessionStorage.removeItem('wave_auth');
-      localStorage.setItem('wave_last_logout', '{logout_ts}');
-    }} catch(e) {{
-      console.error("clear_auth_session error:", e);
-    }}
-    </script>
-    """
-    components.html(js_code, height=0)
-
-
-def check_persistent_auth():
-    """Verifica sessão de forma segura"""
-    # 1) Primeiro tenta restaurar do localStorage via JS
-    js_code = """
-    <script>
-    try {
-        var authData = localStorage.getItem('wave_auth');
-        if (authData) {
-            window.parent.postMessage({
-                type: 'AUTH_DATA',
-                data: JSON.stringify({ auth: authData })
-            }, '*');
-        }
-    } catch(e) {
-        console.error("check_persistent_auth error:", e);
-    }
-    </script>
-    """
-    components.html(js_code, height=0)
-
-    # 2) Captura do JS
-    if 'auth_data' in st.session_state and st.session_state.auth_data:
-        try:
-            payload = json.loads(st.session_state.auth_data)
-            raw_auth = payload.get("auth")
-            if isinstance(raw_auth, str):
-                auth_obj = json.loads(raw_auth)
-                if validate_auth_data(auth_obj):
-                    return auth_obj
-        except:
-            pass
-
-    # 3) Fallback no servidor
-    if "auth_backup" in st.session_state and validate_auth_data(st.session_state["auth_backup"]):
-        return st.session_state["auth_backup"]
-
-    # (Opcional) 4) Query params - usar só para login via link especial (se precisar)
-    query_params = st.experimental_get_query_params()
-    if 'auth' in query_params:
-        try:
-            auth_data = json.loads(query_params['auth'][0])
-            if validate_auth_data(auth_data):
-                return auth_data
-        except:
-            pass
-
-    return None
-
-
-def validate_auth_data(auth_data):
-    """Valida os dados de autenticação"""
-    try:
-        if not all(key in auth_data for key in ['username', 'user_id', 'is_admin', 'timestamp']):
-            return False
-        
-        # Verificar se a sessão não expirou (30 dias)
-        timestamp = datetime.datetime.fromisoformat(auth_data['timestamp'])
-        if (datetime.datetime.now() - timestamp).days > 30:
-            return False
-            
-        return True
-    except:
-        return False
-
-# -----------------------------------------------------------------
 def get_current_timestamp():
     """Retorna timestamp formatado corretamente para Firebase"""
     return datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
@@ -181,9 +51,6 @@ def search_songs_in_firebase(query):
     songs = ref.order_by_child("title").start_at(query).end_at(query + "\uf8ff").get()
     return songs
 
-
-
-
 # ==============================
 # CONFIGURAÇÃO DA PÁGINA
 # ==============================
@@ -197,8 +64,6 @@ st.set_page_config(
 # ==============================
 # ESTADO DA SESSÃO
 # ==============================
-if "user" not in st.session_state:
-    st.session_state.user = None
 if "current_track" not in st.session_state:
     st.session_state.current_track = None
 if "is_playing" not in st.session_state:
@@ -246,25 +111,9 @@ if "notifications_cache_timestamp" not in st.session_state:
 if "notifications_cache" not in st.session_state:
     st.session_state.notifications_cache = None
 
-# ==============================
-# VERIFICAÇÃO DE AUTENTICAÇÃO PERSISTENTE
-# ==============================
-if st.session_state.user is None and not st.session_state.get("force_login", False):
-    auth_data = check_persistent_auth()
-    if auth_data:
-        st.session_state.user = {
-            'username': auth_data['username'],
-            'id': auth_data['user_id'],
-            'is_admin': auth_data['is_admin']
-        }
-        st.session_state.user_id = auth_data['user_id']
-        st.session_state.username = auth_data['username']
-        st.session_state.is_admin = auth_data['is_admin']
-        st.session_state.show_login = False
-
 
 # ==============================
-# CONFIGURAÇÕES DO SUPABASE
+# CONFIGURAÇÕES DO SUPABASE (SIMPLIFICADO)
 # ==============================
 SUPABASE_URL = "https://wvouegbuvuairukkupit.supabase.co" 
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2b3VlZ2J1dnVhaXJ1a2t1cGl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0NzM3NjAsImV4cCI6MjA3MzA0OTc2MH0.baLFbRTaMM8FCFG2a-Yb80Sg7JqhdQ6EMld8h7BABiE"
@@ -420,30 +269,29 @@ def sign_up(username, password):
 def sign_in(username, password):
     """Autentica um usuário usando username e senha"""
     try:
+        # Buscar usuário no banco - método mais direto
         response = supabase_client.table("users").select("*").eq("username", username).execute()
+        
+        # REMOVER ESTA LINHA DE DEBUG:
+        # st.info(f"Resposta do login: {response}")
+        
         if not response.get("data") or len(response.get("data", [])) == 0:
             return False, "Usuário não encontrado!"
-        user_data = response["data"][0]
-
+        else:
+            user_data = response["data"][0]
+        
+        # Verificar senha
         if check_password(password, user_data["password_hash"]):
-            # Limpar sessão antiga no navegador (garante que não resta auth velha)
-            clear_auth_session()
-
-            # Definir estado do servidor
             st.session_state.user = user_data
             st.session_state.user_id = user_data.get("id")
             st.session_state.username = user_data.get("username")
             st.session_state.is_admin = user_data.get("is_admin", False)
             st.session_state.show_login = False
-            st.session_state.force_login = False
-            st.session_state.last_logout = None
-
-            # Salvar nova sessão no navegador
-            save_auth_session(st.session_state.username, st.session_state.user_id, st.session_state.is_admin)
-
+            
             return True, "Login realizado com sucesso!"
         else:
             return False, "Senha incorreta!"
+            
     except Exception as e:
         st.error(f"Erro no login: {str(e)}")
         return False, f"Erro: {str(e)}"
@@ -455,17 +303,7 @@ def sign_out():
     st.session_state.user_id = None
     st.session_state.username = None
     st.session_state.is_admin = False
-
-    # marcar logout no servidor para invalidar qualquer auth remanescente
-    ts = datetime.datetime.now().isoformat()
-    st.session_state.last_logout = ts
-    st.session_state.force_login = True
-
-    # Limpar a sessão no navegador (escreve wave_last_logout)
-    clear_auth_session()
     return True
-
-
 
 def get_current_user():
     """Retorna o usuário atual (simulado)"""
@@ -605,40 +443,6 @@ def direct_sql_query(sql):
     except Exception as e:
         st.error(f"Erro no SQL direto: {e}")
         return None
-
-
-# ==============================
-# JAVASCRIPT MESSAGE HANDLER
-# ==============================
-# Adicionar este código para capturar mensagens do JavaScript
-js_message_handler = """
-<script>
-window.addEventListener('message', function(event) {
-    if (event.data.type === 'AUTH_DATA') {
-        window.parent.postMessage({
-            type: 'STREAMLIT_AUTH_DATA',
-            data: event.data.data
-        }, '*');
-    }
-});
-</script>
-"""
-
-components.html(js_message_handler, height=0)
-
-# Verificar se há mensagens do JavaScript
-try:
-    from streamlit.runtime.scriptrunner import get_script_run_ctx
-    ctx = get_script_run_ctx()
-    if ctx and hasattr(ctx, 'request') and hasattr(ctx.request, '_request_data'):
-        request_data = ctx.request._request_data
-        if 'type' in request_data and request_data['type'] == 'STREAMLIT_AUTH_DATA':
-            st.session_state.auth_data = request_data['data']
-except:
-    pass
-
-
-
 
 # ==============================
 # CONFIGURAÇÕES DE SEGURANÇA
@@ -2143,8 +1947,8 @@ elif st.session_state.current_page == "stats":
     with col3:
         st.metric("Regras Firebase", check_firebase_rules())
     
-    #if st.button("Voltar"):
-        #st.session_state.current_page = "home"
+    if st.button("Voltar"):
+        st.session_state.current_page = "home"
 
 
 elif st.session_state.current_page == "notifications":
@@ -2159,9 +1963,9 @@ elif st.session_state.current_page == "notifications":
         st.stop()
     
     # Botão para recarregar
-    #if st.button("🔄 Atualizar Notificações", key="refresh_notifications"):
-        #st.session_state.notifications_cache = None
-        #st.rerun()
+    if st.button("🔄 Atualizar Notificações", key="refresh_notifications"):
+        st.session_state.notifications_cache = None
+        st.rerun()
     
     try:
         # Buscar TODAS as notificações (sem filtrar por lidas)
@@ -2221,8 +2025,8 @@ elif st.session_state.current_page == "notifications":
         
         if not all_notifications:
             st.info("📝 Não há notificações no momento.")
-            #if st.button("Voltar para o Início", key="back_from_notifications_empty"):
-                #st.session_state.current_page = "home"
+            if st.button("Voltar para o Início", key="back_from_notifications_empty"):
+                st.session_state.current_page = "home"
             st.stop()
         
         # Exibir notificações
@@ -2254,13 +2058,13 @@ elif st.session_state.current_page == "notifications":
             </div>
             """, unsafe_allow_html=True)
         
-        #if st.button("Voltar para o Início", key="back_from_notifications"):
-            #st.session_state.current_page = "home"
+        if st.button("Voltar para o Início", key="back_from_notifications"):
+            st.session_state.current_page = "home"
             
     except Exception as e:
         st.error(f"❌ Erro ao carregar notificações: {e}")
-        #if st.button("Voltar para o Início", key="back_from_notifications_error"):
-            #st.session_state.current_page = "home"
+        if st.button("Voltar para o Início", key="back_from_notifications_error"):
+            st.session_state.current_page = "home"
 
 
 # ==============================
