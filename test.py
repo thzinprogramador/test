@@ -136,6 +136,24 @@ def debug_supabase_response():
         st.write(f"❌ ERRO NO DEBUG: {e}")
 
 
+def debug_table_structure():
+    """Debug da estrutura da tabela users"""
+    try:
+        # Verificar estrutura da tabela
+        test_response = supabase_client.table("users").select("id, username, created_at").limit(1).execute()
+        st.write("🔍 ESTRUTURA DA TABELA USERS:", test_response)
+        
+        # Verificar todos os usuários (apenas para debug)
+        all_users = supabase_client.table("users").select("id, username, created_at").execute()
+        st.write("🔍 TODOS OS USUÁRIOS:", all_users)
+        
+    except Exception as e:
+        st.write(f"❌ ERRO NO DEBUG DA TABELA: {e}")
+
+# Chame esta função em algum lugar para debug
+# debug_table_structure()
+
+
 # -----------------------------------------------------------------
 def get_current_timestamp():
     """Retorna timestamp formatado corretamente para Firebase"""
@@ -339,7 +357,7 @@ def clear_dismissed_notifications():
         st.session_state.dismissed_notifications = set()
 
 
-
+debug_table_structure()
 
 # ==============================
 # SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO (SEM EMAIL)
@@ -368,8 +386,9 @@ def check_password(password, hashed_password):
 def username_exists(username):
     """Verifica se o username já existe"""
     try:
-        response = supabase_client.table("users").select("username").eq("username", username).execute()
-        return len(response.get("data", [])) > 0
+        response = supabase_client.table("users").select("id, username").eq("username", username).execute()
+        st.write(f"🔍 DEBUG username_exists: {response}")  # Para debug
+        return response.get("data") and len(response.get("data", [])) > 0
     except Exception as e:
         st.error(f"Erro ao verificar usuário: {e}")
         return False
@@ -391,27 +410,39 @@ def sign_up(username, password):
             "is_admin": False
         }
         
-        # AQUI: Remova o .execute() porque o insert já executa a operação
-        response = supabase_client.table("users").insert(user_data)
+        # Inserir usuário - CORREÇÃO AQUI
+        response = supabase_client.table("users").insert(user_data).execute()
         
         st.write("🔍 DEBUG: Resposta completa do Supabase:")
         st.json(response)  # Isso mostrará a estrutura exata
         
-        # Verificação adaptada para UUID
-        if response and isinstance(response, dict) and response.get("data"):
+        # VERIFICAÇÃO CORRIGIDA
+        if response and isinstance(response, dict) and response.get("data") and len(response["data"]) > 0:
             user_data = response["data"][0]
-            st.write(f"✅ DEBUG: Conta criada com ID: {user_data.get('id')}")
+            user_id = user_data.get('id')
             
-            telegram_message = f"👤 Nova conta: {username}"
-            send_telegram_notification(telegram_message)
-            return True, "✅ Login criado com sucesso!"
+            if user_id:
+                st.write(f"✅ DEBUG: Conta criada com ID: {user_id}")
+                telegram_message = f"👤 Nova conta: {username}"
+                send_telegram_notification(telegram_message)
+                return True, "✅ Login criado com sucesso!"
+            else:
+                st.write("⚠️ DEBUG: Conta criada mas ID não retornado")
+                # Se não tem ID, ainda consideramos sucesso mas logamos o aviso
+                return True, "✅ Login criado com sucesso!"
         else:
-            return False, "Erro ao criar conta"
+            st.write("❌ DEBUG: Nenhum dado retornado na resposta")
+            # Mesmo sem dados, se a conta foi criada, podemos considerar sucesso
+            # Verificamos diretamente no banco se o usuário foi criado
+            if username_exists(username):
+                st.write("✅ DEBUG: Usuário encontrado após criação (verificação direta)")
+                return True, "✅ Login criado com sucesso!"
+            else:
+                return False, "Erro ao criar conta - usuário não encontrado após tentativa"
             
     except Exception as e:
         st.error(f"Erro completo: {traceback.format_exc()}")
         return False, f"Erro: {str(e)}"
-
 
 def sign_in(username, password):
     """Autentica um usuário usando username e senha"""
@@ -422,9 +453,11 @@ def sign_in(username, password):
         st.write("🔍 DEBUG - Resposta do login:", response)  # Para debug
         
         if not response.get("data") or len(response.get("data", [])) == 0:
+            st.write(f"❌ DEBUG: Nenhum usuário encontrado para {username}")
             return False, "Usuário não encontrado!"
         else:
             user_data = response["data"][0]
+            st.write(f"✅ DEBUG: Usuário encontrado: {user_data}")
         
         # Verificar senha
         if check_password(password, user_data["password_hash"]):
