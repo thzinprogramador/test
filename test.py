@@ -19,25 +19,7 @@ from io import BytesIO
 from PIL import Image
 
 
-def diagnose_all_users():
-    """Função para diagnosticar todos os usuários e seus hashes"""
-    try:
-        users = supabase_client.table("users").select("id, username, password_hash, created_at, is_admin").execute()
-        
-        if users.get("data"):
-            print("=== DIAGNÓSTICO COMPLETO DOS USUÁRIOS ===")
-            for user in users["data"]:
-                print(f"\n--- Usuário: {user['username']} ---")
-                print(f"ID: {user['id']}")
-                print(f"Hash: '{user.get('password_hash', 'NONE')}'")
-                print(f"Tipo hash: {user.get('password_hash', '')[:4] if user.get('password_hash') else 'NONE'}")
-                print(f"Comprimento hash: {len(user.get('password_hash', '')) if user.get('password_hash') else 0}")
-                print(f"Admin: {user.get('is_admin', False)}")
-                print(f"Criado em: {user.get('created_at', 'N/A')}")
-        else:
-            print("DEBUG: Nenhum usuário encontrado")
-    except Exception as e:
-        print(f"DEBUG: Erro ao buscar usuários: {e}")
+
 
 
 # ==============================
@@ -365,9 +347,6 @@ def clear_dismissed_notifications():
     if "dismissed_notifications" in st.session_state:
         st.session_state.dismissed_notifications = set()
 
-print("=== INICIANDO DIAGNÓSTICO DO SISTEMA ===")
-diagnose_all_users()
-
 
 if st.sidebar.button("🔧 Testar Autenticação (DEBUG)"):
     test_username = "schutz"  # Altere para um usuário existente
@@ -661,18 +640,26 @@ def sign_up(username, password):
 def sign_in(username, password):
     """Autentica um usuário usando username e senha"""
     try:
-        # Buscar usuário no banco
-        response = supabase_client.table("users").select("*").eq("username", username).execute()
+        # Buscar usuário no banco - busca todos os usuários primeiro
+        response = supabase_client.table("users").select("*").execute()
         
         # Debug: verificar o que está retornando
         print(f"DEBUG: Resposta do Supabase: {response}")
         
         if not response.get("data") or len(response.get("data", [])) == 0:
+            print(f"DEBUG: Nenhum usuário encontrado no banco")
+            return False, "Nenhum usuário cadastrado!"
+        
+        # Procurar o usuário com username exato (case-sensitive)
+        user_data = None
+        for user in response["data"]:
+            if user.get("username") == username:
+                user_data = user
+                break
+        
+        if user_data is None:
             print(f"DEBUG: Usuário '{username}' não encontrado")
             return False, "Usuário não encontrado!"
-        else:
-            user_data = response["data"][0]
-            print(f"DEBUG: Dados do usuário encontrado: {user_data}")
         
         # Verificar se a senha existe no user_data
         if "password_hash" not in user_data:
@@ -711,28 +698,6 @@ def sign_in(username, password):
         print(f"DEBUG: {error_msg}")
         print(f"DEBUG: Traceback: {traceback.format_exc()}")
         return False, error_msg
-
-
-def debug_all_users_hashes():
-    """Função de debug para verificar todos os hashes de usuários"""
-    try:
-        users = supabase_client.table("users").select("id, username, password_hash").execute()
-        
-        if users.get("data"):
-            print("=== DEBUG: TODOS OS USUÁRIOS E SEUS HASHES ===")
-            for user in users["data"]:
-                print(f"Usuário: {user['username']}")
-                print(f"Hash: '{user.get('password_hash', 'NONE')}'")
-                print(f"Tipo: {user.get('password_hash', '')[:4] if user.get('password_hash') else 'NONE'}")
-                print(f"Comprimento: {len(user.get('password_hash', '')) if user.get('password_hash') else 0}")
-                print("---")
-        else:
-            print("DEBUG: Nenhum usuário encontrado")
-    except Exception as e:
-        print(f"DEBUG: Erro ao buscar usuários: {e}")
-
-
-debug_all_users_hashes()
 
 def sign_out():
     """Desconecta o usuário"""
