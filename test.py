@@ -1868,7 +1868,7 @@ def send_telegram_command_response(command, message=""):
             # Estatísticas reais
             try:
                 # Buscar total de usuários do Supabase
-                users_response = supabase_client.table("users").select("id").execute
+                users_response = supabase_client.table("users").select("id").execute()
                 total_songs = len(st.session_state.all_songs)
                 response = f"""👥 *Estatísticas do Wave Song*
 
@@ -2758,8 +2758,4 @@ div[data-testid="stVerticalBlock"] > div:has(button:contains("Pedir Música +"))
 }
 </style>
 """, unsafe_allow_html=True)
-
-
-print("=== INICIANDO DIAGNÓSTICO ===")
-diagnose_password_issue()
 
