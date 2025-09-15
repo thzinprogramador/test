@@ -31,7 +31,7 @@ def save_auth_session(username, user_id, is_admin):
     }
     
     # Método 1: Query parameters (funciona imediatamente)
-    st.experimental_set_query_params(auth=json.dumps(auth_data))
+    # st.experimental_set_query_params(auth=json.dumps(auth_data))
     
     # Método 2: Session Storage (persiste entre recargas)
     js_code = f"""
