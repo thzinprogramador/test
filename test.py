@@ -22,7 +22,7 @@ from PIL import Image
 # PERSISTÊNCIA DE SESSÃO (atualizada)
 # ==============================
 def save_auth_session(username, user_id, is_admin):
-    """Salva a sessão (sessionStorage + localStorage) e remove last_logout"""
+    """Salva a sessão no localStorage (persistente) e em backup no servidor"""
     auth_data = {
         'username': username,
         'user_id': user_id,
@@ -30,20 +30,21 @@ def save_auth_session(username, user_id, is_admin):
         'timestamp': datetime.datetime.now().isoformat()
     }
 
-    # Atualizar query params (opcional)
+    # Backup server-side
+    st.session_state["auth_backup"] = auth_data
+
+    # Atualizar query params (não é essencial, mas ajuda em share links)
     try:
         st.experimental_set_query_params(auth=json.dumps(auth_data))
     except:
         pass
 
-    # Salvar no session/localStorage e remover last_logout
     payload = json.dumps(auth_data).replace("'", "\\'")
     js_code = f"""
     <script>
     try {{
-      sessionStorage.setItem('wave_auth', '{payload}');
       localStorage.setItem('wave_auth', '{payload}');
-      // remover flag de logout anterior
+      sessionStorage.setItem('wave_auth', '{payload}');
       localStorage.removeItem('wave_last_logout');
     }} catch(e) {{
       console.error("save_auth_session error:", e);
@@ -54,20 +55,19 @@ def save_auth_session(username, user_id, is_admin):
 
 
 def clear_auth_session():
-    """Limpa a sessão do navegador e grava o timestamp do logout"""
-    # Limpar query params no servidor
+    """Remove dados de sessão de forma universal"""
+    st.session_state["auth_backup"] = None  # 🔑 limpa backup no servidor
     try:
         st.experimental_set_query_params()
     except:
         pass
 
     logout_ts = datetime.datetime.now().isoformat()
-    # Remover wave_auth e gravar wave_last_logout para invalidar sessões antigas
     js_code = f"""
     <script>
     try {{
-      sessionStorage.removeItem('wave_auth');
       localStorage.removeItem('wave_auth');
+      sessionStorage.removeItem('wave_auth');
       localStorage.setItem('wave_last_logout', '{logout_ts}');
     }} catch(e) {{
       console.error("clear_auth_session error:", e);
@@ -78,31 +78,22 @@ def clear_auth_session():
 
 
 def check_persistent_auth():
-    """Verifica se há autenticação salva em múltiplas fontes e valida last_logout"""
-    # 1) Primeiro tentar query params (mais imediatos)
+    """Restaura sessão de forma compatível com todos navegadores"""
+    # 1) Query params
     query_params = st.experimental_get_query_params()
     if 'auth' in query_params:
         try:
             auth_data = json.loads(query_params['auth'][0])
             if validate_auth_data(auth_data):
-                # checar se houve logout mais recente no servidor
-                try:
-                    if st.session_state.get('last_logout'):
-                        last_logout_dt = datetime.datetime.fromisoformat(st.session_state.get('last_logout'))
-                        auth_ts = datetime.datetime.fromisoformat(auth_data['timestamp'])
-                        if last_logout_dt > auth_ts:
-                            return None
-                except:
-                    pass
                 return auth_data
         except:
             pass
 
-    # 2) Enviar script que posta auth + last_logout via postMessage (será capturado no backend)
+    # 2) localStorage/sessionStorage via JS
     js_code = """
     <script>
     try {
-        var authData = sessionStorage.getItem('wave_auth') || localStorage.getItem('wave_auth');
+        var authData = localStorage.getItem('wave_auth') || sessionStorage.getItem('wave_auth');
         var lastLogout = localStorage.getItem('wave_last_logout') || null;
         if (authData) {
             window.parent.postMessage({
@@ -117,51 +108,24 @@ def check_persistent_auth():
     """
     components.html(js_code, height=0)
 
-    # 3) Tentar ler o payload que o JS postou (via a captura que você já tem)
-    try:
-        if 'auth_data' in st.session_state and st.session_state.auth_data:
+    # 3) Captura do JS
+    if 'auth_data' in st.session_state and st.session_state.auth_data:
+        try:
             payload = json.loads(st.session_state.auth_data)
-            auth_obj = None
-            last_logout = None
+            raw_auth = payload.get("auth")
+            if isinstance(raw_auth, str):
+                auth_obj = json.loads(raw_auth)
+                if validate_auth_data(auth_obj):
+                    return auth_obj
+        except:
+            pass
 
-            # payload pode ser {auth: "<json-string>", last_logout: "..."} ou já ser o auth direto
-            if isinstance(payload, dict) and 'auth' in payload:
-                raw_auth = payload.get('auth')
-                last_logout = payload.get('last_logout')
-                if isinstance(raw_auth, str):
-                    try:
-                        auth_obj = json.loads(raw_auth)
-                    except:
-                        auth_obj = None
-                else:
-                    auth_obj = raw_auth
-            else:
-                auth_obj = payload
-
-            if auth_obj and validate_auth_data(auth_obj):
-                try:
-                    # Se o navegador tem last_logout e ele é mais recente que auth.timestamp -> rejeita
-                    if last_logout:
-                        last_logout_dt = datetime.datetime.fromisoformat(last_logout)
-                        auth_ts = datetime.datetime.fromisoformat(auth_obj['timestamp'])
-                        if last_logout_dt > auth_ts:
-                            return None
-                except:
-                    pass
-
-                # Também checar flag no servidor (se houver)
-                try:
-                    if st.session_state.get('last_logout'):
-                        if datetime.datetime.fromisoformat(st.session_state.get('last_logout')) > datetime.datetime.fromisoformat(auth_obj['timestamp']):
-                            return None
-                except:
-                    pass
-
-                return auth_obj
-    except Exception:
-        pass
+    # 4) Fallback no servidor
+    if "auth_backup" in st.session_state and validate_auth_data(st.session_state["auth_backup"]):
+        return st.session_state["auth_backup"]
 
     return None
+
 
 
 
