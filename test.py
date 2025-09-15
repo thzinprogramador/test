@@ -25,7 +25,7 @@ def save_auth_session(username, user_id, is_admin):
     """Salva a sessão de autenticação usando múltiplos métodos"""
     auth_data = {
         'username': username,
-        'user_id': user_id,
+        'user_id': str(user_id),  # Converte UUID para string
         'is_admin': is_admin,
         'timestamp': datetime.datetime.now().isoformat()
     }
@@ -104,6 +104,11 @@ def validate_auth_data(auth_data):
         if not all(key in auth_data for key in ['username', 'user_id', 'is_admin', 'timestamp']):
             return False
         
+        # UUID são strings de 36 caracteres, verifique se parece com um UUID
+        user_id = auth_data['user_id']
+        if not isinstance(user_id, str) or len(user_id) != 36:
+            return False
+            
         # Verificar se a sessão não expirou (30 dias)
         timestamp = datetime.datetime.fromisoformat(auth_data['timestamp'])
         if (datetime.datetime.now() - timestamp).days > 30:
@@ -112,6 +117,24 @@ def validate_auth_data(auth_data):
         return True
     except:
         return False
+
+
+# ----------------teste-------------------------------------------
+def debug_supabase_response():
+    """Função para debug da estrutura de resposta"""
+    try:
+        # Teste simples para ver a estrutura
+        test_response = supabase_client.table("users").select("count").execute()
+        st.write("🔍 ESTRUTURA DA RESPOSTA:", test_response)
+        
+        # Teste de inserção
+        test_data = {"username": "test_user", "password_hash": "test_hash"}
+        insert_response = supabase_client.table("users").insert(test_data).execute()
+        st.write("🔍 RESPOSTA DE INSERÇÃO:", insert_response)
+        
+    except Exception as e:
+        st.write(f"❌ ERRO NO DEBUG: {e}")
+
 
 # -----------------------------------------------------------------
 def get_current_timestamp():
@@ -221,14 +244,13 @@ if st.session_state.user is None:
     if auth_data:
         st.session_state.user = {
             'username': auth_data['username'],
-            'id': auth_data['user_id'],
+            'id': auth_data['user_id'],  # Agora é UUID string
             'is_admin': auth_data['is_admin']
         }
-        st.session_state.user_id = auth_data['user_id']
+        st.session_state.user_id = auth_data['user_id']  # UUID string
         st.session_state.username = auth_data['username']
         st.session_state.is_admin = auth_data['is_admin']
         st.session_state.show_login = False
-
 
 # ==============================
 # CONFIGURAÇÕES DO SUPABASE
@@ -355,6 +377,8 @@ def username_exists(username):
 def sign_up(username, password):
     """Registra um novo usuário apenas com username e senha"""
     try:
+        st.write("🔍 DEBUG: Iniciando cadastro para:", username)
+        
         # Verificar se usuário já existe
         if username_exists(username):
             return False, "Usuário já existe!"
@@ -369,15 +393,22 @@ def sign_up(username, password):
         
         response = supabase_client.table("users").insert(user_data).execute()
         
-        if response and response.get("data"):
-            # Telegram notification
+        st.write("🔍 DEBUG: Resposta completa do Supabase:")
+        st.json(response)  # Isso mostrará a estrutura exata
+        
+        # Verificação adaptada para UUID
+        if response and isinstance(response, dict) and response.get("data"):
+            user_data = response["data"][0]
+            st.write(f"✅ DEBUG: Conta criada com ID: {user_data.get('id')}")
+            
             telegram_message = f"👤 Nova conta: {username}"
             send_telegram_notification(telegram_message)
-            return True, "✅ Login criado com sucesso!"  # Mensagem alterada aqui
+            return True, "✅ Login criado com sucesso!"
         else:
             return False, "Erro ao criar conta"
             
     except Exception as e:
+        st.error(f"Erro completo: {traceback.format_exc()}")
         return False, f"Erro: {str(e)}"
 
 
@@ -387,6 +418,8 @@ def sign_in(username, password):
         # Buscar usuário no banco
         response = supabase_client.table("users").select("*").eq("username", username).execute()
         
+        st.write("🔍 DEBUG - Resposta do login:", response)  # Para debug
+        
         if not response.get("data") or len(response.get("data", [])) == 0:
             return False, "Usuário não encontrado!"
         else:
@@ -395,7 +428,7 @@ def sign_in(username, password):
         # Verificar senha
         if check_password(password, user_data["password_hash"]):
             st.session_state.user = user_data
-            st.session_state.user_id = user_data.get("id")
+            st.session_state.user_id = user_data.get("id")  # Isso será um UUID
             st.session_state.username = user_data.get("username")
             st.session_state.is_admin = user_data.get("is_admin", False)
             st.session_state.show_login = False
@@ -403,7 +436,7 @@ def sign_in(username, password):
             # SALVAR A SESSÃO - USANDO O NOVO MÉTODO
             save_auth_session(
                 st.session_state.username, 
-                st.session_state.user_id, 
+                st.session_state.user_id,  # Agora é UUID
                 st.session_state.is_admin
             )
             
