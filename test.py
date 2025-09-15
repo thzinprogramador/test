@@ -2192,20 +2192,14 @@ with st.sidebar:
                 st.success("Logout realizado!")
                 st.rerun()
     else:
-    # Usuário não logado - versão simplificada
+        # Usuário não logado - versão simplificada
         if not st.session_state.show_login:
             if st.button("🔐 Login/Cadastro", key="login_btn", use_container_width=True):
                 st.session_state.show_login = True
                 st.rerun()
         else:
-            # Botão para fechar o formulário
-            #if st.button("✕ Fechar", key="close_login", use_container_width=True):
-                #st.session_state.show_login = False
-                #st.rerun()
-        
             # Mostrar formulário de autenticação
             show_auth_ui()
-
 
     if st.session_state.current_track:
         song = st.session_state.current_track
@@ -2224,24 +2218,17 @@ with st.sidebar:
 
         if song.get("audio_url"):
             render_player()
-
     else:
         st.info("🔍 Escolha uma música")
 
     st.markdown("---")
 
-
     # Menu para usuários normais
     if not st.session_state.admin_mode:
-        # Atualizar cache de notificações não lidas a cada 10 segundos
+        # VERIFICAÇÃO ÚNICA DE NOTIFICAÇÕES (sem duplicação)
+        current_time = time.time()
         if ("unread_notifications_cache" not in st.session_state or 
-            time.time() - st.session_state.get("unread_cache_timestamp", 0) > 10):
-            st.session_state.unread_notifications_cache = check_unread_notifications()
-            st.session_state.unread_cache_timestamp = time.time()
-
-        # Verificar notificações a cada 10 segundos
-        current_time = time.time() 
-        if current_time - st.session_state.get("unread_cache_timestamp", 0) > 10:
+            current_time - st.session_state.get("unread_cache_timestamp", 0) > 10):
             st.session_state.unread_notifications_cache = check_unread_notifications()
             st.session_state.unread_cache_timestamp = current_time
     
