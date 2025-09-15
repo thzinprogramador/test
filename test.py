@@ -60,19 +60,6 @@ def clear_auth_session():
     components.html(js_code, height=0)
 
 def check_persistent_auth():
-    if st.session_state.user is None and not st.session_state.get("force_login", False):
-    auth_data = check_persistent_auth()
-    if auth_data:
-        st.session_state.user = {
-            'username': auth_data['username'],
-            'id': auth_data['user_id'],
-            'is_admin': auth_data['is_admin']
-        }
-        st.session_state.user_id = auth_data['user_id']
-        st.session_state.username = auth_data['username']
-        st.session_state.is_admin = auth_data['is_admin']
-        st.session_state.show_login = False
-
     """Verifica se há autenticação salva em múltiplas fontes"""
     # 1. Verificar query parameters primeiro (mais rápido)
     query_params = st.experimental_get_query_params()
@@ -87,7 +74,6 @@ def check_persistent_auth():
     # 2. Verificar sessionStorage via JavaScript
     js_code = """
     <script>
-    // Verificar sessionStorage primeiro, depois localStorage
     var authData = sessionStorage.getItem('wave_auth') || localStorage.getItem('wave_auth');
     if (authData) {
         window.parent.postMessage({
@@ -97,10 +83,9 @@ def check_persistent_auth():
     }
     </script>
     """
-    
     components.html(js_code, height=0)
     
-    # 3. Tentar verificar se há mensagem do JavaScript
+    # 3. Verificar mensagem vinda do JavaScript
     try:
         if 'auth_data' in st.session_state and st.session_state.auth_data:
             auth_data = json.loads(st.session_state.auth_data)
@@ -110,6 +95,7 @@ def check_persistent_auth():
         pass
     
     return None
+
 
 def validate_auth_data(auth_data):
     """Valida os dados de autenticação"""
@@ -229,7 +215,7 @@ if "notifications_cache" not in st.session_state:
 # ==============================
 # VERIFICAÇÃO DE AUTENTICAÇÃO PERSISTENTE
 # ==============================
-if st.session_state.user is None:
+if st.session_state.user is None and not st.session_state.get("force_login", False):
     auth_data = check_persistent_auth()
     if auth_data:
         st.session_state.user = {
