@@ -22,7 +22,7 @@ from PIL import Image
 # PERSISTÊNCIA DE SESSÃO (atualizada)
 # ==============================
 def save_auth_session(username, user_id, is_admin):
-    """Salva a sessão no localStorage (persistente) e em backup no servidor"""
+    """Salva sessão de forma segura (sem deixar dados sensíveis na URL)"""
     auth_data = {
         'username': username,
         'user_id': user_id,
@@ -30,12 +30,12 @@ def save_auth_session(username, user_id, is_admin):
         'timestamp': datetime.datetime.now().isoformat()
     }
 
-    # Backup server-side
+    # Salvar no session_state (backup seguro)
     st.session_state["auth_backup"] = auth_data
 
-    # Atualizar query params (não é essencial, mas ajuda em share links)
+    # 🔴 Removido: NÃO atualizar query params com dados de autenticação
     try:
-        st.experimental_set_query_params(auth=json.dumps(auth_data))
+        st.experimental_set_query_params()  # limpa a URL
     except:
         pass
 
@@ -78,27 +78,16 @@ def clear_auth_session():
 
 
 def check_persistent_auth():
-    """Restaura sessão de forma compatível com todos navegadores"""
-    # 1) Query params
-    query_params = st.experimental_get_query_params()
-    if 'auth' in query_params:
-        try:
-            auth_data = json.loads(query_params['auth'][0])
-            if validate_auth_data(auth_data):
-                return auth_data
-        except:
-            pass
-
-    # 2) localStorage/sessionStorage via JS
+    """Verifica sessão de forma segura"""
+    # 1) Primeiro tenta restaurar do localStorage via JS
     js_code = """
     <script>
     try {
-        var authData = localStorage.getItem('wave_auth') || sessionStorage.getItem('wave_auth');
-        var lastLogout = localStorage.getItem('wave_last_logout') || null;
+        var authData = localStorage.getItem('wave_auth');
         if (authData) {
             window.parent.postMessage({
                 type: 'AUTH_DATA',
-                data: JSON.stringify({ auth: authData, last_logout: lastLogout })
+                data: JSON.stringify({ auth: authData })
             }, '*');
         }
     } catch(e) {
@@ -108,7 +97,7 @@ def check_persistent_auth():
     """
     components.html(js_code, height=0)
 
-    # 3) Captura do JS
+    # 2) Captura do JS
     if 'auth_data' in st.session_state and st.session_state.auth_data:
         try:
             payload = json.loads(st.session_state.auth_data)
@@ -120,13 +109,21 @@ def check_persistent_auth():
         except:
             pass
 
-    # 4) Fallback no servidor
+    # 3) Fallback no servidor
     if "auth_backup" in st.session_state and validate_auth_data(st.session_state["auth_backup"]):
         return st.session_state["auth_backup"]
 
+    # (Opcional) 4) Query params - usar só para login via link especial (se precisar)
+    query_params = st.experimental_get_query_params()
+    if 'auth' in query_params:
+        try:
+            auth_data = json.loads(query_params['auth'][0])
+            if validate_auth_data(auth_data):
+                return auth_data
+        except:
+            pass
+
     return None
-
-
 
 
 def validate_auth_data(auth_data):
