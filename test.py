@@ -387,46 +387,55 @@ def username_exists(username):
 def sign_up(username, password):
     """Registra um novo usuário apenas com username e senha"""
     try:
+        # Debug: verificar se usuário já existe
+        print(f"DEBUG: Tentando criar usuário: {username}")
         
-        # Verificar se usuário já existe (com a função corrigida)
+        # Verificar se usuário já existe
         if username_exists(username):
             return False, "Usuário já existe!"
+        
+        # Criar hash da senha
+        hashed_password = hash_password(password)
+        print(f"DEBUG: Senha hash gerada: {hashed_password}")
         
         # Criar novo usuário
         user_data = {
             "username": username,
-            "password_hash": hash_password(password),
+            "password_hash": hashed_password,
             "created_at": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             "is_admin": False
         }
+        
+        print(f"DEBUG: Dados do usuário: {user_data}")
         
         # Inserir usuário
         response_obj = supabase_client.table("users").insert(user_data)
         response = response_obj.execute()
         
+        print(f"DEBUG: Resposta do insert: {response}")
         
-        # VERIFICAÇÃO CORRIGIDA - verificar se a inserção foi bem-sucedida
+        # Verificação da resposta
         if response and isinstance(response, dict) and response.get("data"):
-            # Verificar se pelo menos um registro foi inserido
             if len(response["data"]) > 0:
                 user_data = response["data"][0]
                 user_id = user_data.get('id')
                 
                 if user_id:
-                    st.write(f"✅ DEBUG: Conta criada com ID: {user_id}")
+                    print(f"DEBUG: Conta criada com ID: {user_id}")
                     telegram_message = f"👤 Nova conta: {username}"
                     send_telegram_notification(telegram_message)
                     return True, "✅ Login criado com sucesso!"
-            
-
-        # Verificação final no banco
+        
+        # Verificação final
+        time.sleep(1)  # Dar tempo para o banco processar
         if username_exists(username):
             return True, "✅ Login criado com sucesso!"
         else:
             return False, "Erro ao criar conta - usuário não encontrado após tentativa"
             
     except Exception as e:
-        st.error(f"Erro completo: {traceback.format_exc()}")
+        error_msg = f"Erro completo: {traceback.format_exc()}"
+        print(f"DEBUG: {error_msg}")
         return False, f"Erro: {str(e)}"
 
 
