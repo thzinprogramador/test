@@ -1866,8 +1866,11 @@ def send_telegram_command_response(command, message=""):
             
         elif command == "/users":
             # Estatísticas reais
-            total_songs = len(st.session_state.all_songs)
-            response = f"""👥 *Estatísticas do Wave Song*
+            try:
+                # Buscar total de usuários do Supabase
+                users_response = supabase_client.table("users").select("id").execute
+                total_songs = len(st.session_state.all_songs)
+                response = f"""👥 *Estatísticas do Wave Song*
 
 🎉 Usuários: {total_users}
 🎵 Músicas: {total_songs}
@@ -1877,13 +1880,11 @@ def send_telegram_command_response(command, message=""):
             telegram_bot.send_message(TELEGRAM_ADMIN_CHAT_ID, response, parse_mode='Markdown')
             return True
             
-        else:
-            st.error(f"❌ Comando desconhecido: {command}")
-            return False
-            
-    except Exception as e:
-        st.error(f"❌ Erro ao enviar comando: {e}")
-        return False
+            except Exception as e:
+                st.error(f"❌ Erro ao enviar comando: {e}")
+                return False
+
+
 # ==============================
 # FUNÇÃO DE CONVERSÃO DE URL CORRIGIDA
 # ==============================
