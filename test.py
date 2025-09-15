@@ -406,7 +406,14 @@ def username_exists(username):
     try:
         response = supabase_client.table("users").select("id, username").eq("username", username).execute()
         st.write(f"🔍 DEBUG username_exists: {response}")  # Para debug
-        return response.get("data") and len(response.get("data", [])) > 0
+        
+        # Correção: verificar se há dados na resposta e se algum usuário tem o username exato
+        if response.get("data"):
+            # Verificar se algum usuário na lista tem exatamente o username fornecido
+            for user in response["data"]:
+                if user.get("username") == username:
+                    return True
+        return False
     except Exception as e:
         st.error(f"Erro ao verificar usuário: {e}")
         return False
@@ -416,10 +423,11 @@ def sign_up(username, password):
     try:
         st.write("🔍 DEBUG: Iniciando cadastro para:", username)
         
-        # Verificar se usuário já existe
+        # Verificar se usuário já existe (com a função corrigida)
         if username_exists(username):
             return False, "Usuário já existe!"
         
+        # Resto do código permanece o mesmo...
         # Criar novo usuário
         user_data = {
             "username": username,
@@ -428,36 +436,33 @@ def sign_up(username, password):
             "is_admin": False
         }
         
-        # Inserir usuário - CORREÇÃO AQUI
+        # Inserir usuário
         response_obj = supabase_client.table("users").insert(user_data)
-        response = response_obj.execute()  # Agora chama execute() no objeto retornado
+        response = response_obj.execute()
         
         st.write("🔍 DEBUG: Resposta completa do Supabase:")
-        st.json(response)  # Isso mostrará a estrutura exata
+        st.json(response)
         
-        # VERIFICAÇÃO CORRIGIDA
-        if response and isinstance(response, dict) and response.get("data") and len(response["data"]) > 0:
-            user_data = response["data"][0]
-            user_id = user_data.get('id')
+        # VERIFICAÇÃO CORRIGIDA - verificar se a inserção foi bem-sucedida
+        if response and isinstance(response, dict) and response.get("data"):
+            # Verificar se pelo menos um registro foi inserido
+            if len(response["data"]) > 0:
+                user_data = response["data"][0]
+                user_id = user_data.get('id')
+                
+                if user_id:
+                    st.write(f"✅ DEBUG: Conta criada com ID: {user_id}")
+                    telegram_message = f"👤 Nova conta: {username}"
+                    send_telegram_notification(telegram_message)
+                    return True, "✅ Login criado com sucesso!"
             
-            if user_id:
-                st.write(f"✅ DEBUG: Conta criada com ID: {user_id}")
-                telegram_message = f"👤 Nova conta: {username}"
-                send_telegram_notification(telegram_message)
-                return True, "✅ Login criado com sucesso!"
-            else:
-                st.write("⚠️ DEBUG: Conta criada mas ID não retornado")
-                # Se não tem ID, ainda consideramos sucesso mas logamos o aviso
-                return True, "✅ Login criado com sucesso!"
+        st.write("❌ DEBUG: Nenhum dado retornado na resposta ou inserção falhou")
+        # Verificação final no banco
+        if username_exists(username):
+            st.write("✅ DEBUG: Usuário encontrado após criação (verificação direta)")
+            return True, "✅ Login criado com sucesso!"
         else:
-            st.write("❌ DEBUG: Nenhum dado retornado na resposta")
-            # Mesmo sem dados, se a conta foi criada, podemos considerar sucesso
-            # Verificamos diretamente no banco se o usuário foi criado
-            if username_exists(username):
-                st.write("✅ DEBUG: Usuário encontrado após criação (verificação direta)")
-                return True, "✅ Login criado com sucesso!"
-            else:
-                return False, "Erro ao criar conta - usuário não encontrado após tentativa"
+            return False, "Erro ao criar conta - usuário não encontrado após tentativa"
             
     except Exception as e:
         st.error(f"Erro completo: {traceback.format_exc()}")
