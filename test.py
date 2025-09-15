@@ -504,8 +504,13 @@ def sign_in(username, password):
         if "password_hash" not in user_data:
             return False, "Erro: usuário não tem senha configurada"
         
+        # DEBUG: Mostrar informações da senha
+        print(f"DEBUG: Senha fornecida: {password}")
+        print(f"DEBUG: Hash armazenado: {user_data['password_hash']}")
+        print(f"DEBUG: Tipo do hash: {user_data['password_hash'][:4]}")
+        
         # Verificar senha - CORREÇÃO AQUI
-        if bcrypt.checkpw(password.encode('utf-8'), user_data["password_hash"].encode('utf-8')):
+        if check_password(password, user_data["password_hash"]):
             st.session_state.user = user_data
             st.session_state.user_id = user_data.get("id")
             st.session_state.username = user_data.get("username")
@@ -521,8 +526,7 @@ def sign_in(username, password):
             
             return True, "Login realizado com sucesso!"
         else:
-            print(f"DEBUG: Senha fornecida: {password}")
-            print(f"DEBUG: Hash armazenado: {user_data['password_hash']}")
+            print(f"DEBUG: Falha na verificação da senha")
             return False, "Senha incorreta!"
             
     except Exception as e:
