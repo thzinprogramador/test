@@ -1,37 +1,50 @@
-import streamlit as st
-import base64
-import json
-import time
-from io import BytesIO
-
 # ==============================
-# SISTEMA STEALTH DE ÁUDIO
+# SISTEMA STEALTH CORPORATIVO
 # ==============================
 
-def text_to_audio_data(text):
-    """Converte texto em dados que parecem normais (esteganografia)"""
-    # Esta é uma simulação - na prática usaria uma biblioteca de esteganografia
-    return base64.b64encode(text.encode()).decode()
+def obfuscate_data(data):
+    """Ofusca dados para parecerem normais"""
+    if isinstance(data, dict):
+        return {k: f"config_{v}" if isinstance(v, str) else v for k, v in data.items()}
+    return data
 
-def audio_data_to_text(data):
-    """Reverte os dados para texto"""
-    return base64.b64decode(data.encode()).decode()
+def deobfuscate_data(data):
+    """Reverte a ofuscação"""
+    if isinstance(data, dict):
+        return {k: v.replace("config_", "") if isinstance(v, str) and v.startswith("config_") else v 
+                for k, v in data.items()}
+    return data
 
-def get_stealth_audio_url():
+def save_stealth_data(key, value):
+    """Salva dados de forma stealth no session_state"""
+    obfuscated_key = f"config_{key}"
+    obfuscated_value = obfuscate_data(value)
+    st.session_state[obfuscated_key] = obfuscated_value
+
+def load_stealth_data(key, default=None):
+    """Carrega dados stealth do session_state"""
+    obfuscated_key = f"config_{key}"
+    if obfuscated_key in st.session_state:
+        return deobfuscate_data(st.session_state[obfuscated_key])
+    return default
+
+def get_stealth_audio_url(song):
     """
     Gera URLs que parecem normais mas contêm áudio
     Usa serviços whitelisted pela empresa
     """
     # Serviços comumente permitidos em empresas
     whitelisted_services = [
-        "https://docs.google.com/document/d/",  # Google Docs
-        "https://company.sharepoint.com/",      # SharePoint
-        "https://confluence.company.com/",      # Confluence
-        "https://drive.google.com/file/d/",     # Google Drive
-        "https://teams.microsoft.com/",         # Microsoft Teams
+        "https://docs.google.com/document/d/",
+        "https://company.sharepoint.com/",
+        "https://confluence.company.com/",
+        "https://drive.google.com/file/d/",
+        "https://teams.microsoft.com/",
     ]
     
-    return random.choice(whitelisted_services) + "placeholder_id"
+    # Usar o ID da música para criar um link único
+    service = random.choice(whitelisted_services)
+    return f"{service}{song['id']}"
 
 def create_stealth_player(audio_url, title, artist):
     """Cria um player de áudio que parece conteúdo normal"""
@@ -76,73 +89,6 @@ def create_stealth_player(audio_url, title, artist):
     
     return stealth_html
 
-# ==============================
-# SISTEMA DE OFUSCAÇÃO DE DADOS
-# ==============================
-
-def obfuscate_data(data):
-    """Ofusca dados para parecerem normais"""
-    if isinstance(data, dict):
-        return {k: f"config_{v}" if isinstance(v, str) else v for k, v in data.items()}
-    return data
-
-def deobfuscate_data(data):
-    """Reverte a ofuscação"""
-    if isinstance(data, dict):
-        return {k: v.replace("config_", "") if isinstance(v, str) and v.startswith("config_") else v 
-                for k, v in data.items()}
-    return data
-
-# ==============================
-# ARMAZENAMENTO LOCAL STEALTH
-# ==============================
-
-def save_stealth_data(key, value):
-    """Salva dados de forma stealth no session_state"""
-    obfuscated_key = f"config_{key}"
-    obfuscated_value = obfuscate_data(value)
-    st.session_state[obfuscated_key] = obfuscated_value
-
-def load_stealth_data(key, default=None):
-    """Carrega dados stealth do session_state"""
-    obfuscated_key = f"config_{key}"
-    if obfuscated_key in st.session_state:
-        return deobfuscate_data(st.session_state[obfuscated_key])
-    return default
-
-# ==============================
-# SISTEMA DE CACHE DISFARÇADO
-# ==============================
-
-def get_disguised_songs():
-    """Obtém músicas de forma disfarçada"""
-    # Nomes de chaves que parecem configurações de sistema
-    disguised_songs = load_stealth_data("system_config", [])
-    
-    if not disguised_songs:
-        # Simular carregamento de "configurações"
-        disguised_songs = [
-            {
-                "config_title": "config_Relatório Trimestral",
-                "config_artist": "config_Departamento Financeiro", 
-                "config_duration": "config_30:00",
-                "config_audio": "config_https://docs.google.com/document/d/abc123"
-            },
-            {
-                "config_title": "config_Apresentação de Resultados", 
-                "config_artist": "config_Gerência",
-                "config_duration": "config_45:00",
-                "config_audio": "config_https://company.sharepoint.com/doc456"
-            }
-        ]
-        save_stealth_data("system_config", disguised_songs)
-    
-    return disguised_songs
-
-# ==============================
-# INTERFACE STEALTH
-# ==============================
-
 def show_stealth_interface():
     """Interface que parece um sistema corporativo normal"""
     
@@ -174,132 +120,119 @@ def show_stealth_interface():
     """, unsafe_allow_html=True)
     
     # Barra de pesquisa disfarçada
-    search_term = st.text_input("🔍 Pesquisar documentos:", placeholder="Digite o nome do documento...")
+    search_term = st.text_input("🔍 Pesquisar documentos:", placeholder="Digite o nome do documento...",
+                               key="stealth_search")
+    
+    # Filtra músicas com base na pesquisa
+    filtered_songs = st.session_state.all_songs
+    if search_term:
+        filtered_songs = [s for s in st.session_state.all_songs 
+                         if search_term.lower() in s.get('title', '').lower() 
+                         or search_term.lower() in s.get('artist', '').lower()]
     
     # Lista de "documentos" (músicas)
     st.markdown("### 📁 Documentos Disponíveis")
     
-    songs = get_disguised_songs()
-    for song in songs:
-        # Desofuscar os dados para mostrar
-        real_song = deobfuscate_data(song)
-        
+    if not filtered_songs:
+        st.info("Nenhum documento encontrado dengan kriteria pencarian.")
+        return
+    
+    for song in filtered_songs:
         col1, col2 = st.columns([3, 1])
         with col1:
+            # Mostrar informações do "documento"
             st.markdown(f"""
             <div class="document-card">
-                <h4 style="margin:0;">{real_song['title']}</h4>
-                <p style="margin:5px 0; color:#666;">Departamento: {real_song['artist']}</p>
-                <p style="margin:0; color:#888; font-size:12px;">Duração: {real_song['duration']} • Última atualização: {time.strftime('%d/%m/%Y')}</p>
+                <h4 style="margin:0;">{song['title']}</h4>
+                <p style="margin:5px 0; color:#666;">Departamento: {song['artist']}</p>
+                <p style="margin:0; color:#888; font-size:12px;">
+                    Duração: {song.get('duration', 'N/A')} • 
+                    Última atualização: {datetime.datetime.now().strftime('%d/%m/%Y')}
+                </p>
             </div>
             """, unsafe_allow_html=True)
         
         with col2:
-            # Player stealth
+            # Player stealth - usar URL real se disponível, senão criar stealth
+            audio_url = song.get('audio_url', '')
+            if not audio_url or "github.com" in audio_url or "raw.githubusercontent.com" in audio_url:
+                audio_url = get_stealth_audio_url(song)
+            
             audio_html = create_stealth_player(
-                real_song['audio'], 
-                real_song['title'], 
-                real_song['artist']
+                audio_url, 
+                song['title'], 
+                song['artist']
             )
             st.components.v1.html(audio_html, height=150)
-    
-    # Seção de "estatísticas" (player normal disfarçado)
-    st.markdown("---")
-    st.markdown("### 📈 Painel de Análise de Dados")
-    
-    # Isso parece um painel de analytics mas é o player principal
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.markdown("**Reprodução de Relatório de Análise**")
-        if st.session_state.get('current_track'):
-            track = st.session_state.current_track
-            st.write(f"**Documento Atual:** {track['title']}")
-            st.write(f"**Departamento:** {track['artist']}")
-            
-            # Barra de progresso disfarçada
-            progress = st.slider("Progresso da Análise", 0, 100, 50)
-            st.progress(progress)
-    
-    with col2:
-        st.markdown("**Controles de Análise**")
-        if st.button("▶️ Iniciar Análise", key="play_btn"):
-            st.success("Análise em andamento...")
-        if st.button("⏸️ Pausar Análise", key="pause_btn"):
-            st.info("Análise pausada")
-        if st.button("⏭️ Próxima Análise", key="next_btn"):
-            st.info("Carregando próximo relatório...")
 
-# ==============================
-# SISTEMA DE ATUALIZAÇÃO STEALTH
-# ==============================
-
-def stealth_update():
-    """Atualiza dados de forma stealth"""
+def check_audio_access(audio_url):
+    """Verifica se temos acesso ao áudio"""
     try:
-        # Tenta atualizar de forma muito discreta
-        update_url = "https://raw.githubusercontent.com/username/repo/main/data.json"
-        response = requests.get(update_url, timeout=2, headers={
-            'User-Agent': 'Corporate-Data-Sync/1.0'
-        })
-        
-        if response.status_code == 200:
-            new_data = response.json()
-            save_stealth_data("system_config", new_data)
-            return True
+        if not audio_url:
+            return False
+        response = requests.head(audio_url, timeout=3)
+        return response.status_code == 200
     except:
-        # Falha silenciosamente
-        pass
-    return False
+        return False
 
-# ==============================
-# CONFIGURAÇÃO INICIAL STEALTH
-# ==============================
+# Modificar a função de carregamento de músicas
+def get_all_songs(limit=100):
+    try:
+        if st.session_state.firebase_connected:
+            ref = db.reference("/songs")
+            songs_data = ref.order_by_key().limit_to_first(limit).get()
+            songs = []
+            if songs_data:
+                for song_id, song_data in songs_data.items():
+                    song_data["id"] = song_id
+                    
+                    # Verificar se o áudio está acessível
+                    audio_url = song_data.get("audio_url", "")
+                    if audio_url and not check_audio_access(audio_url):
+                        # Se bloqueado, usar URL stealth
+                        song_data["original_audio_url"] = audio_url
+                        song_data["audio_url"] = get_stealth_audio_url(song_data)
+                    
+                    songs.append(song_data)
+            return songs
+        return []
+    except:
+        return []
 
-def initialize_stealth_app():
-    """Inicializa o app de forma stealth"""
+# Modificar a função play_song
+def play_song(song):
+    """Versão stealth para ambiente corporativo"""
+    current_id = st.session_state.current_track["id"] if st.session_state.current_track else None
+    new_id = song["id"]
     
-    # Configuração que parece normal
-    if 'app_initialized' not in st.session_state:
-        st.session_state.app_initialized = True
-        st.session_state.current_track = None
-        st.session_state.is_playing = False
-        
-        # Dados iniciais disfarçados
-        initial_data = [
-            {
-                "config_title": "config_Relatório Trimestral de Vendas",
-                "config_artist": "config_Departamento Comercial",
-                "config_duration": "config_25:15",
-                "config_audio": "config_https://example.com/audio1"
-            },
-            {
-                "config_title": "config_Apresentação de Resultados Q2",
-                "config_artist": "config_Diretoria Executiva", 
-                "config_duration": "config_42:30",
-                "config_audio": "config_https://example.com/audio2"
-            }
-        ]
-        
-        save_stealth_data("system_config", initial_data)
-
-# ==============================
-# EXECUÇÃO PRINCIPAL
-# ==============================
-
-def main():
-    """Função principal do app stealth"""
+    # Usar URL stealth se a URL original for bloqueada
+    audio_url = song.get("audio_url", "")
+    if not audio_url or "github.com" in audio_url or "raw.githubusercontent.com" in audio_url:
+        song_copy = song.copy()
+        song_copy["audio_url"] = get_stealth_audio_url(song)
+        song = song_copy
     
-    # Inicialização stealth
-    initialize_stealth_app()
+    st.session_state.current_track = song
+    st.session_state.is_playing = True
+    st.session_state.player_timestamp = time.time()
     
-    # Mostrar interface corporativa
+    if st.session_state.firebase_connected:
+        try:
+            ref = db.reference(f"/songs/{song['id']}/play_count")
+            current_count = ref.get() or 0
+            ref.set(current_count + 1)
+        except Exception as e:
+            st.error(f"Erro ao atualizar play_count: {e}")
+    
+    if current_id != new_id:
+        st.rerun()
+
+# Adicionar esta opção ao menu sidebar
+# No sidebar, depois dos outros botões, adicionar:
+if st.button("📊 Modo Corporativo", key="btn_stealth", use_container_width=True):
+    st.session_state.current_page = "stealth"
+    st.session_state.show_request_form = False
+
+# Adicionar esta condição para a página stealth
+elif st.session_state.current_page == "stealth":
     show_stealth_interface()
-    
-    # Tentar atualização stealth em segundo plano
-    if random.random() < 0.1:  # Apenas 10% das vezes
-        stealth_update()
-
-# Executar o app
-if __name__ == "__main__":
-    main()
