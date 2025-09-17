@@ -68,124 +68,109 @@ def get_stealth_audio_url(song):
     service = random.choice(whitelisted_services)
     return f"{service}{song['id']}"
 
-def create_stealth_player(audio_url, title, artist):
-    """Cria um player de áudio que parece conteúdo normal"""
+def create_stealth_player(song):
+    """Cria um player de áudio stealth"""
     
-    # HTML que parece um documento normal mas é um player
-    stealth_html = f"""
-    <div style="padding:15px; border:1px solid #ddd; border-radius:5px; background:#f9f9f9;">
-        <h4 style="margin:0 0 10px 0;">📄 Documento: {title} - {artist}</h4>
-        <p style="color:#666; font-size:12px; margin:0 0 15px 0;">
-            Este documento contém informações importantes sobre procedimentos corporativos.
-            Clique no link abaixo para acessar o conteúdo.
+    # Usar URL real se disponível, senão criar stealth
+    audio_url = song.get('audio_url', '')
+    if not audio_url or "github.com" in audio_url or "raw.githubusercontent.com" in audio_url:
+        audio_url = get_stealth_audio_url(song)
+    
+    # Player HTML simples
+    player_html = f"""
+    <div style="padding:10px; border:1px solid #ddd; border-radius:5px; background:#f9f9f9; margin:10px 0;">
+        <h4 style="margin:0 0 10px 0; color:#333;">📄 {song['title']}</h4>
+        <p style="margin:0 0 15px 0; color:#666; font-size:14px;">
+            <strong>Departamento:</strong> {song['artist']}<br>
+            <strong>Duração:</strong> {song.get('duration', 'N/A')}
         </p>
-        <a href="#" onclick="playStealthAudio('{audio_url}'); return false;"
-           style="display:inline-block; padding:8px 15px; background:#1E88E5; color:white; 
-                  text-decoration:none; border-radius:4px; font-size:14px;">
-           🔗 Abrir Documento
-        </a>
-        <div id="audioContainer" style="display:none;">
-            <audio id="stealthAudio" controls style="width:100%">
-                <source src="{audio_url}" type="audio/mpeg">
-            </audio>
-        </div>
+        <audio controls style="width:100%; height:40px;">
+            <source src="{audio_url}" type="audio/mpeg">
+            Seu navegador não suporta o elemento de áudio.
+        </audio>
+        <p style="margin:10px 0 0 0; color:#888; font-size:12px;">
+            🔒 Conteúdo seguro para ambiente corporativo
+        </p>
     </div>
-    <script>
-    function playStealthAudio(url) {{
-        var container = document.getElementById('audioContainer');
-        var audio = document.getElementById('stealthAudio');
-        
-        if (container.style.display === 'none') {{
-            container.style.display = 'block';
-            audio.src = url;
-            audio.play().catch(function(e) {{
-                console.log('Reprodução automática bloqueada:', e);
-            }});
-        }} else {{
-            container.style.display = 'none';
-            audio.pause();
-        }}
-    }}
-    </script>
     """
     
-    return stealth_html
+    return player_html
 
-def show_stealth_interface():
-    """Interface que parece um sistema corporativo normal"""
+def show_simple_stealth_interface():
+    """Interface stealth simplificada"""
     
-    st.markdown("""
-    <style>
-    .corporate-header {
-        background: linear-gradient(135deg, #1E88E5 0%, #0D47A1 100%);
-        padding: 20px;
-        border-radius: 5px;
-        color: white;
-        margin-bottom: 20px;
-    }
-    .document-card {
-        border: 1px solid #ddd;
-        border-radius: 5px;
-        padding: 15px;
-        margin: 10px 0;
-        background: #fafafa;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    st.title("📊 Portal de Documentos Corporativos")
+    st.info("Sistema de Gerenciamento de Conteúdo Empresarial - Acesso Seguro")
     
-    # Cabeçalho que parece corporativo
-    st.markdown("""
-    <div class="corporate-header">
-        <h1 style="margin:0; color:white;">📊 Portal de Documentos Corporativos</h1>
-        <p style="margin:0; opacity:0.9;">Sistema de Gerenciamento de Conteúdo Empresarial</p>
-    </div>
-    """, unsafe_allow_html=True)
+    # Barra de pesquisa
+    search_term = st.text_input("🔍 Pesquisar documentos:", placeholder="Digite o nome do documento...")
     
-    # Barra de pesquisa disfarçada
-    search_term = st.text_input("🔍 Pesquisar documentos:", placeholder="Digite o nome do documento...",
-                               key="stealth_search")
-    
-    # Filtra músicas com base na pesquisa
+    # Filtra músicas
     filtered_songs = st.session_state.all_songs
     if search_term:
         filtered_songs = [s for s in st.session_state.all_songs 
                          if search_term.lower() in s.get('title', '').lower() 
                          or search_term.lower() in s.get('artist', '').lower()]
     
-    # Lista de "documentos" (músicas)
-    st.markdown("### 📁 Documentos Disponíveis")
-    
     if not filtered_songs:
-        st.info("Nenhum documento encontrado dengan kriteria pencarian.")
+        st.warning("Nenhum documento encontrado.")
         return
     
     for song in filtered_songs:
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            # Mostrar informações do "documento"
-            st.markdown(f"""
-            <div class="document-card">
-                <h4 style="margin:0;">{song['title']}</h4>
-                <p style="margin:5px 0; color:#666;">Departamento: {song['artist']}</p>
-                <p style="margin:0; color:#888; font-size:12px;">
-                    Duração: {song.get('duration', 'N/A')} • 
-                    Última atualização: {datetime.datetime.now().strftime('%d/%m/%Y')}
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            # Player stealth - usar URL real se disponível, senão criar stealth
-            audio_url = song.get('audio_url', '')
-            if not audio_url or "github.com" in audio_url or "raw.githubusercontent.com" in audio_url:
-                audio_url = get_stealth_audio_url(song)
+        # Criar um container para cada "documento"
+        with st.container():
+            col1, col2 = st.columns([3, 1])
             
-            audio_html = create_stealth_player(
-                audio_url, 
-                song['title'], 
-                song['artist']
-            )
-            st.components.v1.html(audio_html, height=150)
+            with col1:
+                st.subheader(f"📄 {song['title']}")
+                st.write(f"**Departamento:** {song['artist']}")
+                st.write(f"**Duração:** {song.get('duration', 'N/A')}")
+                st.write(f"**Tipo:** Documento de Áudio Corporativo")
+                
+                # Botão para reproduzir
+                if st.button("▶️ Reproduzir Documento", key=f"play_stealth_{song['id']}"):
+                    play_song(song)
+            
+            with col2:
+                if song.get("image_url"):
+                    img = load_image_cached(song["image_url"])
+                    if img:
+                        st.image(img, width=100)
+                    else:
+                        st.image("https://via.placeholder.com/100x100/1E88E5/FFFFFF?text=Doc", width=100)
+                else:
+                    st.image("https://via.placeholder.com/100x100/1E88E5/FFFFFF?text=Doc", width=100)
+            
+            st.markdown("---")
+
+# Modificar a função play_song para modo stealth
+def play_song(song):
+    """Versão stealth para ambiente corporativo"""
+    current_id = st.session_state.current_track["id"] if st.session_state.current_track else None
+    new_id = song["id"]
+    
+    # Usar URL stealth se a URL original for bloqueada
+    audio_url = song.get("audio_url", "")
+    if not audio_url or "github.com" in audio_url or "raw.githubusercontent.com" in audio_url:
+        song_copy = song.copy()
+        song_copy["audio_url"] = get_stealth_audio_url(song)
+        song = song_copy
+    
+    st.session_state.current_track = song
+    st.session_state.is_playing = True
+    st.session_state.player_timestamp = time.time()
+    
+    if st.session_state.firebase_connected:
+        try:
+            ref = db.reference(f"/songs/{song['id']}/play_count")
+            current_count = ref.get() or 0
+            ref.set(current_count + 1)
+        except Exception as e:
+            st.error(f"Erro ao atualizar play_count: {e}")
+    
+    if current_id != new_id:
+        st.rerun()
+
 
 def check_audio_access(audio_url):
     """Verifica se temos acesso ao áudio"""
@@ -2138,33 +2123,6 @@ def get_converted_audio_url(song):
     if "github.com" in audio_url or "raw.githubusercontent.com" in audio_url:
         return convert_github_to_jsdelivr(audio_url)
     return audio_url
-
-def play_song(song):
-    """Versão stealth para ambiente corporativo"""
-    current_id = st.session_state.current_track["id"] if st.session_state.current_track else None
-    new_id = song["id"]
-    
-    # Usar URL stealth se a URL original for bloqueada
-    audio_url = song.get("audio_url", "")
-    if not audio_url or "github.com" in audio_url or "raw.githubusercontent.com" in audio_url:
-        song_copy = song.copy()
-        song_copy["audio_url"] = get_stealth_audio_url(song)
-        song = song_copy
-    
-    st.session_state.current_track = song
-    st.session_state.is_playing = True
-    st.session_state.player_timestamp = time.time()
-    
-    if st.session_state.firebase_connected:
-        try:
-            ref = db.reference(f"/songs/{song['id']}/play_count")
-            current_count = ref.get() or 0
-            ref.set(current_count + 1)
-        except Exception as e:
-            st.error(f"Erro ao atualizar play_count: {e}")
-    
-    if current_id != new_id:
-        st.rerun()
 
 def show_notification_panel():
     st.header("🔔 Painel de Notificações")
