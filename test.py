@@ -514,7 +514,7 @@ with st.sidebar:
     # Status do sistema
     st.markdown("### Status do Sistema")
     st.write(f"**Documentos:** {len(st.session_state.all_songs)}")
-    st.write(f"**Usuários online:** {random.randint(10, 50)}")
+    st.write(f"**Usuários online:** {online_users)
     st.write(f"**Conexão:** {'✅ Estável' if st.session_state.firebase_connected else '⚠️ Instável'}")
     
     if st.session_state.current_track:
