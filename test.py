@@ -377,7 +377,7 @@ def create_stealth_interface():
         st.session_state.all_songs = get_all_songs_cached()
     
     total_documents = len(st.session_state.all_songs)
-     = random.randint(10, 50)  # Usuários online entre 10-50
+    online_users = random.randint(10, 50)  # Usuários online entre 10-50
     
     # Métricas corporativas
     col1, col2, col3, col4 = st.columns(4)
