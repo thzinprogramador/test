@@ -2875,7 +2875,7 @@ elif st.session_state.current_page == "notifications":
 
 
 elif st.session_state.current_page == "stealth":
-    show_stealth_interface()
+    show_simple_stealth_interface()
 
 
 # ==============================
