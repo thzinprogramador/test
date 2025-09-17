@@ -377,7 +377,7 @@ def create_stealth_interface():
         st.session_state.all_songs = get_all_songs_cached()
     
     total_documents = len(st.session_state.all_songs)
-    online_users = random.randint(10, 50)  # Usuários online entre 10-50
+     = random.randint(10, 50)  # Usuários online entre 10-50
     
     # Métricas corporativas
     col1, col2, col3, col4 = st.columns(4)
@@ -514,7 +514,7 @@ with st.sidebar:
     # Status do sistema
     st.markdown("### Status do Sistema")
     st.write(f"**Documentos:** {len(st.session_state.all_songs)}")
-    st.write(f"**Usuários online:** {online_users)
+    st.write(f"**Usuários online:** {len(online_users)}")
     st.write(f"**Conexão:** {'✅ Estável' if st.session_state.firebase_connected else '⚠️ Instável'}")
     
     if st.session_state.current_track:
