@@ -144,22 +144,6 @@ if "notifications_cache" not in st.session_state:
 
 
 # ==============================
-# VERIFICAÇÃO DE AUTENTICAÇÃO PERSISTENTE
-# ==============================
-if st.session_state.user is None:
-    auth_data = check_persistent_auth()
-    if auth_data:
-        st.session_state.user = {
-            'username': auth_data['username'],
-            'id': auth_data['user_id'],  # Agora é UUID string
-            'is_admin': auth_data['is_admin']
-        }
-        st.session_state.user_id = auth_data['user_id']  # UUID string
-        st.session_state.username = auth_data['username']
-        st.session_state.is_admin = auth_data['is_admin']
-        st.session_state.show_login = False
-
-# ==============================
 # CONFIGURAÇÕES DO SUPABASE
 # ==============================
 SUPABASE_URL = "https://wvouegbuvuairukkupit.supabase.co" 
