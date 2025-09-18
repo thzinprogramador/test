@@ -58,21 +58,6 @@ def search_songs_in_firebase(query):
     songs = ref.order_by_child("title").start_at(query).end_at(query + "\uf8ff").get()
     return songs
 
-# Verificar se está em ambiente corporativo
-def is_corporate_network():
-    try:
-        # Tentar acessar recursos comuns bloqueados em corporativos
-        response = requests.get("https://api.telegram.org", timeout=2)
-        return False
-    except:
-        return True
-
-# Desativar funcionalidades se em rede corporativa
-if is_corporate_network():
-    TELEGRAM_NOTIFICATIONS_ENABLED = False
-    st.session_state.firebase_connected = True 
-    st.warning("Modo offline ativado devido a restrições de rede")
-
 
 # ==============================
 # CONFIGURAÇÃO DA PÁGINA
@@ -246,6 +231,34 @@ def clear_dismissed_notifications():
     """Limpa a lista de notificações descartadas quando o usuário sai da página"""
     if "dismissed_notifications" in st.session_state:
         st.session_state.dismissed_notifications = set()
+
+# ==============================
+# FUNÇÕES DE SESSÃO SIMPLIFICADAS (ADICIONE ESTAS FUNÇÕES)
+# ==============================
+def save_auth_session(username, user_id, is_admin):
+    """Salva a sessão de autenticação usando apenas session_state"""
+    st.session_state.auth_data = {
+        'username': username,
+        'user_id': str(user_id),
+        'is_admin': is_admin,
+        'timestamp': datetime.datetime.now().isoformat()
+    }
+
+def clear_auth_session():
+    """Limpa a sessão de autenticação"""
+    if 'auth_data' in st.session_state:
+        del st.session_state.auth_data
+
+def check_persistent_auth():
+    """Verifica se há autenticação salva"""
+    if hasattr(st.session_state, 'auth_data'):
+        auth_data = st.session_state.auth_data
+        # Validar dados básicos
+        if all(key in auth_data for key in ['username', 'user_id', 'is_admin']):
+            return auth_data
+    return None
+
+
 
 # ==============================
 # SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO
@@ -851,6 +864,19 @@ ADMIN_PASSWORD = "wavesong9090"
 TELEGRAM_BOT_TOKEN = "7680456440:AAFRmCOdehS13VjYY5qKttBbm-hDZRDFjP4"
 TELEGRAM_ADMIN_CHAT_ID = "5919571280"
 TELEGRAM_NOTIFICATIONS_ENABLED = True
+
+def is_corporate_network():
+    try:
+        response = requests.get("https://api.telegram.org", timeout=2)
+        return False
+    except:
+        return True
+
+# Desativar funcionalidades se em rede corporativa
+if is_corporate_network():
+    TELEGRAM_NOTIFICATIONS_ENABLED = False
+    st.session_state.firebase_connected = True 
+    st.warning("Modo offline ativado devido a restrições de rede")
 
 # Inicializar bot do Telegram
 telegram_bot = None
@@ -2131,6 +2157,9 @@ def render_player():
 
     audio_src = get_converted_audio_url(track)
     
+    # Debug: verificar URL do áudio
+    print(f"DEBUG: Audio URL: {audio_src}")
+    
     cover = load_image_cached(track.get("image_url"))
     if cover is not None:
         cover_url = image_to_base64(cover)
@@ -2140,6 +2169,7 @@ def render_player():
     title = track.get("title", "Sem título")
     artist = track.get("artist", "Sem artista")
     
+    # HTML do player simplificado e mais compatível
     audio_html = f'''
     <!DOCTYPE html>
     <html>
@@ -2152,40 +2182,56 @@ def render_player():
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                height: 40px;
+                height: 50px;
             }}
             audio {{
-                width: 300px;
-                height: 40px;
+                width: 350px;
+                height: 50px;
                 outline: none;
+                border-radius: 25px;
             }}
             audio::-webkit-media-controls-panel {{
                 background-color: #1DB954;
             }}
             audio::-webkit-media-controls-play-button {{
-                background-color: #1DB954 !important;
+                background-color: #1DB954;
                 border-radius: 50%;
-                box-shadow: 0 0 8px rgba(0,0,0,0.4);
-                border: 1px solid #1ed760;
             }}
-
         </style>
     </head>
     <body>
         <audio controls {'autoplay' if st.session_state.is_playing else ''}>
             <source src="{audio_src}" type="audio/mpeg">
+            Seu navegador não suporta o elemento de áudio.
         </audio>
         <script>
             document.addEventListener('DOMContentLoaded', function() {{
                 const audio = document.querySelector('audio');
-                if (audio && {str(st.session_state.is_playing).lower()}) {{
-                    const playPromise = audio.play();
-                    if (playPromise !== undefined) {{
-                        playPromise.catch(error => {{
-                            console.log('Autoplay prevented:', error);
-                            audio.controls = true;
-                        }});
-                    }}
+                if (audio) {{
+                    // Forçar reprodução se necessário
+                    audio.addEventListener('canplay', function() {{
+                        if ({str(st.session_state.is_playing).lower()}) {{
+                            const playPromise = audio.play();
+                            if (playPromise !== undefined) {{
+                                playPromise.catch(error => {{
+                                    console.log('Autoplay prevented:', error);
+                                    // Tentar reproduzir com interação do usuário
+                                    document.addEventListener('click', function playOnClick() {{
+                                        audio.play();
+                                        document.removeEventListener('click', playOnClick);
+                                    }});
+                                }});
+                            }}
+                        }}
+                    }});
+                    
+                    // Atualizar estado quando o usuário interage
+                    audio.addEventListener('play', function() {{
+                        window.parent.postMessage({{type: 'AUDIO_PLAYING'}}, '*');
+                    }});
+                    audio.addEventListener('pause', function() {{
+                        window.parent.postMessage({{type: 'AUDIO_PAUSED'}}, '*');
+                    }});
                 }}
             }});
         </script>
@@ -2197,18 +2243,24 @@ def render_player():
     
     player_html = f"""
     <div style="position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
-                background:rgba(0,0,0,0.8);padding:15px;border-radius:15px;
+                background:rgba(0,0,0,0.9);padding:15px;border-radius:15px;
                 display:flex;align-items:center;gap:15px;z-index:999;
                 box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);
-                width:600px; max-width:90%;">
+                width:650px; max-width:95%;">
         <img src="{cover_url}" width="60" height="60" style="border-radius:10px;object-fit:cover"/>
-        <div style="flex:1;">
-            <div style="font-weight:bold;color:white;font-size:16px;margin-bottom:5px">{title}</div>
-            <div style="color:#ccc;font-size:14px">{artist}</div>
+        <div style="flex:1;min-width:0;">
+            <div style="font-weight:bold;color:white;font-size:16px;margin-bottom:5px;
+                        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                {title}
+            </div>
+            <div style="color:#ccc;font-size:14px;
+                        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                {artist}
+            </div>
         </div>
         <iframe src="data:text/html;base64,{audio_html_encoded}" 
-                style="width:320px;height:50px;border:none;margin-left:auto;border-radius:8px;
-                       overflow:hidden;"></iframe>
+                style="width:350px;height:60px;border:none;margin-left:auto;
+                       border-radius:25px;overflow:hidden;"></iframe>
     </div>
     """
     
