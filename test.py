@@ -18,6 +18,36 @@ from firebase_admin import credentials, db
 from io import BytesIO
 from PIL import Image
 
+
+def check_dependencies():
+    dependencies = [
+        'streamlit', 'firebase_admin', 'requests', 'google.cloud.firestore',
+        'PIL', 'supabase', 'dotenv', 'telebot', 'bcrypt', 'websocket'
+    ]
+    
+    missing = []
+    for dep in dependencies:
+        try:
+            __import__(dep)
+        except ImportError:
+            missing.append(dep)
+    
+    if missing:
+        st.error(f"Dependências faltando: {', '.join(missing)}")
+        return False
+    return True
+
+if not check_dependencies():
+    st.stop()
+
+try:
+    import telebot
+    TELEGRAM_AVAILABLE = True
+except ImportError:
+    TELEGRAM_AVAILABLE = False
+    print("Aviso: pyTelegramBotAPI não está instalado. Funcionalidades do Telegram serão desativadas.")
+
+
 # ==============================
 # CONFIGURAÇÕES OFUSCADAS (BASE64)
 # ==============================
