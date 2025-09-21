@@ -13,7 +13,7 @@ import json
 import gc
 import re
 import unicodedata
-import websocket
+import websocket as websocket
 import streamlit.components.v1 as components
 from firebase_admin import credentials, db
 from io import BytesIO
