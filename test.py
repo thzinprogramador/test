@@ -668,6 +668,15 @@ def sign_up(username, password):
         # Inserir usuário
         response_obj = supabase_client.table("users").insert(user_data)
         response = response_obj.execute()
+
+        # se não voltou nada, forçar busca
+        if not response.get("data") or len(response["data"]) == 0:
+            check_user = supabase_client.table("users").select("*").eq("username", username).execute()
+            if check_user.get("data"):
+                return True, "✅ Conta criada com sucesso!"
+            else:
+                return False, "Erro ao criar conta"
+
         
         # Verificação da resposta
         user_created = False
@@ -707,7 +716,7 @@ def sign_in(username, password):
     """Autentica um usuário usando username e senha"""
     try:
         # Buscar usuário no banco - busca todos os usuários primeiro
-        response = supabase_client.table("users").select("*").execute()
+        response = supabase_client.table("users").select("*").eq("username", username).execute()
         
         # Debug: verificar o que está retornando
         print(f"DEBUG: Resposta do Supabase: {response}")
