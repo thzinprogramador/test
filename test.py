@@ -1836,14 +1836,7 @@ def handle_telegram_commands():
     pass
 
 # Configurar Telegram para receber comandos
-telegram_bot = None
-if TELEGRAM_NOTIFICATIONS_ENABLED:
-    try:
-        telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
-        print("✅ Bot do Telegram inicializado para envio de mensagens!")
-    except Exception as e:
-        st.error(f"❌ Erro ao conectar com Telegram: {e}")
-        TELEGRAM_NOTIFICATIONS_ENABLED = False
+
 
 
 def send_telegram_command_response(command, message=""):
