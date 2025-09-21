@@ -1671,6 +1671,14 @@ def check_and_display_telegram_status():
         st.error("❌ Telegram desativado")
         return False
     
+    # Verificar se telegram_bot foi inicializado
+    if telegram_bot is None:
+        try:
+            telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+        except Exception as e:
+            st.error(f"❌ Erro ao criar bot Telegram: {e}")
+            return False
+    
     try:
         bot_info = telegram_bot.get_me()
         st.success(f"✅ Telegram conectado")
@@ -1828,20 +1836,15 @@ def handle_telegram_commands():
     pass
 
 # Configurar Telegram para receber comandos
+telegram_bot = None
 if TELEGRAM_NOTIFICATIONS_ENABLED:
     try:
-        setup_telegram_commands()
-        def start_bot():
-            try:
-                telegram_bot.infinity_polling()
-            except Exception as e:
-                print(f"Erro no bot do Telegram: {e}")
-        
-        bot_thread = threading.Thread(target=start_bot, daemon=True)
-        bot_thread.start()
-        print("✅ Bot do Telegram iniciado!")
+        telegram_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+        print("✅ Bot do Telegram inicializado para envio de mensagens!")
     except Exception as e:
-        st.error(f"❌ Erro ao iniciar bot: {e}")
+        st.error(f"❌ Erro ao conectar com Telegram: {e}")
+        TELEGRAM_NOTIFICATIONS_ENABLED = False
+
 
 def send_telegram_command_response(command, message=""):
     if not TELEGRAM_NOTIFICATIONS_ENABLED:
