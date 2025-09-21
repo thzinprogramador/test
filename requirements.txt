@@ -1,5 +1,4 @@
-# requirements.txt otimizado para Python 3.13
-streamlit==1.35.0
+streamlit==1.32.0
 firebase-admin==6.4.0
 requests==2.31.0
 google-cloud-firestore==2.11.1
@@ -9,4 +8,3 @@ python-dotenv==1.0.1
 pyTelegramBotAPI==4.14.1
 bcrypt==4.0.1
 websocket-client==1.6.4
-setuptools==68.2.2
