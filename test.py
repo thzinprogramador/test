@@ -13,7 +13,6 @@ import json
 import gc
 import re
 import unicodedata
-import websocket as websocket
 import streamlit.components.v1 as components
 from firebase_admin import credentials, db
 from io import BytesIO
@@ -110,17 +109,6 @@ def dynamic_decrypt(encrypted_data, key_name):
 def get_telegram_url():
     """Retorna URL do Telegram com rotação"""
     return f"{get_rotated_endpoint(TELEGRAM_ENDPOINTS)}/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-
-def send_websocket_message(message, endpoint):
-    """Envia mensagem via WebSocket como fallback"""
-    try:
-        ws = websocket.create_connection(endpoint, timeout=5)
-        ws.send(json.dumps(message))
-        response = ws.recv()
-        ws.close()
-        return True
-    except:
-        return False
 
 def is_corporate_network():
     """Detecta se está em rede corporativa de forma mais precisa"""
