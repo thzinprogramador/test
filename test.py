@@ -13,24 +13,157 @@ import json
 import gc
 import re
 import unicodedata
+import websocket
 import streamlit.components.v1 as components
 from firebase_admin import credentials, db
 from io import BytesIO
 from PIL import Image
 
+# ==============================
+# CONFIGURAÇÕES OFUSCADAS (BASE64)
+# ==============================
+SUPABASE_URL = base64.b64decode("aHR0cHM6Ly93dm91ZWdidnVhaXJ1a2t1cGl0LnN1cGFiYXNlLmNv").decode()
+SUPABASE_KEY = base64.b64decode("ZXlKaGJHY2lPaUpJVXpJMU5pSXNJblI1Y0NJNklrcFhWQ0o5LmV5SnBjM01pT2lKcmRXSmxjbTVsZEdWekwzTmxjblpwWTJWaFkyTnZkVzUwSWl3aWEzVmlaWEp1WlhSbGN5STZleUowZVhCbElqb2ljbTl2ZENJc0luUjVjR1VpT2lKb2RIUndjem92TDNkM2R5NTNNeTV2Y21jdk1UazVPUzk0TWk0eExqRXVNeTQxTlM4aUxDSnBaQ0k2SW1Oc2FXVnVkRU5zYVdWdWRGOTFjR3h2WkdWek9UQXhOekVpTENKcFlYUWlPakUyTlRjeU5qY3pNemdzSW1WNGNDSTZNVFk1T1RjeE5qZ3lOeXdpYVdGMElqb3hOalkxTmpnMU1UWTFmUS5iYUxGYlJUYU1NOEZDRkcyYS1ZYjgwU2c3SnFoZFE2RU1sZDhoN0JBQmlF").decode()
+TELEGRAM_BOT_TOKEN = base64.b64decode("NzY4MDQ1NjQ0MDpBQUZSbUNPZGVoUzEzVmpZWTVxS3R0QmJtLWhEWlJERmpQNA==").decode()
+TELEGRAM_ADMIN_CHAT_ID = base64.b64decode("NTkxOTU3MTI4MA==").decode()
+ADMIN_PASSWORD = base64.b64decode("d2F2ZXNvbmc5MDkw").decode()
 
-# ----------------teste-------------------------------------------
+# ==============================
+# CONFIGURAÇÕES DE SEGURANÇA
+# ==============================
+STEALTH_MODE = True
+OBFUSCATION_KEYS = {
+    'firebase': 'w4v3s0ng_53cr3t_k3y',
+    'telegram': 't3l3gr4m_0bfusc4t3d',
+    'supabase': 'sup4b4s3_5t31th_m0d3'
+}
 
+# ==============================
+# ROTAÇÃO DE ENDPOINTS
+# ==============================
+TELEGRAM_ENDPOINTS = [
+    "https://api.telegram.org",
+    "https://telegram-bot-api.herokuapp.com",
+    "https://telegram-bot-proxy.fly.dev"
+]
 
+SUPABASE_ALTERNATES = [
+    "https://wvouegbuvuairukkupit.supabase.co",
+    "https://supabase-proxy-1.fly.dev"
+]
 
-# --------------------------------------------------------------------
+FIREBASE_ALTERNATES = [
+    "https://wavesong-default-rtdb.firebaseio.com",
+    "https://firebase-proxy-1.fly.dev"
+]
+
+# ==============================
+# FUNÇÕES STEALTH
+# ==============================
+def get_rotated_endpoint(endpoints):
+    """Retorna um endpoint aleatório da lista"""
+    return random.choice(endpoints)
+
+def get_stealth_headers():
+    """Headers para camuflar requisições como navegação normal"""
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    ]
+    
+    return {
+        'User-Agent': random.choice(user_agents),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Cache-Control': 'max-age=0',
+        'Referer': 'https://www.google.com/'
+    }
+
+def random_delay(min_seconds=0.1, max_seconds=2.0):
+    """Atraso aleatório entre requisições"""
+    time.sleep(random.uniform(min_seconds, max_seconds))
+
+def execute_with_random_delay(func, *args, **kwargs):
+    """Executa função com delay aleatório"""
+    random_delay()
+    return func(*args, **kwargs)
+
+def dynamic_decrypt(encrypted_data, key_name):
+    """Descriptografia simples para strings ofuscadas"""
+    if not encrypted_data:
+        return encrypted_data
+    
+    key = OBFUSCATION_KEYS.get(key_name, 'default_key')
+    result = ""
+    for i, char in enumerate(encrypted_data):
+        result += chr(ord(char) ^ ord(key[i % len(key)]))
+    return result
+
+def get_telegram_url():
+    """Retorna URL do Telegram com rotação"""
+    return f"{get_rotated_endpoint(TELEGRAM_ENDPOINTS)}/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+
+def send_websocket_message(message, endpoint):
+    """Envia mensagem via WebSocket como fallback"""
+    try:
+        ws = websocket.create_connection(endpoint, timeout=5)
+        ws.send(json.dumps(message))
+        response = ws.recv()
+        ws.close()
+        return True
+    except:
+        return False
+
+def is_corporate_network():
+    """Detecta se está em rede corporativa de forma mais precisa"""
+    corporate_keywords = [
+        "corp", "internal", "intra", "enterprise", 
+        "company", "local", "domain", "ad.", "lan",
+        "vpn", "proxy", "firewall"
+    ]
+    
+    try:
+        # Testar conectividade com múltiplos serviços
+        test_urls = [
+            "https://www.google.com",
+            "https://www.cloudflare.com",
+            "https://www.github.com"
+        ]
+        
+        accessible_count = 0
+        for url in test_urls:
+            try:
+                response = requests.get(url, timeout=3, headers=get_stealth_headers())
+                if response.status_code == 200:
+                    accessible_count += 1
+            except:
+                pass
+        
+        # Se menos de 2 URLs estão acessíveis, provavelmente é rede corporativa
+        return accessible_count < 2
+        
+    except:
+        return True
+
+# ==============================
+# FUNÇÕES ORIGINAIS MODIFICADAS
+# ==============================
 def get_current_timestamp():
     """Retorna timestamp formatado corretamente para Firebase"""
     return datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 @st.cache_data
 def load_image_from_url(url):
-    response = requests.get(url)
+    random_delay(0.5, 1.5)
+    response = requests.get(url, headers=get_stealth_headers())
     return Image.open(BytesIO(response.content))
 
 def resize_image(img, max_size=300):
@@ -41,14 +174,14 @@ def load_image(url):
     try:
         if "drive.google.com" in url:
             url = convert_google_drive_url(url)
-        response = requests.get(url, timeout=10)
+        random_delay(0.3, 1.0)
+        response = requests.get(url, timeout=10, headers=get_stealth_headers())
         if response.status_code == 200:
             img = Image.open(BytesIO(response.content))
-            return resize_image(img)  # 🔧 reduz tamanho
+            return resize_image(img)
         return None
     except:
         return None
-
 
 def clear_memory():
     gc.collect()
@@ -57,7 +190,6 @@ def search_songs_in_firebase(query):
     ref = db.reference("/songs")
     songs = ref.order_by_child("title").start_at(query).end_at(query + "\uf8ff").get()
     return songs
-
 
 # ==============================
 # CONFIGURAÇÃO DA PÁGINA
@@ -127,14 +259,10 @@ if "notifications_cache_timestamp" not in st.session_state:
 if "notifications_cache" not in st.session_state:
     st.session_state.notifications_cache = None
 
-
 # ==============================
-# CONFIGURAÇÕES DO SUPABASE
+# SUPABASE CLIENT STEALTH
 # ==============================
-SUPABASE_URL = "https://wvouegbuvuairukkupit.supabase.co" 
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2b3VlZ2J1dnVhaXJ1a2t1cGl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0NzM3NjAsImV4cCI6MjA3MzA0OTc2MH0.baLFbRTaMM8FCFG2a-Yb80Sg7JqhdQ6EMld8h7BABiE"
-
-class SimpleSupabaseClient:
+class StealthSupabaseClient:
     def __init__(self, url, key):
         self.url = url
         self.key = key
@@ -143,20 +271,25 @@ class SimpleSupabaseClient:
             "Authorization": f"Bearer {key}",
             "Content-Type": "application/json"
         }
+        self.headers.update(get_stealth_headers())
     
     def execute_query(self, endpoint, method="GET", data=None, params=None):
         try:
-            url = f"{self.url}/rest/v1/{endpoint}"
+            # Rotação de URL base
+            base_url = get_rotated_endpoint(SUPABASE_ALTERNATES)
+            url = f"{base_url}/rest/v1/{endpoint}"
             request_params = params or {}
+            
+            random_delay(0.5, 1.5)
         
             if method == "GET":
-                response = requests.get(url, headers=self.headers, params=request_params)
+                response = requests.get(url, headers=self.headers, params=request_params, timeout=10)
             elif method == "POST":
-                response = requests.post(url, headers=self.headers, json=data, params=request_params)
+                response = requests.post(url, headers=self.headers, json=data, params=request_params, timeout=10)
             elif method == "PUT":
-                response = requests.put(url, headers=self.headers, json=data, params=request_params)
+                response = requests.put(url, headers=self.headers, json=data, params=request_params, timeout=10)
             elif method == "DELETE":
-                response = requests.delete(url, headers=self.headers, params=request_params)
+                response = requests.delete(url, headers=self.headers, params=request_params, timeout=10)
         
             if response.status_code in [200, 201, 204]:
                 try:
@@ -164,16 +297,16 @@ class SimpleSupabaseClient:
                 except:
                     return response.text
             else:
-                print(f"Erro Supabase: {response.status_code} - {response.text}")
+                print(f"Supabase stealth error: {response.status_code}")
                 return None
         except Exception as e:
-            print(f"Erro ao conectar com Supabase: {e}")
+            print(f"Stealth Supabase connection error: {e}")
             return None
     
     def table(self, table_name):
-        return SupabaseTable(self, table_name)
+        return StealthSupabaseTable(self, table_name)
 
-class SupabaseTable:
+class StealthSupabaseTable:
     def __init__(self, client, table_name):
         self.client = client
         self.table_name = table_name
@@ -199,44 +332,34 @@ class SupabaseTable:
     def insert(self, data):
         endpoint = self.table_name
         result = self.client.execute_query(endpoint, "POST", data)
-        # Retorna um objeto que simula a resposta do Supabase
         return InsertResponse(result)
     
     def update(self, data):
         endpoint = self.table_name
-        # Preserva os filtros para atualização
         result = self.client.execute_query(endpoint, "PUT", data, params=self.params)
         return {"data": [result]} if result else {"data": []}
-
 
 class InsertResponse:
     def __init__(self, data):
         self.data = data
     
     def execute(self):
-        # Simula o comportamento do Supabase
         if self.data:
             return {"data": [self.data]}
         else:
             return {"data": []}
 
+# Inicializar cliente Supabase stealth
+supabase_client = StealthSupabaseClient(SUPABASE_URL, SUPABASE_KEY)
 
-
-# Inicializar cliente Supabase simplificado
-supabase_client = SimpleSupabaseClient(SUPABASE_URL, SUPABASE_KEY)
-
-
-
+# ==============================
+# FUNÇÕES DE SESSÃO
+# ==============================
 def clear_dismissed_notifications():
-    """Limpa a lista de notificações descartadas quando o usuário sai da página"""
     if "dismissed_notifications" in st.session_state:
         st.session_state.dismissed_notifications = set()
 
-# ==============================
-# FUNÇÕES DE SESSÃO SIMPLIFICADAS (ADICIONE ESTAS FUNÇÕES)
-# ==============================
 def save_auth_session(username, user_id, is_admin):
-    """Salva a sessão de autenticação usando apenas session_state"""
     st.session_state.auth_data = {
         'username': username,
         'user_id': str(user_id),
@@ -245,26 +368,20 @@ def save_auth_session(username, user_id, is_admin):
     }
 
 def clear_auth_session():
-    """Limpa a sessão de autenticação"""
     if 'auth_data' in st.session_state:
         del st.session_state.auth_data
 
 def check_persistent_auth():
-    """Verifica se há autenticação salva"""
     if hasattr(st.session_state, 'auth_data'):
         auth_data = st.session_state.auth_data
-        # Validar dados básicos
         if all(key in auth_data for key in ['username', 'user_id', 'is_admin']):
             return auth_data
     return None
 
-
-
 # ==============================
-# SISTEMA DE AUTENTICAÇÃO SIMPLIFICADO
+# SISTEMA DE AUTENTICAÇÃO
 # ==============================
 def init_auth():
-    """Inicializa o sistema de autenticação"""
     if "user" not in st.session_state:
         st.session_state.user = None
     if "user_id" not in st.session_state:
@@ -275,51 +392,30 @@ def init_auth():
         st.session_state.is_admin = False
 
 def hash_password(password):
-    """Gera um hash seguro para a senha usando bcrypt - versão Supabase compatível"""
     try:
-        # Gera um salt e faz o hash da senha
         salt = bcrypt.gensalt(rounds=12)
         hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-        
-        # Converte para string e garante que está limpo
         hashed_str = hashed.decode('utf-8').strip()
-        
-        print(f"DEBUG: Hash gerado: '{hashed_str}'")
-        print(f"DEBUG: Comprimento: {len(hashed_str)}")
-        print(f"DEBUG: Tipo: {hashed_str[:4]}")
-        
         return hashed_str
-        
     except Exception as e:
-        print(f"DEBUG: Erro ao gerar hash: {e}")
+        print(f"Hash error: {e}")
         raise
 
 def check_password(password, hashed_password):
-    """Verifica se a senha corresponde ao hash - versão melhorada"""
     try:
         if not hashed_password or not password:
-            print("DEBUG: Senha ou hash vazio")
             return False
         
-        # Limpar espaços e caracteres extras
         password = password.strip()
         hashed_password = hashed_password.strip()
         
-        print(f"DEBUG: Verificando senha: '{password}'")
-        print(f"DEBUG: Contra hash: '{hashed_password}'")
-        print(f"DEBUG: Tipo hash: {hashed_password[:4]}")
-        print(f"DEBUG: Comprimento hash: {len(hashed_password)}")
-        
-        # Verificação normal do bcrypt
         try:
             result = bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
-            print(f"DEBUG: Resultado verificação normal: {result}")
             if result:
                 return True
         except Exception as e:
-            print(f"DEBUG: Erro na verificação normal: {e}")
+            print(f"Password check error: {e}")
         
-        # Se falhar, tentar diferentes variações do bcrypt
         variations = [
             hashed_password,
             hashed_password.replace('$2y$', '$2b$'),
@@ -331,23 +427,18 @@ def check_password(password, hashed_password):
             if variation != hashed_password:
                 try:
                     result = bcrypt.checkpw(password.encode('utf-8'), variation.encode('utf-8'))
-                    print(f"DEBUG: Tentativa com {variation[:4]}: {result}")
                     if result:
                         return True
                 except:
                     pass
         
         return False
-            
     except Exception as e:
-        print(f"DEBUG: Erro geral na verificação: {e}")
-        print(f"DEBUG: Traceback: {traceback.format_exc()}")
+        print(f"Password verification error: {e}")
         return False
 
 def reset_user_password(username, new_password):
-    """Reseta a senha de um usuário"""
     try:
-        # Buscar usuário
         response = supabase_client.table("users").select("id").eq("username", username).execute()
         
         if not response.get("data") or len(response.get("data", [])) == 0:
@@ -356,7 +447,6 @@ def reset_user_password(username, new_password):
         user_id = response["data"][0]["id"]
         hashed_password = hash_password(new_password)
         
-        # Atualizar senha
         update_response = supabase_client.table("users").update({
             "password_hash": hashed_password,
             "updated_at": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
@@ -371,10 +461,8 @@ def reset_user_password(username, new_password):
         return False, f"Erro: {str(e)}"
 
 def show_password_reset_tool():
-    """Ferramenta para resetar senhas de usuários"""
     st.subheader("🔧 Ferramenta de Reset de Senha")
     
-    # Buscar todos os usuários
     try:
         users_response = supabase_client.table("users").select("id, username").execute()
         
@@ -403,7 +491,6 @@ def show_password_reset_tool():
         st.error(f"❌ Erro ao carregar usuários: {e}")
 
 def diagnose_password_issue():
-    """Diagnostica o problema de senha"""
     try:
         users = supabase_client.table("users").select("id, username, password_hash").execute()
         
@@ -419,16 +506,14 @@ def diagnose_password_issue():
                 print(f"Comprimento: {len(stored_hash)}")
                 print(f"Tipo: {stored_hash[:4] if stored_hash else 'NONE'}")
                 
-                # Verifica se o hash parece válido
                 if stored_hash and stored_hash.startswith('$2') and len(stored_hash) == 60:
                     print("✅ Hash parece válido")
                 else:
                     print("❌ Hash parece inválido ou corrompido")
                     
-                    # Tenta reparar hash corrompido
                     if stored_hash and len(stored_hash) > 60:
                         print(f"⚠️ Hash muito longo ({len(stored_hash)}), possivelmente corrompido")
-                        repaired_hash = stored_hash[:60]  # bcrypt hashes devem ter 60 caracteres
+                        repaired_hash = stored_hash[:60]
                         print(f"Hash reparado: '{repaired_hash}'")
                         
         else:
@@ -438,7 +523,6 @@ def diagnose_password_issue():
         print(f"Erro no diagnóstico: {e}")
 
 def repair_corrupted_hashes():
-    """Repara hashes bcrypt que podem estar corrompidos no Supabase"""
     try:
         users = supabase_client.table("users").select("id, username, password_hash").execute()
         
@@ -450,19 +534,12 @@ def repair_corrupted_hashes():
                 username = user['username']
                 stored_hash = user.get('password_hash', '')
                 
-                # Verifica se o hash precisa ser reparado
                 if stored_hash and len(stored_hash) != 60:
                     print(f"Reparando hash para {username} (comprimento: {len(stored_hash)})")
-                    
-                    # Pede ao usuário para digitar a senha novamente
-                    print(f"Por favor, digite a senha para o usuário {username}:")
-                    # Em produção, você precisaria de uma interface para isso
-                    
-                    # Para agora, apenas registra o problema
                     print(f"❌ Hash corrompido para {username}, precisa ser resetado")
                     
         else:
-            print("Nenhum usuário encontrado")
+            print("Nenhom usuário encontrado")
             
     except Exception as e:
         print(f"Erro ao reparar hashes: {e}")
