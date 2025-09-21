@@ -1547,24 +1547,10 @@ def convert_google_drive_url(url):
         return f"https://lh3.googleusercontent.com/d/{file_id}=s500"
     return url
 
-# Função para carregar imagem com tratamento de erro
-def load_image(url):
-    try:
-        if "drive.google.com" in url:
-            url = convert_google_drive_url(url)
-        
-        response = requests.get(url, timeout=10, headers=get_stealth_headers())
-        if response.status_code == 200:
-            img = Image.open(BytesIO(response.content))
-            return img
-        else:
-            return None
-    except Exception as e:
-        return None
 
 @st.cache_data
-def load_image_cached(url):
-    return load_image(url)
+def load_image_cached(url, max_size=300):
+    return load_image(url, max_size=max_size)
 
 def get_top6_songs():
     songs = st.session_state.all_songs
