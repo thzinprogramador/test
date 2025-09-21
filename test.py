@@ -12,6 +12,8 @@ import bcrypt
 import json
 import gc
 import re
+import sys
+import subprocess
 import unicodedata
 import streamlit.components.v1 as components
 from firebase_admin import credentials, db
@@ -19,26 +21,43 @@ from io import BytesIO
 from PIL import Image
 
 
-def check_dependencies():
-    dependencies = [
-        'streamlit', 'firebase_admin', 'requests', 'google.cloud.firestore',
-        'PIL', 'supabase', 'dotenv', 'telebot', 'bcrypt', 'websocket'
-    ]
+def check_and_install_dependencies():
+    required = {
+        'streamlit': '1.32.0',
+        'firebase_admin': '6.4.0', 
+        'requests': '2.31.0',
+        'google.cloud.firestore': '2.11.1',
+        'PIL': '9.5.0',  # Pillow
+        'supabase': '2.3.1',
+        'python_dotenv': '1.0.1',
+        'telebot': '4.14.1',  # pyTelegramBotAPI
+        'bcrypt': '4.0.1',
+        'websocket': '1.6.4'  # websocket-client
+    }
     
     missing = []
-    for dep in dependencies:
+    for package, version in required.items():
         try:
-            __import__(dep)
+            if package == 'PIL':
+                import PIL
+            else:
+                __import__(package)
         except ImportError:
-            missing.append(dep)
+            missing.append(f"{package}=={version}")
     
     if missing:
-        st.error(f"Dependências faltando: {', '.join(missing)}")
-        return False
-    return True
+        print(f"Instalando dependências faltantes: {', '.join(missing)}")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing)
+            print("Dependências instaladas com sucesso!")
+        except subprocess.CalledProcessError:
+            print("Erro ao instalar dependências. Instale manualmente:")
+            for dep in missing:
+                print(f"pip install {dep}")
+            sys.exit(1)
 
-if not check_dependencies():
-    st.stop()
+# Chame esta função no início do seu código
+check_and_install_dependencies()
 
 try:
     import telebot
